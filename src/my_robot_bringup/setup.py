@@ -21,6 +21,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'lidar_subscriber = my_robot_bringup.lidar_subscriber:main',
+            'lidar_test_world= my_robot_bringup.lidar_test:main',
         ],
     },
 )
