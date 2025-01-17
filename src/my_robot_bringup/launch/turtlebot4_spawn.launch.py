@@ -60,10 +60,13 @@ for pose_element in ['x', 'y', 'z', 'yaw']:
 def generate_launch_description():
 
     # Directories
+
+    pkg_turtlebot4_description= '/home/wyattcolburn/ros_ws/src/turtlebot4_description'  # Adjust this to the absolute path of your package
+
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')
-    pkg_turtlebot4_description = get_package_share_directory(
-        'turtlebot4_description')
+    #pkg_turtlebot4_description = get_package_share_directory(
+    #    'turtlebot4_description')
     pkg_turtlebot4_viz = get_package_share_directory(
         'turtlebot4_viz')
     pkg_turtlebot4_navigation = get_package_share_directory(

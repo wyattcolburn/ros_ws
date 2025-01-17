@@ -47,8 +47,10 @@ def generate_launch_description():
         'turtlebot4_ignition_bringup')
     pkg_turtlebot4_ignition_gui_plugins = get_package_share_directory(
         'turtlebot4_ignition_gui_plugins')
-    pkg_turtlebot4_description = get_package_share_directory(
-        'turtlebot4_description')
+    #pkg_turtlebot4_description = get_package_share_directory(
+    #    'turtlebot4_description')
+    custom_turtlebot4_description = "/ros_ws/src/turtlebot4_description"
+
     pkg_irobot_create_description = get_package_share_directory(
         'irobot_create_description')
     pkg_irobot_create_ignition_bringup = get_package_share_directory(
@@ -64,7 +66,7 @@ def generate_launch_description():
         value=[
             os.path.join(pkg_turtlebot4_ignition_bringup, 'worlds'), ':' +
             os.path.join(pkg_irobot_create_ignition_bringup, 'worlds'), ':' +
-            str(Path(pkg_turtlebot4_description).parent.resolve()), ':' +
+            str(Path(custom_turtlebot4_description).resolve()), ':' +
             str(Path(pkg_irobot_create_description).parent.resolve())])
 
     ign_gui_plugin_path = SetEnvironmentVariable(
