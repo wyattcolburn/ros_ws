@@ -1,28 +1,10 @@
-# Copyright 2023 Clearpath Robotics, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# @author Roni Kreinin (rkreinin@clearpathrobotics.com)
-
 from ament_index_python.packages import get_package_share_directory
-
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.actions import IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, ExecuteProcess
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 
-
+# Declare arguments
 ARGUMENTS = [
     DeclareLaunchArgument('namespace', default_value='',
                           description='Robot namespace'),
@@ -33,6 +15,10 @@ ARGUMENTS = [
     DeclareLaunchArgument('model', default_value='standard',
                           choices=['standard', 'lite'],
                           description='Turtlebot4 Model'),
+    DeclareLaunchArgument('output_dir', default_value='/home/wyattcolburn/ros_ws/bags/lidar',
+                          description='Directory to save the lidar bag'),
+    DeclareLaunchArgument('topics', default_value='/scan',
+                          description='Topics to record in the bag'),
 ]
 
 for pose_element in ['x', 'y', 'z', 'yaw']:
@@ -44,13 +30,15 @@ def generate_launch_description():
     # Directories
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')
-
+    pkg_my_robot_bringup = get_package_share_directory(
+        'my_robot_bringup')
     # Paths
     ignition_launch = PathJoinSubstitution(
         [pkg_turtlebot4_ignition_bringup, 'launch', 'ignition.launch.py'])
     robot_spawn_launch = PathJoinSubstitution(
         [pkg_turtlebot4_ignition_bringup, 'launch', 'turtlebot4_spawn.launch.py'])
-
+    bag_poc_launch = PathJoinSubstitution(
+        [pkg_my_robot_bringup, 'launch', 'bag_poc.launch.py'])    # Launch actions
     ignition = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([ignition_launch]),
         launch_arguments=[
@@ -68,10 +56,19 @@ def generate_launch_description():
             ('z', LaunchConfiguration('z')),
             ('yaw', LaunchConfiguration('yaw'))]
     )
+    bag_recording = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([bag_poc_launch]),
+        launch_arguments=[
+            ('output_dir', LaunchConfiguration('output_dir')),
+            ('topics', LaunchConfiguration('topics')),
+        ]
+    )
+
 
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
+    ld.add_action(bag_recording)  # Add bag recording to the launch sequence
     return ld
 
