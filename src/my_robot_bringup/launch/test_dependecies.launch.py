@@ -37,8 +37,6 @@ def generate_launch_description():
         [pkg_turtlebot4_ignition_bringup, 'launch', 'ignition.launch.py'])
     robot_spawn_launch = PathJoinSubstitution(
         [pkg_turtlebot4_ignition_bringup, 'launch', 'turtlebot4_spawn.launch.py'])
-    bag_poc_launch = PathJoinSubstitution(
-        [pkg_my_robot_bringup, 'launch', 'bag_poc.launch.py'])    # Launch actions
     ignition = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([ignition_launch]),
         launch_arguments=[
@@ -56,19 +54,11 @@ def generate_launch_description():
             ('z', LaunchConfiguration('z')),
             ('yaw', LaunchConfiguration('yaw'))]
     )
-    bag_recording = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([bag_poc_launch]),
-        launch_arguments=[
-            ('output_dir', LaunchConfiguration('output_dir')),
-            ('topics', LaunchConfiguration('topics')),
-        ]
-    )
 
 
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
-    ld.add_action(bag_recording)  # Add bag recording to the launch sequence
     return ld
 
