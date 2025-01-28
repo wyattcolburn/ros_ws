@@ -15,10 +15,6 @@ ARGUMENTS = [
     DeclareLaunchArgument('model', default_value='standard',
                           choices=['standard', 'lite'],
                           description='Turtlebot4 Model'),
-    DeclareLaunchArgument('output_dir', default_value='/home/wyattcolburn/ros_ws/bags/lidar',
-                          description='Directory to save the lidar bag'),
-    DeclareLaunchArgument('topics', default_value='/scan',
-                          description='Topics to record in the bag'),
 ]
 
 for pose_element in ['x', 'y', 'z', 'yaw']:
@@ -44,6 +40,7 @@ def generate_launch_description():
         ]
     )
 
+    
     robot_spawn = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([robot_spawn_launch]),
         launch_arguments=[
@@ -54,11 +51,17 @@ def generate_launch_description():
             ('z', LaunchConfiguration('z')),
             ('yaw', LaunchConfiguration('yaw'))]
     )
+    
+    bag_record = ExecuteProcess(
+        cmd=['ros2', 'bag', 'record', '/scan', '/tf', '/tf_static', '/odom'],
+        output='screen'
+        )
 
 
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
+    ld.add_action(bag_record)
     return ld
 
