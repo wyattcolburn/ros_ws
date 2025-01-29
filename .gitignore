@@ -3,3 +3,9 @@
 **/build/
 **/install/
 **/log/
+
+# Ignore ROS 2 bag files
+*.db3
+rosbag2_*
+*.mcap
+
