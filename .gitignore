@@ -9,3 +9,5 @@
 rosbag2_*
 *.mcap
 
+rosbag2_*
+*.db3
