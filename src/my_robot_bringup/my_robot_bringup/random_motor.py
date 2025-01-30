@@ -47,11 +47,13 @@ class randomMotor(Node):
             v_val = self.v_list[random.randint(0, self.v_steps - 1)]
             w_val = self.w_list[random.randint(0, self.w_steps - 1)]
             msg.linear.x = v_val 
-            msg.linear.z = w_val
+            msg.angular.z = w_val
             print("v_val", v_val, "w_val", w_val)
         elif self.random_type == "gau":
-            msg.linear.x = .1
-            msg.angular.z = .1
+            print("gau motor commands")
+            msg.linear.x = truncated_gaussian(v_min, v_max, .2, 1)
+
+            msg.angular.z = truncated_gaussian(w_min, w_max, 0, 2) 
 
         self.publisher_.publish(msg)
 
@@ -61,7 +63,7 @@ class randomMotor(Node):
 def main(args=None):
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--speed", type=float, default=2, help="--interval, publishing freq")
+    parser.add_argument("--speed", type=float, default=.5, help="--interval, publishing freq")
     parser.add_argument("--type", type=str, default='interval', help="type of movement")
     parser.add_argument("--v_steps", type= int, default=8, help="intervals for v")
     parser.add_argument("--w_steps", type= int, default=10, help="intervals for w")
