@@ -36,14 +36,54 @@ class HallucinateNode(Node):
         
         spoofed_ranges[0:20] = [2.0] * 20
         for i in range(num_readings):
-            if (160 <= i) and (240 >= i):
+
+
+            # right side top    
+            if (0 <= i) and (80 >= i):
+                theta_degrees = (i) * .5625
+                theta_rad = math.radians(theta_degrees)
+                hyp = .5 / (math.cos(theta_rad + 1E-5))
+                spoofed_ranges[i] = hyp
+            #top right side
+            elif (80 <= i) and (160 >= i):
+                theta_degrees = (160-i) * .5625
+                theta_rad = math.radians(theta_degrees)
+                hyp = .5 / (math.cos(theta_rad + 1E-5))
+                spoofed_ranges[i] = hyp
+            #top left side    
+            elif (160 <= i) and (240 >= i):
                 theta_degrees = (i -160 ) * .5625
                 theta_rad = math.radians(theta_degrees)
                 hyp = .5 / (math.cos(theta_rad)) + 1E-5
                 spoofed_ranges[i] = hyp
-
-            if (320 <= i) and (400 >= i):
+            #left top side        
+            elif (240 <= i) and (320 >= i):
                 theta_degrees = (i -320 ) * .5625
+                theta_rad = math.radians(theta_degrees)
+                hyp = .5 / (math.cos(theta_rad + 1E-5))
+                spoofed_ranges[i] = hyp
+            #left bottom side
+            elif (320 <= i) and (400 >= i):
+                theta_degrees = (i -320 ) * .5625
+                theta_rad = math.radians(theta_degrees)
+                hyp = .5 / (math.cos(theta_rad + 1E-5))
+                spoofed_ranges[i] = hyp
+            #bottom left side
+            elif (i >= 400) and (i <= 480):
+
+                theta_degrees = (480 - i)* .5625
+                theta_rad = math.radians(theta_degrees)
+                hyp = .5 / math.cos(theta_rad + 1E-5)
+                spoofed_ranges[i] = hyp
+            #bottom right side
+            elif (480 <= i) and (560 >= i):
+                theta_degrees = (480-i)* .5625
+                theta_rad = math.radians(theta_degrees)
+                hyp = .5 / (math.cos(theta_rad + 1E-5))
+                spoofed_ranges[i] = hyp
+            #right bottom side
+            elif (560 <= i) and (640 >= i):
+                theta_degrees = (640-i ) * .5625
                 theta_rad = math.radians(theta_degrees)
                 hyp = .5 / (math.cos(theta_rad + 1E-5))
                 spoofed_ranges[i] = hyp
