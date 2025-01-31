@@ -10,7 +10,7 @@ ARGUMENTS = [
                           description='Robot namespace'),
     DeclareLaunchArgument('rviz', default_value='true',
                           choices=['true', 'false'], description='Start rviz.'),
-    DeclareLaunchArgument('world', default_value='empty_world',
+    DeclareLaunchArgument('world', default_value='maze',
                           description='Ignition World'),
     DeclareLaunchArgument('model', default_value='standard',
                           choices=['standard', 'lite'],
@@ -53,7 +53,7 @@ def generate_launch_description():
     )
     
     bag_record = ExecuteProcess(
-        cmd=['ros2', 'bag', 'record', '/scan', '/tf', '/tf_static', '/odom', '/cmd_vel'],
+        cmd=['ros2', 'bag', 'record', '/scan', '/scan_spoofed','/tf', '/tf_static', '/odom', '/cmd_vel'],
         output='screen'
         )
 

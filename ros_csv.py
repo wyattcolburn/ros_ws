@@ -6,6 +6,8 @@ from rosidl_runtime_py.utilities import get_message
 from dataclasses import asdict, is_dataclass
 import sys
 from collections import defaultdict
+from scipy.spatial.transform import Rotation as R
+
 def extract_messages(bag_path):
     """Extract messages from a ROS 2 bag and store them in a dictionary grouped by timestamp."""
     storage_options = rosbag2_py.StorageOptions(uri=bag_path, storage_id='sqlite3')
@@ -28,31 +30,32 @@ def extract_messages(bag_path):
         # Deserialize message
         msg_type = get_message(type_map[topic])
         msg_deserialized = deserialize_message(msg, msg_type)
-        
-#        if topic == "/odom":
-#              # Extract x, y from position
-#            x = msg_deserialized.pose.pose.position.x
-#            y = msg_deserialized.pose.pose.position.y
-#
-#            # Extract orientation quaternion
-#            qx = msg_deserialized.pose.pose.orientation.x
-#            qy = msg_deserialized.pose.pose.orientation.y
-#            qz = msg_deserialized.pose.pose.orientation.z
-#            qw = msg_deserialized.pose.pose.orientation.w
-#
-#            # Convert quaternion to Euler angles (yaw)
-#            _, _, yaw = tf_transformations.euler_from_quaternion([qx, qy, qz, qw])
-#
-#            # Store only x, y, yaw
-#            grouped_data[timestamp][topic] = {"x": x, "y": y, "yaw": yaw}
+        if topic == "/odom":
+    # Extract x, y from position
+            x = msg_deserialized.pose.pose.position.x
+            y = msg_deserialized.pose.pose.position.y
 
-        if topic == "/scan":
-            # Store full message (or modify if needed)
+            # Extract orientation quaternion and convert to yaw
+            qx = msg_deserialized.pose.pose.orientation.x
+            qy = msg_deserialized.pose.pose.orientation.y
+            qz = msg_deserialized.pose.pose.orientation.z
+            qw = msg_deserialized.pose.pose.orientation.w
+            yaw = R.from_quat([qx, qy, qz, qw]).as_euler('xyz')[2]
+
+            grouped_data.setdefault(timestamp, {}).update({
+                "odom_x": x,
+                "odom_y": y,
+                "odom_yaw": yaw
+            })
+
+        elif topic == "/scan":
+            # Convert LaserScan ranges to a string
             range_data = list(msg_deserialized.ranges)
-
             range_data_str = ",".join(map(str, range_data))
 
-            grouped_data[timestamp][topic] = {range_data_str} 
+            grouped_data.setdefault(timestamp, {}).update({
+                "scan_ranges": range_data_str
+            })
             
     return grouped_data
 
@@ -76,16 +79,16 @@ def save_to_csv(bag_path, output_csv):
 
 if __name__ == "__main__":
 
-    bag_path = "rosbag2_2025_01_27-20_52_04"# Change this to your bag file path
+    bag_path = "rosbag2_2025_01_29-17_28_04"# Scan bag
     rclpy.init()
-    group_data = extract_messages(bag_path)
+    #group_data = extract_messages(bag_path)
     save_to_csv(bag_path, 'output.csv')
     # Print only the first 5 timestamps and their messages
-    for timestamp, topics in list(group_data.items())[:5]:
-        print(f"Timestamp: {timestamp}")
-        for topic, message in topics.items():
-            print(f"  {topic}: {message}")
-        print("\n")  # Newline for readabilityu
+    #for timestamp, topics in list(group_data.items())[:5]:
+    #    print(f"Timestamp: {timestamp}")
+    #    for topic, message in topics.items():
+    #        print(f"  {topic}: {message}")
+    #    print("\n")  # Newline for readabilityu
 
 
     rclpy.shutdown()

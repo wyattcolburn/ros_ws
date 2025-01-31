@@ -3,6 +3,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 import math
+import numpy as np
 threshold = 10
 class HallucinateNode(Node):
     def __init__(self):
@@ -28,11 +29,25 @@ class HallucinateNode(Node):
         self.get_logger().info(f"Num of Lidar Measurements: {len(ranges)}")
         print("angle min: ", msg.angle_min, "angle max: ", msg.angle_max)
 
+        spoofed_ranges =[0.0] * 640
+        num_readings = len(spoofed_ranges)  # Total LIDAR readings
+        mid_index = num_readings // 2  # Forward direction index
+
         
-        spoofed_ranges = []
-        for i in range(len(ranges)):
-            spoofed_ranges.append(ranges[i]+2)
-            
+        spoofed_ranges[0:20] = [2.0] * 20
+        for i in range(num_readings):
+            if (160 <= i) and (240 >= i):
+                theta_degrees = (i -160 ) * .5625
+                theta_rad = math.radians(theta_degrees)
+                hyp = .5 / (math.cos(theta_rad)) + 1E-5
+                spoofed_ranges[i] = hyp
+
+            if (320 <= i) and (400 >= i):
+                theta_degrees = (i -320 ) * .5625
+                theta_rad = math.radians(theta_degrees)
+                hyp = .5 / (math.cos(theta_rad + 1E-5))
+                spoofed_ranges[i] = hyp
+
         spoofed_scan = LaserScan() # type of topic
         spoofed_scan.header = msg.header
         spoofed_scan.angle_min = msg.angle_min

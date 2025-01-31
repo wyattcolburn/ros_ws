@@ -23,7 +23,8 @@ setup(
         'console_scripts': [
             'lidar_subscriber = my_robot_bringup.lidar_subscriber:main',
             'lidar_test_world= my_robot_bringup.lidar_test:main',
-            'random_motor= my_robot_bringup.random_motor:main'
+            'random_motor= my_robot_bringup.random_motor:main',
+            'Hallucination= my_robot_bringup.Hallucination:main'
         ],
     },
 )
