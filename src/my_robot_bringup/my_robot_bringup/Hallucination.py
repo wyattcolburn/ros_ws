@@ -33,60 +33,108 @@ class HallucinateNode(Node):
         num_readings = len(spoofed_ranges)  # Total LIDAR readings
         mid_index = num_readings // 2  # Forward direction index
 
+        angle_increment = 360 / num_readings
         
-        spoofed_ranges[0:20] = [2.0] * 20
-        for i in range(num_readings):
+        
+        height = .5
+        width = .2
+
+        target_theta_height = math.atan(height/width)
+        target_theta_width = math.atan(width/height)
 
 
-            # right side top    
-            if (0 <= i) and (80 >= i):
-                theta_degrees = (i) * .5625
-                theta_rad = math.radians(theta_degrees)
-                hyp = .5 / (math.cos(theta_rad + 1E-5))
-                spoofed_ranges[i] = hyp
-            #top right side
-            elif (80 <= i) and (160 >= i):
-                theta_degrees = (160-i) * .5625
-                theta_rad = math.radians(theta_degrees)
-                hyp = .5 / (math.cos(theta_rad + 1E-5))
-                spoofed_ranges[i] = hyp
-            #top left side    
-            elif (160 <= i) and (240 >= i):
-                theta_degrees = (i -160 ) * .5625
-                theta_rad = math.radians(theta_degrees)
-                hyp = .5 / (math.cos(theta_rad)) + 1E-5
-                spoofed_ranges[i] = hyp
-            #left top side        
-            elif (240 <= i) and (320 >= i):
-                theta_degrees = (i -320 ) * .5625
-                theta_rad = math.radians(theta_degrees)
-                hyp = .5 / (math.cos(theta_rad + 1E-5))
-                spoofed_ranges[i] = hyp
-            #left bottom side
-            elif (320 <= i) and (400 >= i):
-                theta_degrees = (i -320 ) * .5625
-                theta_rad = math.radians(theta_degrees)
-                hyp = .5 / (math.cos(theta_rad + 1E-5))
-                spoofed_ranges[i] = hyp
-            #bottom left side
-            elif (i >= 400) and (i <= 480):
+        scans_per_half_height = math.degrees(target_theta_height) / angle_increment
+        print(f"scans per half height {scans_per_half_height}")
+        scans_per_half_width = math.degrees(target_theta_width) / angle_increment 
+        total_scans = 2*scans_per_half_height + 2 * scans_per_half_width
 
-                theta_degrees = (480 - i)* .5625
+        corner_list = [0]
+        for i in range(8): 
+            if i in (1,2,5,6):
+                corner_list.append(corner_list[-1]+scans_per_half_width)
+            else:
+                corner_list.append(corner_list[-1] + scans_per_half_height)
+            print(corner_list)
+        dimensions = [width, height, height, width, width, height, height, width]
+        #for i in range(5):
+        #    for j in range(int(corner_list[i+1] -corner_list[i])):
+        #        print(f"**********************{i}")
+        #        print(corner_list[i])
+        #        print(int(corner_list[i+1] - corner_list[i]));
+        #        theta_degrees = j * .5625
+        #        theta_rad = math.radians(theta_degrees)
+        #        hyp = height / math.cos(theta_rad + 1E-5)
+        #        spoofed_ranges[j] = hyp
+        print(f"length of corner_list {len(corner_list)}")
+        for corner_list_counter in range(len(corner_list)-1):
+            print("entering loop")
+            start_index = corner_list[corner_list_counter]
+            end_index = corner_list[corner_list_counter + 1]
+            dim = dimensions[corner_list_counter]
+            print(f"start index {start_index} end index {end_index} dim {dim}") 
+            for pixel_counter in range(int(start_index), int(end_index)):
+                if corner_list_counter % 2 == 0:
+                    theta_degrees = (pixel_counter - start_index) * .5625
+                else:
+                    theta_degrees = (end_index - pixel_counter) * .5625
                 theta_rad = math.radians(theta_degrees)
-                hyp = .5 / math.cos(theta_rad + 1E-5)
-                spoofed_ranges[i] = hyp
-            #bottom right side
-            elif (480 <= i) and (560 >= i):
-                theta_degrees = (480-i)* .5625
-                theta_rad = math.radians(theta_degrees)
-                hyp = .5 / (math.cos(theta_rad + 1E-5))
-                spoofed_ranges[i] = hyp
-            #right bottom side
-            elif (560 <= i) and (640 >= i):
-                theta_degrees = (640-i ) * .5625
-                theta_rad = math.radians(theta_degrees)
-                hyp = .5 / (math.cos(theta_rad + 1E-5))
-                spoofed_ranges[i] = hyp
+                hyp = dim/math.cos(theta_rad + 1E-5)
+                spoofed_ranges[pixel_counter] = hyp
+        #for i in range(num_readings):
+
+
+        #    # right side top    
+        #    if (0 <= i) and (112 >= i):
+        #        theta_degrees = (i) * .5625
+        #        theta_rad = math.radians(theta_degrees)
+        #        hyp = width/ (math.cos(theta_rad + 1E-5))
+        #        print(f"hyp : {hyp} i : {i} theta_degrees {theta_degrees}")
+        #        spoofed_ranges[i] = hyp
+        #   #top right side
+        #    elif (112 <= i) and (160 >= i):
+        #        theta_degrees = (160-i) * .5625
+        #        theta_rad = math.radians(theta_degrees)
+        #        hyp = height / (math.cos(theta_rad + 1E-5))
+        #        
+        #        spoofed_ranges[i] = hyp
+        ##    #top left side    
+        #    elif (160 <= i) and (207>= i):
+        #        theta_degrees = (i -160 ) * .5625
+        #        theta_rad = math.radians(theta_degrees)
+        #        hyp = height / (math.cos(theta_rad)) + 1E-5
+        #        spoofed_ranges[i] = hyp
+        ##    #left top side        
+        #    elif (207 <= i) and (320 >= i):
+        #        theta_degrees = (320-i ) * .5625
+        #        theta_rad = math.radians(theta_degrees)
+        #        hyp = width/ (math.cos(theta_rad + 1E-5))
+        #        spoofed_ranges[i] = hyp
+        ##    #left bottom side
+        #    elif (320 <= i) and (432 >= i):
+        #        theta_degrees = (i -320 ) * .5625
+        #        theta_rad = math.radians(theta_degrees)
+        #        hyp = width / (math.cos(theta_rad + 1E-5))
+        #        spoofed_ranges[i] = hyp
+        ##    #bottom left side
+        #    elif (i >= 432) and (i <= 480):
+
+        #        theta_degrees = (480 - i)* .5625
+        #        theta_rad = math.radians(theta_degrees)
+        #        hyp = height / math.cos(theta_rad + 1E-5)
+        #        spoofed_ranges[i] = hyp
+        ##    #bottom right side
+        #    elif (480 <= i) and (527 >= i):
+        #        theta_degrees = (480-i)* .5625
+        #        theta_rad = math.radians(theta_degrees)
+        #        hyp = height / (math.cos(theta_rad + 1E-5))
+        #        spoofed_ranges[i] = hyp
+        ##    #right bottom side
+        #    elif (527 <= i) and (640 >= i):
+        #        theta_degrees = (640-i ) * .5625
+        #        theta_rad = math.radians(theta_degrees)
+        #        hyp = width / (math.cos(theta_rad + 1E-5))
+        #        spoofed_ranges[i] = hyp
+
 
         spoofed_scan = LaserScan() # type of topic
         spoofed_scan.header = msg.header
