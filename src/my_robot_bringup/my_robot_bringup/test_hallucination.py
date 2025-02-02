@@ -1,6 +1,6 @@
 import math
 
-height = 2
+height = 12
 width = 1
 
 num_readings = 640

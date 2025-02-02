@@ -36,9 +36,9 @@ class HallucinateNode(Node):
         angle_increment = 360 / num_readings
         
         
-        height = .5
-        width = .2
-
+        height = 11.0
+        width = 1.0
+        max_range = 12.0
         target_theta_height = math.atan(height/width)
         target_theta_width = math.atan(width/height)
 
@@ -70,9 +70,57 @@ class HallucinateNode(Node):
                 else:
                     theta_degrees = (end_index - pixel_counter) * .5625
                 theta_rad = math.radians(theta_degrees)
-                hyp = dim/math.cos(theta_rad + 1E-5)
+                hyp = dim/math.tan(theta_rad + 1E-5)
                 spoofed_ranges[pixel_counter] = hyp
-
+        #for i in range(num_readings):
+        #    # right side top    
+        #    #if (0 <= i) and (151 >= i):
+        #    #    theta_degrees = (i) * .5625
+        #    #    theta_rad = math.radians(theta_degrees)
+        #    #    hyp = width / (math.cos(theta_rad + 1E-5))
+        #    #    spoofed_ranges[i] = hyp
+        #    #top right side
+        #    if (151 <= i) and (160 >= i):
+        #        theta_degrees = (160-i) * .5625
+        #        theta_rad = math.radians(theta_degrees)
+        #        hyp = height / (math.cos(theta_rad + 1E-5))
+        #        spoofed_ranges[i] = hyp
+        #        print(f"spoofed ranges at {i} : {spoofed_ranges[i]}")
+            #top left side    
+            #elif (160 <= i) and (168 >= i):
+            #    theta_degrees = (i -160 ) * .5625
+            #    theta_rad = math.radians(theta_degrees)
+            #    hyp = height / (math.cos(theta_rad)) + 1E-5
+            #    spoofed_ranges[i] = hyp
+            #if (168 <= i) and (320>= i):
+            ##left top side        
+            #    theta_degrees = (320-i ) * .5625
+            #    theta_rad = math.radians(theta_degrees)
+            #    hyp = width / (math.cos(theta_rad + 1E-5))
+            #    spoofed_ranges[i] = hyp
+            #elif (320 <= i) and (471 >= i):
+            #    theta_degrees = (320 -i ) * .5625
+            #    theta_rad = math.radians(theta_degrees)
+            #    hyp = width / (math.cos(theta_rad + 1E-5))
+            #    spoofed_ranges[i] = hyp
+            ##left bottom side
+            #elif (471 <= i) and (480 >= i):
+            #    theta_degrees = (471-i ) * .5625
+            #    theta_rad = math.radians(theta_degrees)
+            #    hyp = width / (math.cos(theta_rad + 1E-5))
+            #    spoofed_ranges[i] = hyp
+            ##bottom left side
+            #elif (i >= 480) and (i <= 489):
+            #    theta_degrees = (i-480)* .5625
+            #    theta_rad = math.radians(theta_degrees)
+            #    hyp = height/ math.cos(theta_rad + 1E-5)
+            #    spoofed_ranges[i] = hyp
+            ##bottom right side
+            #elif (489 <= i) and (640 >= i):
+            #    theta_degrees = (640-i)* .5625
+            #    theta_rad = math.radians(theta_degrees)
+            #    hyp = height / (math.cos(theta_rad + 1E-5))
+            #    spoofed_ranges[i] = hyp
         spoofed_scan = LaserScan() # type of topic
         spoofed_scan.header = msg.header
         spoofed_scan.angle_min = msg.angle_min
@@ -81,7 +129,7 @@ class HallucinateNode(Node):
         spoofed_scan.time_increment = msg.time_increment
         spoofed_scan.scan_time = msg.scan_time
         spoofed_scan.range_min = msg.range_min
-        spoofed_scan.range_max = msg.range_max
+        spoofed_scan.range_max = msg.range_max 
         spoofed_scan.ranges = spoofed_ranges  # Use the modified ranges
 
         self.get_logger().info(f"num of spoofed measurements {len(spoofed_ranges)}")
