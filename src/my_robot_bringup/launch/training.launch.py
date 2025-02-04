@@ -4,7 +4,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, Exec
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
-
+from launch.actions import TimerAction
 
 # Declare arguments
 ARGUMENTS = [
@@ -54,15 +54,31 @@ def generate_launch_description():
             ('yaw', LaunchConfiguration('yaw'))]
     )
 
-    bag_record = ExecuteProcess(
-        cmd=['ros2', 'bag', 'record', '/scan', '/scan_spoofed','/tf', '/tf_static', '/odom', '/cmd_vel'],
+    undock_and_record = Node(
+        package='my_robot_bringup',  # Replace with your package name
+        executable='undock_and_record.py',  # Name of the Python script
         output='screen'
-        )
+    )
+    undock_command = ExecuteProcess(
+        cmd=['ros2', 'action', 'send_goal', '/undock', 'irobot_create_msgs/action/Undock', '{}'],
+        output='screen'
+    )
+    undock_with_delay = TimerAction(
+        period=15.0,  # Delay in seconds
+        actions=[undock_command]
+    )
+
+    bag_record = ExecuteProcess(
+    cmd=['ros2', 'bag', 'record', '/scan', '/scan_spoofed','/tf', '/tf_static', '/odom', '/cmd_vel'],
+    output='screen'
+    )
 
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
+    ld.add_action(undock_with_delay)
     ld.add_action(bag_record)
     return ld
+
 
