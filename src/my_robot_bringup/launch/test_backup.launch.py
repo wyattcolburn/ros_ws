@@ -53,10 +53,9 @@ def generate_launch_description():
     )
     
     bag_record = ExecuteProcess(
-        cmd=['ros2', 'bag', 'record', '/scan', '/tf', '/tf_static', '/odom'],
+        cmd=['ros2', 'bag', 'record', '/scan', '/scan_spoofed','/tf', '/tf_static', '/odom', '/cmd_vel'],
         output='screen'
         )
-
 
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)

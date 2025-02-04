@@ -4,7 +4,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, Exec
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
-
+from launch.actions import TimerAction
 
 # Declare arguments
 ARGUMENTS = [
@@ -12,7 +12,7 @@ ARGUMENTS = [
                           description='Robot namespace'),
     DeclareLaunchArgument('rviz', default_value='true',
                           choices=['true', 'false'], description='Start rviz.'),
-    DeclareLaunchArgument('world', default_value='maze',
+    DeclareLaunchArgument('world', default_value='empty_world',
                           description='Ignition World'),
     DeclareLaunchArgument('model', default_value='standard',
                           choices=['standard', 'lite'],
@@ -53,16 +53,18 @@ def generate_launch_description():
             ('z', LaunchConfiguration('z')),
             ('yaw', LaunchConfiguration('yaw'))]
     )
-
-    bag_record = ExecuteProcess(
-        cmd=['ros2', 'bag', 'record', '/scan', '/scan_spoofed','/tf', '/tf_static', '/odom', '/cmd_vel'],
+    undock_command = ExecuteProcess(
+        cmd=['ros2', 'action', 'send_goal', '/undock', 'irobot_create_msgs/action/Undock', '{}'],
         output='screen'
-        )
-
+    )
+    undock_with_delay = TimerAction(
+        period=15.0,  # Delay in seconds
+        actions=[undock_command]
+    )
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
-    ld.add_action(bag_record)
+    ld.add_action(undock_with_delay)
     return ld
 
