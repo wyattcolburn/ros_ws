@@ -36,16 +36,16 @@ class HallucinateNode(Node):
         angle_increment = 360 / num_readings
         
         
-        height = 11.0
+        height = 3.0
         width = 1.0
         max_range = 12.0
         target_theta_height = math.atan(height/width)
         target_theta_width = math.atan(width/height)
 
 
-        scans_per_half_height = math.degrees(target_theta_height) / angle_increment
+        scans_per_half_height = round(math.degrees(target_theta_height) / angle_increment)
         print(f"scans per half height {scans_per_half_height}")
-        scans_per_half_width = math.degrees(target_theta_width) / angle_increment 
+        scans_per_half_width = round(math.degrees(target_theta_width) / angle_increment)
         total_scans = 2*scans_per_half_height + 2 * scans_per_half_width
 
         corner_list = [0]
@@ -70,11 +70,32 @@ class HallucinateNode(Node):
                 else:
                     theta_degrees = (end_index - pixel_counter) * .5625
                 theta_rad = math.radians(theta_degrees)
-                hyp = dim/math.tan(theta_rad + 1E-5)
+                hyp = dim/math.cos(theta_rad + 1E-5)
                 spoofed_ranges[pixel_counter] = hyp
+        
+        #for i in range(151):  # Assuming 0 to 151 is the range for right side top
+        #    # Apply logarithmic scaling to spread points more evenly
+        #    scaled_i = int(151 * (np.log1p(i) / np.log1p(151)))  # Logarithmic remapping
+        #    if (i < int(151/3)):
+        #        theta_degrees = i * (0.5625/3)  # Convert to angle
+        #    elif (i > int(151/3)) and i < 2*int(151/3):
+        #        theta_degrres = i * 2*(.5625/3)
+        #    else:
+        #        theta_degrees = i * .5625
+
+        #    theta_rad = math.radians(theta_degrees)
+
+        #    # Compute hypotenuse, preventing divide by zero
+        #    hyp = width / max(math.cos(theta_rad), 1E-5)  
+
+        #    # Store the spoofed range
+        #    spoofed_ranges[i] = hyp
+        #    print(f"spoofed_ranges[{i}] = {spoofed_ranges[i]}")  # Debugging output
+
+
         #for i in range(num_readings):
         #    # right side top    
-        #    #if (0 <= i) and (151 >= i):
+         #    #if (0 <= i) and (151 >= i):
         #    #    theta_degrees = (i) * .5625
         #    #    theta_rad = math.radians(theta_degrees)
         #    #    hyp = width / (math.cos(theta_rad + 1E-5))

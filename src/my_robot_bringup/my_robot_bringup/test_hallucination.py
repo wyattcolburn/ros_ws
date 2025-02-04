@@ -1,6 +1,6 @@
 import math
 
-height = 12
+height = 11
 width = 1
 
 num_readings = 640
@@ -12,8 +12,8 @@ target_theta_height = math.atan(height / width)  # Angle for height
 target_theta_width = math.atan(width / height)   # Angle for width
 
 # Compute the number of scans corresponding to height and width
-scans_per_half_height = math.degrees(target_theta_height) / angle_increment
-scans_per_half_width = math.degrees(target_theta_width) / angle_increment
+scans_per_half_height = round(math.degrees(target_theta_height) / angle_increment)
+scans_per_half_width = round(math.degrees(target_theta_width) / angle_increment)
 
 # Total number of scans for a rectangular structure
 total_scans = 2 * scans_per_half_height + 2 * scans_per_half_width
