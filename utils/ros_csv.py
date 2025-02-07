@@ -7,7 +7,7 @@ from dataclasses import asdict, is_dataclass
 import sys
 from collections import defaultdict
 from scipy.spatial.transform import Rotation as R
-
+import argparse
 def extract_messages(bag_path):
     """Extract messages from a ROS 2 bag and store them in a dictionary grouped by timestamp."""
     storage_options = rosbag2_py.StorageOptions(uri=bag_path, storage_id='sqlite3')
@@ -18,7 +18,7 @@ def extract_messages(bag_path):
     topic_types = reader.get_all_topics_and_types()
     type_map = {topic.name: topic.type for topic in topic_types}
 
-    allowed_topics = {'/scan', '/odom'}
+    allowed_topics = {'/scan'}
     # Dictionary to group messages by timestamp
     grouped_data = defaultdict(dict)
 
@@ -47,15 +47,16 @@ def extract_messages(bag_path):
                 "odom_y": y,
                 "odom_yaw": yaw
             })
-
         elif topic == "/scan":
-            # Convert LaserScan ranges to a string
+            # Convert LaserScan ranges to individual columns
             range_data = list(msg_deserialized.ranges)
-            range_data_str = ",".join(map(str, range_data))
 
-            grouped_data.setdefault(timestamp, {}).update({
-                "scan_ranges": range_data_str
-            })
+            # Store each range as a separate column with an indexed key
+            for i, value in enumerate(range_data):
+                grouped_data.setdefault(timestamp, {}).update({
+                    f"scan_range_{i}": value
+                })
+
             
     return grouped_data
 
@@ -78,11 +79,14 @@ def save_to_csv(bag_path, output_csv):
     print(f"Saved {len(df)} messages to {output_csv}")
 
 if __name__ == "__main__":
-
-    bag_path = "rosbag2_2025_01_29-17_28_04"# Scan bag
+    parser = argparse.ArgumentParser(description="bag-->csv")
+    parser.add_argument("input_file", type=str, help="Input file")
+    parser.add_argument("output_file", type=str, help="Output file")
+    args = parser.parse_args()
+    bag_path = args.input_file 
     rclpy.init()
     #group_data = extract_messages(bag_path)
-    save_to_csv(bag_path, 'output.csv')
+    save_to_csv(bag_path, args.output_file) 
     # Print only the first 5 timestamps and their messages
     #for timestamp, topics in list(group_data.items())[:5]:
     #    print(f"Timestamp: {timestamp}")
