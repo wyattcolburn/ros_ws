@@ -18,7 +18,7 @@ def extract_messages(bag_path):
     topic_types = reader.get_all_topics_and_types()
     type_map = {topic.name: topic.type for topic in topic_types}
 
-    allowed_topics = {'/scan'}
+    allowed_topics = {'/odom'}
     # Dictionary to group messages by timestamp
     grouped_data = defaultdict(dict)
 

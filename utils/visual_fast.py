@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import argparse
 import math
-
+import csv
 class obstacle:
     def __init__(self, cx, cy, x, y):
         self.x = x
@@ -11,43 +11,6 @@ class obstacle:
         self.cx = cx
         self.cy = cy
 
-obstacles_list = []
-def draw_circle(cx, cy, r, odom_x, odom_y, color='green', linestyle='-', linewidth=2):
-
-    """
-    Draws a circle given the center (cx, cy) and radius r.
-
-    Parameters:
-    - cx, cy: Center coordinates of the circle.
-    - r: Radius of the circle.
-    - color: Color of the circle outline.
-    - linestyle: Line style for the circle (default is '-').
-    - linewidth: Line width of the circle.
-    """
-
-    for x, y in zip(odom_x, odom_y):
-        distance_sq = (x - cx) ** 2 + (y - cy) ** 2
-        if distance_sq <= r ** 2:  # If point is inside or on the boundary
-            return False  # Overlapping points found
-
-
-    theta = np.linspace(0, 2 * np.pi, 640)  # 100 points for smooth circle
-    x = cx + r * np.cos(theta)
-    y = cy + r * np.sin(theta)
-    current_obstacle = obstacle(cx, cy, x,y)
-    obstacles_list.append(current_obstacle)
-
-
-    plt.plot(x, y, color=color, linestyle=linestyle, linewidth=linewidth)
-
-    # Set axis equal for proper aspect ratio
-    plt.axis("equal")
-    plt.xlabel("X Position")
-    plt.ylabel("Y Position")
-    plt.title("Circle Plot")
-
-# If no points are inside the circle
-    return True
 
 def ray_trace(obstacle, odom_x, odom_y):
     
@@ -81,10 +44,62 @@ def ray_trace(obstacle, odom_x, odom_y):
                 hallucinated_lidar[odom_counter][i] = distance
             else:
                 print("max value")
-                hallucinated_lidar[i] = 0.0
+                hallucinated_lidar[odom_counter][i] = 0.0
     
     
     return hallucinated_lidar
+
+def hall_csv(hallucinated_lidar, output_file):
+    with open("hallucinated_lidar.csv", "w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerows(hallucinated_lidar)  # Writes all rows at once 
+    print("written to file")
+
+
+
+def perp_circle(p1, p2, radius, offset_x, obstacles, obstacle_counter):
+    odom_x1, odom_y1 = p1
+    odom_x2, odom_y2 = p2
+    print(f"odom x1 {odom_x1}, odom x2 {odom_x2}")
+    mx, my = (odom_x1 + odom_x2) / 2 , (odom_y1 + odom_y2) / 2
+    if (odom_x2 - odom_x1) == 0:
+        print("vertical slope")
+        perp_slope = 0
+        dx, dy = 0, offset_x
+    elif odom_y2 - odom_y1 == 0:
+        perp_slope = np.inf
+        dx, dy = 0, offset_x
+    else:
+        slope = (odom_y2 - odom_y1) / (odom_x2 - odom_x1)
+        perp_slope = -1 / slope
+        mag = np.sqrt(1 + perp_slope **2)
+        dx = offset_x / mag
+        dy = (offset_x * perp_slope) / mag
+
+    cx, cy = mx + dx, my + dy
+
+    cx2, cy2 = mx - dx, my - dy
+    # Draw the original line
+    plt.plot([odom_x1, odom_x2], [odom_y1, odom_y2], 'b-', label="Original Line")
+
+    # Draw the perpendicular circle
+    theta = np.linspace(0, 2 * np.pi, 640)
+    circle_x = cx + radius * np.cos(theta)
+    circle_y = cy + radius * np.sin(theta)
+    plt.plot(circle_x, circle_y, 'r-', label="Perpendicular Circle")
+
+    obstacles[obstacle_counter] = (circle_x, circle_y)
+    obstacle_counter += 1
+    theta = np.linspace(0, 2 * np.pi, 640)
+    circle_x2 = cx2 + radius * np.cos(theta)
+    circle_y2 = cy2 + radius * np.sin(theta)
+
+    obstacles[obstacle_counter] = (circle_x2, circle_y2)
+    obstacle_counter += 1
+    plt.plot(circle_x2, circle_y2, 'r-', label="Perpendicular Circle")
+
+
+
 def visualize_odom(csv_file, output_file=None):
     # Load data from CSV
     df = pd.read_csv(csv_file)
@@ -104,8 +119,6 @@ def visualize_odom(csv_file, output_file=None):
     dx = arrow_length * np.cos(local_goals_yaw)
     dy = arrow_length * np.sin(local_goals_yaw)
 
-    #dx_pi = arrow_length * np.cos(local_goals_yaw + np.pi)
-    #dy_pi = arrow_lenght * np.sin(local_goals_yaw + np_pi)
 
     # Create figure
     plt.figure(figsize=(8, 6))
@@ -118,12 +131,13 @@ def visualize_odom(csv_file, output_file=None):
 
     # Add arrows representing yaw at each local goal
     plt.quiver(local_goals_x, local_goals_y, dx, dy, angles='xy', scale_units='xy', scale=1, color='black', label="Local Goals Yaw")
-    #plt.quiver(local_goals_x, local_goals_y, dx_pi, dy_pi, angles='xy', scale_units='xy', scale=1, color='black', label="Local Goals Yaw opposite")
 
 
     # Add legend for the path
     plt.legend(loc="best")
 
+    obstacles = np.zeros((70, 2,640))
+    obstacle_counter = 0
     # Labels and grid
     plt.xlabel("X Position (m)")
     plt.ylabel("Y Position (m)")
@@ -132,25 +146,20 @@ def visualize_odom(csv_file, output_file=None):
 
     threshold = .2
     print(len(local_goals_x))
-    for i in range(0,1):
-            #len(local_goals_x)):
-        print(f"current yaw {local_goals_yaw[i]} opposite yaw {local_goals_yaw[i] + math.pi}") 
-        if draw_circle(local_goals_x[i]+ threshold * math.cos(local_goals_yaw[i]),local_goals_y[i]+threshold * math.sin(local_goals_yaw[i]),.05, odom_x, odom_y): print("first circle success")
-        #elif draw_circle(local_goals_x[i]+ threshold * math.cos(local_goals_yaw[i]+ math.pi),local_goals_y[i]+threshold * math.sin(local_goals_yaw[i]+math.pi),.1, odom_x, odom_y):
-            #print("draw on opposite side") 
-        else:
-            print("circle overlapps")
-    print(obstacles_list[0].x, obstacles_list[0].y)
+    
+    # creating the path
+    for i in range(len(local_goals_x)-1):
+        print(f"lg counter val: {i}") 
+        print(f"odom x1/x2 {odom_x[i]} and {odom_x[i+1]}")
+        perp_circle((odom_x[i], odom_y[i]), (odom_x[i + 1], odom_y[i + 1]), .1, .2, obstacles, obstacle_counter)
 
-    #hallucinated_reading = ray_trace(obstacles_list[0], odom_x,odom_y)
-    #print(f"hallucinated_reading {hallucinated_reading} with len of {len(hallucinated_reading)}")
-    # Save or show plot
+
     if output_file:
         plt.savefig(output_file)
         print(f"Plot saved to {output_file}")
     else:
         plt.show()
-    
+    #hall_csv(hallucinated_reading, "lidar_output.csv") 
 def main():
     parser = argparse.ArgumentParser(description="Visualize odometry data from a CSV file.")
     parser.add_argument("csv_file", type=str, help="Input CSV file containing odometry data.")
