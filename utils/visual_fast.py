@@ -43,12 +43,12 @@ def draw_rays(odom_x, odom_y, lidar_readings):
 def ray_trace(obstacles, odom_x, odom_y):
     radians_per_index = (2 * np.pi) / 640  # LiDAR resolution
     num_lidar = 640
-    hallucinated_lidar = np.zeros((1, num_lidar), dtype=float)
+    hallucinated_lidar = np.zeros((len(odom_x), num_lidar), dtype=float)
 
-    for odom_counter in range(1):# Iterate over all odometry points
-        current_odom_x = odom_x
-        current_odom_y = odom_y
-        print(f"*************************************odom counter : {odom_counter}")
+    for odom_counter in range(len(odom_x)):# Iterate over all odometry points
+        current_odom_x = odom_x[odom_counter]
+        current_odom_y = odom_y[odom_counter]
+        #print(f"*************************************odom counter : {odom_counter}")
         #print(f"current lg location {current_odom_x} and {current_odom_y}")
 
         angle_dict = {}  # Store the minimum distance per unique angle
@@ -79,7 +79,7 @@ def ray_trace(obstacles, odom_x, odom_y):
         for angle_index, distance in angle_dict.items():
             if 0 <= angle_index < num_lidar:  # Ensure index is within range
                 hallucinated_lidar[odom_counter][angle_index] = distance
-        print(angle_dict)
+        #print(angle_dict)
     return hallucinated_lidar
 
 def hall_csv(hallucinated_lidar, output_file):
@@ -192,10 +192,10 @@ def visualize_odom(csv_file, output_file=None):
     focus_odom_x = odom_x[277]
     focus_odom_y = odom_y[277]
 
-    lidar_readings = ray_trace(obstacles, focus_odom_x,focus_odom_y) # give obstacle data and each odom point
+    lidar_readings = ray_trace(obstacles, odom_x,odom_y) # give obstacle data and each odom point
     #print("drawing rays(********************************)))))))))))))))))))))")
     #print(len(lidar_readings))
-    #hall_csv(lidar_readings, "output_perp_2.csv")
+    hall_csv(lidar_readings, "output_perp_3.csv")
     #lidar_readings = load_lidar_rays("output_perp_2.csv")
 
     draw_rays(focus_odom_x, focus_odom_y, lidar_readings)

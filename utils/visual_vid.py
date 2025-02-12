@@ -148,13 +148,13 @@ def visualize_odom(csv_file, output_file=None):
     for i in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
         obstacles, obstacle_counter = perp_circle((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), .1, .4, obstacles, obstacle_counter)
     #
-    #lidar_readings = load_lidar_rays("output_perp_2.csv")
+    lidar_readings = load_lidar_rays("output_perp_3.csv")
     print(f"len of {len(lidar_readings)} {len(odom_x)}")
    
 
 
-    #generate_frames(odom_x[100:], odom_y[100:], local_goals_x, local_goals_y, dx, dy, lidar_readings, output_folder="ray_frames")
-    create_video() 
+    generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, output_folder="ray_frames")
+    #create_video() 
     #if output_file:
     #    plt.savefig(output_file)
     #    print(f"Plot saved to {output_file}")
