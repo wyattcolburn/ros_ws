@@ -32,8 +32,8 @@ def draw_rays(odom_x, odom_y, lidar_readings):
 
             ang = lidar_counter * (2*np.pi / 640)
             distance = lidar_readings[i][lidar_counter]
-            current_x = odom_x[i]
-            current_y = odom_y[i]
+            current_x = odom_x
+            current_y = odom_y
 
             projection_x = current_x + distance * math.cos(ang)
             projection_y = current_y + distance * math.sin(ang)
@@ -43,11 +43,11 @@ def draw_rays(odom_x, odom_y, lidar_readings):
 def ray_trace(obstacles, odom_x, odom_y):
     radians_per_index = (2 * np.pi) / 640  # LiDAR resolution
     num_lidar = 640
-    hallucinated_lidar = np.zeros((len(odom_x), num_lidar), dtype=float)
+    hallucinated_lidar = np.zeros((1, num_lidar), dtype=float)
 
-    for odom_counter in range(len(odom_x)):# Iterate over all odometry points
-        current_odom_x = odom_x[odom_counter]
-        current_odom_y = odom_y[odom_counter]
+    for odom_counter in range(1):# Iterate over all odometry points
+        current_odom_x = odom_x
+        current_odom_y = odom_y
         print(f"*************************************odom counter : {odom_counter}")
         #print(f"current lg location {current_odom_x} and {current_odom_y}")
 
@@ -62,7 +62,7 @@ def ray_trace(obstacles, odom_x, odom_y):
                 angle = math.atan2(current_obstacle_y - current_odom_y, current_obstacle_x - current_odom_x)
                 # Calculate distance
                 distance = math.sqrt((current_odom_x - current_obstacle_x) ** 2 + (current_odom_y - current_obstacle_y) ** 2)
-                if distance > .5: # this shouldnt be an issue because osbtacles overlap
+                if distance > 1: # this shouldnt be an issue because osbtacles overlap
                     distance = 0 #maybe max ranges
                 
                 # Normalize the angle to the closest LiDAR index { rad -> index }
@@ -79,7 +79,7 @@ def ray_trace(obstacles, odom_x, odom_y):
         for angle_index, distance in angle_dict.items():
             if 0 <= angle_index < num_lidar:  # Ensure index is within range
                 hallucinated_lidar[odom_counter][angle_index] = distance
-
+        print(angle_dict)
     return hallucinated_lidar
 
 def hall_csv(hallucinated_lidar, output_file):
@@ -189,13 +189,16 @@ def visualize_odom(csv_file, output_file=None):
     for i in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
         obstacles, obstacle_counter = perp_circle((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), .1, .4, obstacles, obstacle_counter)
     
-    #lidar_readings = ray_trace(obstacles, odom_x,odom_y) # give obstacle data and each odom point
+    focus_odom_x = odom_x[277]
+    focus_odom_y = odom_y[277]
+
+    lidar_readings = ray_trace(obstacles, focus_odom_x,focus_odom_y) # give obstacle data and each odom point
     #print("drawing rays(********************************)))))))))))))))))))))")
     #print(len(lidar_readings))
     #hall_csv(lidar_readings, "output_perp_2.csv")
-    lidar_readings = load_lidar_rays("output_perp_2.csv")
+    #lidar_readings = load_lidar_rays("output_perp_2.csv")
 
-    draw_rays(odom_x, odom_y, lidar_readings)
+    draw_rays(focus_odom_x, focus_odom_y, lidar_readings)
     if output_file:
         plt.savefig(output_file)
         print(f"Plot saved to {output_file}")

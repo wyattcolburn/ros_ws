@@ -5,6 +5,9 @@ import numpy as np
 import argparse
 import math
 import csv
+import os
+import glob
+import cv2
 def load_lidar_rays(csv_file):
     """Loads LiDAR data from a CSV file and returns it as a list of lists."""
     lidar_values = []
@@ -139,22 +142,87 @@ def visualize_odom(csv_file, output_file=None):
     plt.title("Odometry Path Visualization")
     plt.grid(True)
 
-    threshold = .2
-    print(len(local_goals_x))
-         
+    #threshold = .2
+    #print(len(local_goals_x))
+    #     
     for i in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
         obstacles, obstacle_counter = perp_circle((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), .1, .4, obstacles, obstacle_counter)
-    
-    lidar_readings = load_lidar_rays("output_perp_2.csv")
+    #
+    #lidar_readings = load_lidar_rays("output_perp_2.csv")
     print(f"len of {len(lidar_readings)} {len(odom_x)}")
-    for i in range(10):
+   
+
+
+    #generate_frames(odom_x[100:], odom_y[100:], local_goals_x, local_goals_y, dx, dy, lidar_readings, output_folder="ray_frames")
+    create_video() 
+    #if output_file:
+    #    plt.savefig(output_file)
+    #    print(f"Plot saved to {output_file}")
+    #else:
+    #    plt.show()
+def create_video(image_folder="ray_frames", video_filename="lidar_visualization.mp4", fps=2):
+    """
+    Compiles saved frames into a video using OpenCV.
+    """
+    # Get sorted list of images
+    images = sorted(glob.glob(f"{image_folder}/frame_*.png"))
+    
+    if not images:
+        print("No images found! Ensure frames are generated before running this function.")
+        return
+    
+    # Read first image to get dimensions
+    frame = cv2.imread(images[0])
+    h, w, _ = frame.shape
+
+    # Initialize video writer
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec
+    video_writer = cv2.VideoWriter(video_filename, fourcc, fps, (w, h))
+
+    # Add images to video
+    for img_file in images:
+        frame = cv2.imread(img_file)
+        video_writer.write(frame)
+
+    video_writer.release()
+    print(f"Video saved as {video_filename}")
+
+def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, output_folder="ray_frames"):
+    """
+    Generates and saves individual frames for LIDAR visualization.
+    """
+    os.makedirs(output_folder, exist_ok=True)  # Ensure the folder exists
+
+    plt.figure(figsize=(8, 6))
+    for i in range(len(odom_x)):
+        plt.clf()  # Clear previous plot
+        
+        # Replot the base elements
+        plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
+        plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
+        plt.quiver(local_goals_x, local_goals_y, dx, dy, angles='xy', scale_units='xy', scale=1, color='black', label="Local Goals Yaw")
+
+        obstacles = np.zeros((70, 640,2))
+        obstacle_counter = 0
+        for j in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
+            obstacles, obstacle_counter = perp_circle((local_goals_x[j], local_goals_y[j]), (local_goals_x[j + 1], local_goals_y[j + 1]), .1, .4, obstacles, obstacle_counter)
+        # Labels, grid, and legend
+        plt.xlabel("X Position (m)")
+        plt.ylabel("Y Position (m)")
+        plt.title("Odometry Path Visualization")
+        plt.grid(True)
+        plt.legend(loc="best")
+        # Draw only the current ray
+        print(f"odom x {odom_x[i]} odom y {odom_y[i]} i {i}")
         draw_ray(odom_x[i], odom_y[i], lidar_readings[i])
-        time.sleep(1)
-    if output_file:
-        plt.savefig(output_file)
-        print(f"Plot saved to {output_file}")
-    else:
-        plt.show()
+        
+        # Save the frame
+        frame_path = f"{output_folder}/frame_{i:03d}.png"
+        plt.savefig(frame_path)
+        #print(f"Saved {frame_path}")
+
+        #plt.show()        
+    plt.close()
 
 def main():
     parser = argparse.ArgumentParser(description="Visualize odometry data from a CSV file.")
@@ -163,7 +231,7 @@ def main():
 
     args = parser.parse_args()
     visualize_odom(args.csv_file, args.output)
-
+    
 if __name__ == "__main__":
     main()
 
