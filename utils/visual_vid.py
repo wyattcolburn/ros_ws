@@ -8,6 +8,7 @@ import csv
 import os
 import glob
 import cv2
+import multiprocessing as mp
 def load_lidar_rays(csv_file):
     """Loads LiDAR data from a CSV file and returns it as a list of lists."""
     lidar_values = []
@@ -97,20 +98,21 @@ def perp_circle(p1, p2, radius, offset_x, obstacles, obstacle_counter):
 
 
 def visualize_odom(csv_file, output_file=None):
-    # Load data from CSV
+
+
     df = pd.read_csv(csv_file)
 
     # Extract only x and y positions
     odom_x = df['odom_x'].tolist()
     odom_y = df['odom_y'].tolist()
 
-    df_lg = pd.read_csv("local_hall.csv")
+    df_lg = pd.read_csv("test_new_lg_0.csv")
 
     local_goals_x = df_lg['odom_x'].tolist()
     local_goals_y = df_lg['odom_y'].tolist()
     local_goals_yaw = df_lg['odom_yaw'].tolist()
 
-    # Convert yaw angles to unit vectors for quiver
+# Convert yaw angles to unit vectors for quiver
     arrow_length = 0.1  # Adjust the arrow length as needed
     dx = arrow_length * np.cos(local_goals_yaw)
     dy = arrow_length * np.sin(local_goals_yaw)
@@ -133,8 +135,28 @@ def visualize_odom(csv_file, output_file=None):
 
     # Add legend for the path
     plt.legend(loc="best")
+    dy = arrow_length * np.sin(local_goals_yaw)
 
-    obstacles = np.zeros((70, 640,2))
+
+    # Create figure
+    plt.figure(figsize=(8, 6))
+
+    small_odom_x, small_odom_y = odom_x[0:99], odom_y[0:99]
+    # Plot odometry path (without yaw)
+    plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
+
+    #plt.plot(small_odom_x, small_odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
+    # Plot local goals
+    plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
+
+    # Add arrows representing yaw at each local goal
+    plt.quiver(local_goals_x, local_goals_y, dx, dy, angles='xy', scale_units='xy', scale=1, color='black', label="Local Goals Yaw")
+
+
+    # Add legend for the path
+    plt.legend(loc="best")
+
+    obstacles = np.zeros((len(local_goals_x)*2, 640,2))
     obstacle_counter = 0
     # Labels and grid
     plt.xlabel("X Position (m)")
@@ -142,58 +164,18 @@ def visualize_odom(csv_file, output_file=None):
     plt.title("Odometry Path Visualization")
     plt.grid(True)
 
-    #threshold = .2
-    #print(len(local_goals_x))
-    #     
-    for i in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
-        obstacles, obstacle_counter = perp_circle((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), .1, .4, obstacles, obstacle_counter)
-    #
-    lidar_readings = load_lidar_rays("output_perp_3.csv")
-    print(f"len of {len(lidar_readings)} {len(odom_x)}")
-   
+    lidar_readings = load_lidar_rays("test_lidar_0.csv")
 
+    generate_frames_parallel(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, .2, .7, output_folder="ray_frames_parallel")
 
-    generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, output_folder="ray_frames")
-    #create_video() 
-    #if output_file:
-    #    plt.savefig(output_file)
-    #    print(f"Plot saved to {output_file}")
-    #else:
-    #    plt.show()
-def create_video(image_folder="ray_frames", video_filename="lidar_visualization.mp4", fps=2):
-    """
-    Compiles saved frames into a video using OpenCV.
-    """
-    # Get sorted list of images
-    images = sorted(glob.glob(f"{image_folder}/frame_*.png"))
-    
-    if not images:
-        print("No images found! Ensure frames are generated before running this function.")
-        return
-    
-    # Read first image to get dimensions
-    frame = cv2.imread(images[0])
-    h, w, _ = frame.shape
-
-    # Initialize video writer
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec
-    video_writer = cv2.VideoWriter(video_filename, fourcc, fps, (w, h))
-
-    # Add images to video
-    for img_file in images:
-        frame = cv2.imread(img_file)
-        video_writer.write(frame)
-
-    video_writer.release()
-    print(f"Video saved as {video_filename}")
-
-def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, output_folder="ray_frames"):
+def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacle_radius, obstacle_offset, output_folder="ray_frames"):
     """
     Generates and saves individual frames for LIDAR visualization.
     """
     os.makedirs(output_folder, exist_ok=True)  # Ensure the folder exists
 
     plt.figure(figsize=(8, 6))
+
     for i in range(len(odom_x)):
         plt.clf()  # Clear previous plot
         
@@ -202,10 +184,10 @@ def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_
         plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
         plt.quiver(local_goals_x, local_goals_y, dx, dy, angles='xy', scale_units='xy', scale=1, color='black', label="Local Goals Yaw")
 
-        obstacles = np.zeros((70, 640,2))
+        obstacles = np.zeros((len(local_goals_x) *2 , 640,2))
         obstacle_counter = 0
         for j in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
-            obstacles, obstacle_counter = perp_circle((local_goals_x[j], local_goals_y[j]), (local_goals_x[j + 1], local_goals_y[j + 1]), .1, .4, obstacles, obstacle_counter)
+            obstacles, obstacle_counter = perp_circle((local_goals_x[j], local_goals_y[j]), (local_goals_x[j + 1], local_goals_y[j + 1]), .2, .7, obstacles, obstacle_counter)
         # Labels, grid, and legend
         plt.xlabel("X Position (m)")
         plt.ylabel("Y Position (m)")
@@ -223,6 +205,25 @@ def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_
 
         #plt.show()        
     plt.close()
+def generate_frames_parallel(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacle_radius, obstacle_offset, output_folder="ray_frames"):
+    """
+    Parallelized version of generate_frames using multiprocessing.
+    """
+    os.makedirs(output_folder, exist_ok=True)
+
+    num_frames = len(odom_x)
+    num_workers = min(mp.cpu_count(), num_frames)  # Use max available CPUs
+
+    # Create argument tuples for each frame
+    args = [
+        (i, odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacle_radius, obstacle_offset, output_folder)
+        for i in range(num_frames)
+    ]
+
+    # Use multiprocessing Pool
+    with mp.Pool(processes=num_workers) as pool:
+        pool.starmap(generate_frames, args)  # Map function to arguments in parallel
+
 
 def main():
     parser = argparse.ArgumentParser(description="Visualize odometry data from a CSV file.")
