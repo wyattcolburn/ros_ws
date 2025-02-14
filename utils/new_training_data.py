@@ -10,13 +10,16 @@ from ros_csv import extract_messages, save_to_csv
 import pandas as pd
 from visual_fast import perp_circle, ray_trace, hall_csv
 from visual_vid import draw_ray, generate_frames
+
+
+# only things one should have to change
 input_bag = "/home/wyattcolburn/ros_ws/rosbag2_2025_02_12-12_33_23"
 
 odom_csv_file = "carlos_test.csv"
 local_goal_file = "carlos_test_lg_0.csv"
 num_lg_goals = 20
 lidar_data_file = "carlos_lidar_0.csv"
-frame_dkr = "frame_test"
+frame_dkr = "feb_14_test"
 obstacle_radius = .2
 obstacle_offset = .7
 
@@ -68,7 +71,6 @@ def main():
     # Create figure
     plt.figure(figsize=(8, 6))
 
-    small_odom_x, small_odom_y = odom_x[0:99], odom_y[0:99]
     # Plot odometry path (without yaw)
     plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
 
@@ -90,19 +92,18 @@ def main():
     plt.title("Odometry Path Visualization")
     plt.grid(True)
 
-    threshold = .2
     print(len(local_goals_x))
         
     for i in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
         obstacles, obstacle_counter = perp_circle((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), obstacle_radius, obstacle_offset, obstacles, obstacle_counter)
     
-    focus_odom_x = odom_x[0]
-    focus_odom_y = odom_y[0]
 
-    lidar_readings = ray_trace(obstacles, odom_x,odom_y) # give obstacle data and each odom point
+    test_odom_x = odom_x[0:99]
+    test_odom_y = odom_y[0:99]
+    lidar_readings = ray_trace(obstacles, test_odom_x, test_odom_y) # give obstacle data and each odom point
     hall_csv(lidar_readings, lidar_data_file)
     print("data has been saved to lidar file")
-    generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacle_radius, obstacle_offset,frame_dkr) 
+    generate_frames(test_odom_x, test_odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacle_radius, obstacle_offset,obstacles, obstacle_counter, frame_dkr) 
     print("frames have been saved")
 if __name__ == "__main__":
     main()
