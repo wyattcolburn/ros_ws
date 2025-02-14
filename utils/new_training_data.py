@@ -13,13 +13,12 @@ from visual_vid import draw_ray, generate_frames
 
 
 # only things one should have to change
-input_bag = "/home/wyattcolburn/ros_ws/rosbag2_2025_02_12-12_33_23"
-
-odom_csv_file = "carlos_test.csv"
-local_goal_file = "carlos_test_lg_0.csv"
-num_lg_goals = 20
-lidar_data_file = "carlos_lidar_0.csv"
-frame_dkr = "feb_14_test"
+input_bag = "/home/wyattcolburn/ros_ws/utils/rosbag2_2025_02_12-10_17_50"
+odom_csv_file = "long_odom.csv"
+local_goal_file = "long_odom_lg.csv"
+num_lg_goals = 20 # look into how A star does it
+lidar_data_file = "long_lidar.csv"
+frame_dkr = "long_frames"
 obstacle_radius = .2
 obstacle_offset = .7
 
@@ -84,8 +83,9 @@ def main():
     # Add legend for the path
     plt.legend(loc="best")
 
-    obstacles = np.zeros((100, 640,2))
+    obstacles = np.zeros((len(local_goals_x)*2, 640,2)) # each local goal gives two obstacles
     obstacle_counter = 0
+    print(f"lenght of lcoal goals, {len(local_goals_x)}")
     # Labels and grid
     plt.xlabel("X Position (m)")
     plt.ylabel("Y Position (m)")
@@ -100,10 +100,10 @@ def main():
 
     test_odom_x = odom_x[0:99]
     test_odom_y = odom_y[0:99]
-    lidar_readings = ray_trace(obstacles, test_odom_x, test_odom_y) # give obstacle data and each odom point
+    lidar_readings = ray_trace(obstacles, odom_x, odom_y, local_goals_x) # give obstacle data and each odom point
     hall_csv(lidar_readings, lidar_data_file)
     print("data has been saved to lidar file")
-    generate_frames(test_odom_x, test_odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacle_radius, obstacle_offset,obstacles, obstacle_counter, frame_dkr) 
+    generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacles, obstacle_counter, frame_dkr) 
     print("frames have been saved")
 if __name__ == "__main__":
     main()

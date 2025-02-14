@@ -95,7 +95,8 @@ def draw_rays(odom_x, odom_y, lidar_readings):
             plt.plot([current_x, projection_x], [current_y,projection_y], linestyle='solid', color='green', label="Ray Trace")
     print("Done drawing rays")
     
-def ray_trace(obstacles, odom_x, odom_y):
+def ray_trace(obstacles, odom_x, odom_y, local_goals_x):
+    # I want to change this to only factor in a couple of obstacles
     radians_per_index = (2 * np.pi) / 640  # LiDAR resolution
     num_lidar = 640
     hallucinated_lidar = np.zeros((len(odom_x), num_lidar), dtype=float)
@@ -103,15 +104,19 @@ def ray_trace(obstacles, odom_x, odom_y):
     for odom_counter in range(len(odom_x)):# Iterate over all odometry points
         current_odom_x = odom_x[odom_counter]
         current_odom_y = odom_y[odom_counter]
-        #print(f"*************************************odom counter : {odom_counter}")
-        #print(f"current lg location {current_odom_x} and {current_odom_y}")
 
         angle_dict = {}  # Store the minimum distance per unique angle
-
-        for obstacle_counter in range(len(obstacles)): #what value should this be?
+        num_close_obstacles = 10 # num of local goals divide by a constant so it maps to distance of whole path
+        close_obstacles = np.zeros((num_close_obstacles, 640, 2))
+        odom_per_lg  = int(odom_counter / len(local_goals_x)) #odom counts per local goal
+        lg_counter = odom_counter
+        print(f"local goal val {lg_counter} to the value {lg_counter + 10}")
+        close_obstacles = np.copy(obstacles[lg_counter:lg_counter + num_close_obstacles])
+            
+        for obstacle_counter in range(len(close_obstacles)): #what value should this be?
          
             for i in range(num_lidar): # a loop for each lidar angle
-                current_obstacle_x, current_obstacle_y = obstacles[obstacle_counter][i]
+                current_obstacle_x, current_obstacle_y = close_obstacles[obstacle_counter][i]
 
                 # Calculate angle of the obstacle relative to the robot
                 angle = math.atan2(current_obstacle_y - current_odom_y, current_obstacle_x - current_odom_x)

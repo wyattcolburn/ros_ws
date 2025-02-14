@@ -168,14 +168,14 @@ def visualize_odom(csv_file, output_file=None):
 
     generate_frames_parallel(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, .2, .7, output_folder="ray_frames_parallel")
 
-def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacle_radius, obstacle_offset, obstacles, obstacle_counter, output_folder="ray_frames"):
+def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacles, obstacle_counter, output_folder="ray_frames"):
     """
     Generates and saves individual frames for LIDAR visualization.
     """
     os.makedirs(output_folder, exist_ok=True)  # Ensure the folder exists
 
     plt.figure(figsize=(8, 6))
-
+    print(f"len of number obstacles {len(obstacles)}")
     for i in range(len(odom_x)):
         plt.clf()  # Clear previous plot
         
@@ -183,12 +183,10 @@ def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_
         plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
         plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
         plt.quiver(local_goals_x, local_goals_y, dx, dy, angles='xy', scale_units='xy', scale=1, color='black', label="Local Goals Yaw")
-
-        #obstacles = np.zeros((len(local_goals_x) *2 , 640,2))
-        #obstacle_counter = 0
-        #for j in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
-        #    obstacles, obstacle_counter = perp_circle((local_goals_x[j], local_goals_y[j]), (local_goals_x[j + 1], local_goals_y[j + 1]), .2, .7, obstacles, obstacle_counter)
-        for obstacle in obstacles:
+        
+        lg_counter = int(i / len(local_goals_x))
+        close_obstacles = np.copy(obstacles[lg_counter:lg_counter + 10])
+        for obstacle in close_obstacles:
             plt.plot(obstacle[:, 0], obstacle[:, 1], color='red')
 
         # Labels, grid, and legend
