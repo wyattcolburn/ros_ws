@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 #from ros_csv import extract_messages, save_to_csv
 import pandas as pd
-from visual_fast import perp_circle, ray_trace, hall_csv, perp_circle_array
+from visual_fast import perp_circle, ray_trace, hall_csv, ray_trace_one, perp_circle_array
 from visual_vid import draw_ray, draw_rays, generate_frames, generate_frames_obst
 from path_distance import lg_distance
 
@@ -18,7 +18,7 @@ odom_csv_file = "long_odom.csv"
 local_goal_file = "long_odom_lg.csv"
 num_lg_goals = 20 # look into how A star does it
 lidar_data_file = "dist_long_lidar.csv"
-frame_dkr = "dist_long_frames"
+frame_dkr = "feb_19"
 obstacle_radius = .2
 obstacle_offset = .7
 
@@ -112,8 +112,8 @@ def main():
         obstacleOne, obstacleTwo = perp_circle_array((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), obstacle_radius, obstacle_offset)
         obstacleArray.append(obstacleOne)
         obstacleArray.append(obstacleTwo)
-    lidar_readings = ray_trace(obstacleArray, odom_x, odom_y, local_goals_x) 
-    generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacleArray, obstacleArrayCounter, lidar_readings, "feb_18_test_2") 
+    lidar_readings = ray_trace_one(obstacleArray, odom_x, odom_y, local_goals_x) 
+    generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacleArray, obstacleArrayCounter, lidar_readings, "feb_19_test3") 
     #print(len(obstacles))
     #obstacle_counter = 0
     #for i in range(len(local_goals_x)-1):

@@ -214,7 +214,9 @@ def generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles
     Generates and saves individual frames for LIDAR visualization.
     """
     os.makedirs(output_folder, exist_ok=True)  # Ensure the folder exists
-    for odomCounter in range(len(odom_x)):
+    newObstacles = []
+    prevObstacleTracker = -1
+    for odomCounter in range(1000):
         plt.figure(figsize=(8, 6))
         print(f"len of number obstacles {len(obstacles)}")
         plt.clf()  # Clear previous plot
@@ -223,14 +225,28 @@ def generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles
         plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
         plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
         
-        
-        for obstacle in obstacles:
+        obstacleTracker = int(odomCounter / (len(odom_x) / len(local_goals_x)))
+
+        #print(f"before checkobst tracker : {obstacleTracker} and prev value {prevObstacleTracker} and odomval {odom_counter}")
+                # Update newObstacles only if obstacleTracker changes
+        if obstacleTracker != prevObstacleTracker:
+            #print("obstacle value not equal prev tracker valu **********************************")
+            newObstacles = []  # Reset obstacles
+            #print(f"tracker val {obstacleTracker*2} and len obstacles - 1 {len(obstacles)-1}") 
+            if obstacleTracker * 2 < len(obstacles) - 1:  # Ensure index is in bounds
+                #print("new obstacles*******************88")
+                newObstacles.append(obstacles[obstacleTracker * 2])
+                newObstacles.append(obstacles[obstacleTracker * 2 + 1])
+                #print(f"new obstacles********************************** {newObstacles}")
+            prevObstacleTracker = obstacleTracker  # Update tracker
+
+        for obstacle in newObstacles:
             dist_to_obstacle =  math.sqrt((obstacle.centerPoint[0] - odom_x[odomCounter]) ** 2 + (obstacle.centerPoint[1]  - odom_y[odomCounter]) ** 2)   
             if dist_to_obstacle < 1: 
                 plt.plot(obstacle.x_points, obstacle.y_points, color='red')
 
             else:
-                break
+                continue
                 
         print("after plotting obstacles")
         # Labels, grid, and legend
@@ -239,7 +255,6 @@ def generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles
         plt.title("Odometry Path Visualization")
         plt.grid(True)
         plt.legend(loc="best")
-        print(f"drawing rays in generate frames at odomCounter {odomCounter}")
         draw_ray(odom_x[odomCounter], odom_y[odomCounter], lidar_readings[odomCounter]) 
         
 

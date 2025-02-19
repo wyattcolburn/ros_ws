@@ -109,7 +109,7 @@ def ray_trace(obstacles, odom_x, odom_y, local_goals_x):
         current_odom_y = odom_y[odom_counter]
 
         angle_dict = {}  # Store the minimum distance per unique angle
-            
+        
         for obstacle_counter in range(len(obstacles)): #what value should this be?
             dist_to_obstacle =  math.sqrt((obstacles[obstacle_counter].centerPoint[0] - current_odom_x) ** 2 + (obstacles[obstacle_counter].centerPoint[1]  - current_odom_y) ** 2)   
             if dist_to_obstacle < 1:
@@ -128,18 +128,78 @@ def ray_trace(obstacles, odom_x, odom_y, local_goals_x):
                     # Normalize the angle to the closest LiDAR index { rad -> index }
                     if angle < 0:
                         angle = angle + 2 * math.pi
-                    angle_index = int(angle / radians_per_index)
+                    angle_index = round(angle / radians_per_index)
 
                     # Store only the closest obstacle at each angle
                     if angle_index not in angle_dict or distance < angle_dict[angle_index]:
                         angle_dict[angle_index] = distance
 
             else:
-                break
+                continue
         # Convert dictionary back into the hallucinated_lidar array
         for angle_index, distance in angle_dict.items():
             if 0 <= angle_index < num_lidar:  # Ensure index is within range
                 hallucinated_lidar[odom_counter][angle_index] = distance
+        #print(angle_dict)
+    return hallucinated_lidar
+
+def ray_trace_one(obstacles, odom_x, odom_y, local_goals_x):
+    # I want to change this to only factor in a couple of obstacles, 
+    radians_per_index = (2 * np.pi) / 640  # LiDAR resolution
+    num_lidar = 640
+    hallucinated_lidar = np.zeros((len(odom_x), num_lidar), dtype=float)
+    obstacleTracker = 0
+    prevObstacleTracker = -1 # so that it goes to zero
+    
+    newObstacles =[]
+    for odom_counter in range(len(odom_x)):# Iterate over all odometry points
+        current_odom_x = odom_x[odom_counter]
+        current_odom_y = odom_y[odom_counter]
+
+        angle_dict = {}  # Store the minimum distance per unique angle
+        obstacleTracker = int(odom_counter / (len(odom_x) / len(local_goals_x)))
+
+        #print(f"before checkobst tracker : {obstacleTracker} and prev value {prevObstacleTracker} and odomval {odom_counter}")
+                # Update newObstacles only if obstacleTracker changes
+        if obstacleTracker != prevObstacleTracker:
+            newObstacles = []  # Reset obstacles
+            if obstacleTracker * 2 < len(obstacles) - 1:  # Ensure index is in bounds
+                newObstacles.append(obstacles[obstacleTracker * 2])
+                newObstacles.append(obstacles[obstacleTracker * 2 + 1])
+            prevObstacleTracker = obstacleTracker  # Update tracker
+        
+
+        #print(f"length of newObstacles   {len(newObstacles)} and odom count {odom_counter}")
+        for obstacle_counter in range(len(newObstacles)): #what value should this be?
+            dist_to_obstacle =  math.sqrt((newObstacles[obstacle_counter].centerPoint[0] - current_odom_x) ** 2 + (newObstacles[obstacle_counter].centerPoint[1]  - current_odom_y) ** 2)   
+            if dist_to_obstacle < 4:
+
+                for i in range(num_lidar): # a loop for each lidar angle
+                    current_obstacle_x = newObstacles[obstacle_counter].x_points[i]
+                    current_obstacle_y = newObstacles[obstacle_counter].y_points[i]
+
+                    # Calculate angle of the obstacle relative to the robot
+                    angle = math.atan2(current_obstacle_y - current_odom_y, current_obstacle_x - current_odom_x)
+                    # Calculate distance
+                    distance = math.sqrt((current_odom_x - current_obstacle_x) ** 2 + (current_odom_y - current_obstacle_y) ** 2)
+                    #print(f"distance value of ray trace {distance}")
+                    if distance > 4: # this shouldnt be an issue because osbtacles overlap
+                        distance = 0 #maybe max ranges
+                    
+                    # Normalize the angle to the closest LiDAR index { rad -> index }
+                    if angle < 0:
+                        angle = angle + 2 * math.pi
+                    angle_index = round(angle / radians_per_index)
+
+                    # Store only the closest obstacle at each angle
+                    if angle_index not in angle_dict or distance < angle_dict[angle_index]:
+                        angle_dict[angle_index] = distance
+
+        # Convert dictionary back into the hallucinated_lidar array
+        for angle_index, distance in angle_dict.items():
+            if 0 <= angle_index < num_lidar:  # Ensure index is within range
+                hallucinated_lidar[odom_counter][angle_index] = distance
+                #print("adding values to hallucinated lidar************************************************")
         #print(angle_dict)
     return hallucinated_lidar
 
