@@ -111,27 +111,31 @@ def ray_trace(obstacles, odom_x, odom_y, local_goals_x):
         angle_dict = {}  # Store the minimum distance per unique angle
             
         for obstacle_counter in range(len(obstacles)): #what value should this be?
-         
-            for i in range(num_lidar): # a loop for each lidar angle
-                current_obstacle_x, current_obstacle_y = obstacles[obstacle_counter][i]
+            dist_to_obstacle =  math.sqrt((obstacles[obstacle_counter].centerPoint[0] - current_odom_x) ** 2 + (obstacles[obstacle_counter].centerPoint[1]  - current_odom_y) ** 2)   
+            if dist_to_obstacle < 1:
 
-                # Calculate angle of the obstacle relative to the robot
-                angle = math.atan2(current_obstacle_y - current_odom_y, current_obstacle_x - current_odom_x)
-                # Calculate distance
-                distance = math.sqrt((current_odom_x - current_obstacle_x) ** 2 + (current_odom_y - current_obstacle_y) ** 2)
-                if distance > 2: # this shouldnt be an issue because osbtacles overlap
-                    distance = 0 #maybe max ranges
-                
-                # Normalize the angle to the closest LiDAR index { rad -> index }
-                if angle < 0:
-                    angle = angle + 2 * math.pi
-                angle_index = int(angle / radians_per_index)
+                for i in range(num_lidar): # a loop for each lidar angle
+                    current_obstacle_x = obstacles[obstacle_counter].x_points[i]
+                    current_obstacle_y = obstacles[obstacle_counter].y_points[i]
 
-                # Store only the closest obstacle at each angle
-                if angle_index not in angle_dict or distance < angle_dict[angle_index]:
-                    angle_dict[angle_index] = distance
+                    # Calculate angle of the obstacle relative to the robot
+                    angle = math.atan2(current_obstacle_y - current_odom_y, current_obstacle_x - current_odom_x)
+                    # Calculate distance
+                    distance = math.sqrt((current_odom_x - current_obstacle_x) ** 2 + (current_odom_y - current_obstacle_y) ** 2)
+                    if distance > 2: # this shouldnt be an issue because osbtacles overlap
+                        distance = 0 #maybe max ranges
+                    
+                    # Normalize the angle to the closest LiDAR index { rad -> index }
+                    if angle < 0:
+                        angle = angle + 2 * math.pi
+                    angle_index = int(angle / radians_per_index)
 
+                    # Store only the closest obstacle at each angle
+                    if angle_index not in angle_dict or distance < angle_dict[angle_index]:
+                        angle_dict[angle_index] = distance
 
+            else:
+                break
         # Convert dictionary back into the hallucinated_lidar array
         for angle_index, distance in angle_dict.items():
             if 0 <= angle_index < num_lidar:  # Ensure index is within range
@@ -173,8 +177,8 @@ def perp_circle_array(p1, p2, radius, offset_x):
 
     # Draw the perpendicular circle
     theta = np.linspace(0, 2 * np.pi, 640)
-    circle_x = cx + radius * np.cos(theta)
-    circle_y = cy + radius * np.sin(theta)
+    circle_x = list(cx + radius * np.cos(theta))
+    circle_y = list(cy + radius * np.sin(theta))
     plt.plot(circle_x, circle_y, 'r-', label="Perpendicular Circle")
     
     obstacleOne = Obstacle(cx,cy,circle_x,circle_y)    
@@ -182,8 +186,8 @@ def perp_circle_array(p1, p2, radius, offset_x):
 
 
     theta = np.linspace(0, 2 * np.pi, 640)
-    circle_x2 = cx2 + radius * np.cos(theta)
-    circle_y2 = cy2 + radius * np.sin(theta)
+    circle_x2 = list(cx2 + radius * np.cos(theta))
+    circle_y2 = list(cy2 + radius * np.sin(theta))
     obstacleTwo = Obstacle(cx2, cy2, circle_x2, circle_y2)
     
     plt.plot(circle_x2, circle_y2, 'r-', label="Perpendicular Circle")

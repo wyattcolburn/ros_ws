@@ -112,8 +112,8 @@ def main():
         obstacleOne, obstacleTwo = perp_circle_array((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), obstacle_radius, obstacle_offset)
         obstacleArray.append(obstacleOne)
         obstacleArray.append(obstacleTwo)
-
-
+    lidar_readings = ray_trace(obstacleArray, odom_x, odom_y, local_goals_x) 
+    generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacleArray, obstacleArrayCounter, lidar_readings, "feb_18_test_2") 
     #print(len(obstacles))
     #obstacle_counter = 0
     #for i in range(len(local_goals_x)-1):

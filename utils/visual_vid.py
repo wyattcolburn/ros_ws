@@ -9,6 +9,8 @@ import os
 import glob
 import cv2
 import multiprocessing as mp
+
+
 def load_lidar_rays(csv_file):
     """Loads LiDAR data from a CSV file and returns it as a list of lists."""
     lidar_values = []
@@ -42,24 +44,16 @@ def draw_rays(odom_x, odom_y, lidar_readings):
 def draw_ray(odom_x, odom_y, lidar_readings):
 
     print("i am in func")
-    print(type(odom_x))
-    print(f"odom val {odom_x}")
-    print(type(odom_y))
-    print(f"odom val {odom_y}")
-    print(type(lidar_readings))
     for lidar_counter in range(640):
 
         ang = lidar_counter * (2*np.pi / 640)
-        distance = lidar_readings[0][lidar_counter]
-        print(f"dist type {type(distance)}")
+        distance = lidar_readings[lidar_counter]
         if distance == 0:
             continue
         current_x = odom_x
         current_y = odom_y
-        print(f"lidar count {lidar_counter}")
         projection_x = current_x + distance * math.cos(ang)
         projection_y = current_y + distance * math.sin(ang)
-        print(f"proj y type {type(projection_x)} and x {type(projection_y)}") 
         plt.plot([current_x, projection_x], [current_y,projection_y], linestyle='solid', color='green', label="Ray Trace")
 
 def perp_circle(p1, p2, radius, offset_x, obstacles, obstacle_counter):
@@ -220,31 +214,41 @@ def generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles
     Generates and saves individual frames for LIDAR visualization.
     """
     os.makedirs(output_folder, exist_ok=True)  # Ensure the folder exists
+    for odomCounter in range(len(odom_x)):
+        plt.figure(figsize=(8, 6))
+        print(f"len of number obstacles {len(obstacles)}")
+        plt.clf()  # Clear previous plot
+        print(f"length of lidar measurements {len(lidar_readings)}")
+        # Replot the base elements
+        plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
+        plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
+        
+        
+        for obstacle in obstacles:
+            dist_to_obstacle =  math.sqrt((obstacle.centerPoint[0] - odom_x[odomCounter]) ** 2 + (obstacle.centerPoint[1]  - odom_y[odomCounter]) ** 2)   
+            if dist_to_obstacle < 1: 
+                plt.plot(obstacle.x_points, obstacle.y_points, color='red')
 
-    plt.figure(figsize=(8, 6))
-    print(f"len of number obstacles {len(obstacles)}")
-    plt.clf()  # Clear previous plot
-    print(f"length of lidar measurements {len(lidar_readings)}")
-    # Replot the base elements
-    plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
-    plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
-    print(obstacles) 
-    for obstacle in obstacles:
-        plt.plot(obstacle[:, 0], obstacle[:, 1], color='red')
-    print("after plotting obstacles")
-    # Labels, grid, and legend
-    plt.xlabel("X Position (m)")
-    plt.ylabel("Y Position (m)")
-    plt.title("Odometry Path Visualization")
-    plt.grid(True)
-    plt.legend(loc="best")
-    print("drawing rays in generate frames")
-    draw_ray(odom_x[0], odom_y[0], lidar_readings) 
-    # Save the frame
-    frame_path = f"{output_folder}/frame_{obstacle_counter:03d}.png"
-    plt.savefig(frame_path)
+            else:
+                break
+                
+        print("after plotting obstacles")
+        # Labels, grid, and legend
+        plt.xlabel("X Position (m)")
+        plt.ylabel("Y Position (m)")
+        plt.title("Odometry Path Visualization")
+        plt.grid(True)
+        plt.legend(loc="best")
+        print(f"drawing rays in generate frames at odomCounter {odomCounter}")
+        draw_ray(odom_x[odomCounter], odom_y[odomCounter], lidar_readings[odomCounter]) 
+        
 
-    plt.close()
+        # Save the frame
+        frame_path = f"{output_folder}/frame_{odomCounter:03d}.png"
+        plt.savefig(frame_path)
+        print(f"Saved frame: {frame_path}")  # Debugging print statement
+        plt.close()
+
 def generate_frames_parallel(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacle_radius, obstacle_offset, output_folder="ray_frames"):
     """
     Parallelized version of generate_frames using multiprocessing.
