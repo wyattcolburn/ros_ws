@@ -3,7 +3,7 @@ import numpy as np
 
 # Load CSV
 
-def local_goal(input_file, output_file, interval, next_target):
+def lg_distance(input_file, output_file, interval, next_target):
     df = pd.read_csv(input_file)
 
 # Assuming columns ['x', 'y', 'z'] exist
@@ -39,4 +39,3 @@ def local_goal(input_file, output_file, interval, next_target):
 
     return local_goals_x, local_goals_y
 
-local_goal("long_odom.csv", "path_output.csv", .4, 0)

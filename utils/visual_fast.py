@@ -6,12 +6,11 @@ import numpy as np
 import argparse
 import math
 import csv
-class obstacle:
-    def __init__(self, cx, cy, x, y):
-        self.x = x
-        self.y = y
-        self.cx = cx
-        self.cy = cy
+class Obstacle:
+    def __init__(self, cx, cy, x_points, y_points):
+        self.centerPoint = (cx,cy)
+        self.x_points = x_points
+        self.y_points = y_points
 
 def draw_ray(odom_x, odom_y, lidar_readings):
 
@@ -63,6 +62,9 @@ def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_
         plt.xlabel("X Position (m)")
         plt.ylabel("Y Position (m)")
         plt.title("Odometry Path Visualization")
+        local_obstacles = []
+        local_obstacles.append(obstacles[i])
+        local_obstacles.append(obstacles[i+1])
         plt.grid(True)
         plt.legend(loc="best")
         # Draw only the current ray
@@ -81,7 +83,7 @@ def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_
 
 def draw_rays(odom_x, odom_y, lidar_readings):
 
-    for i in range(1):#len(odom_x)):
+    for i in range(2):#len(odom_x)):
         print("drawing rays")
         for lidar_counter in range(640):
 
@@ -93,10 +95,11 @@ def draw_rays(odom_x, odom_y, lidar_readings):
             projection_x = current_x + distance * math.cos(ang)
             projection_y = current_y + distance * math.sin(ang)
             plt.plot([current_x, projection_x], [current_y,projection_y], linestyle='solid', color='green', label="Ray Trace")
+            print(f"lidar count is {lidar_counter}")
     print("Done drawing rays")
     
 def ray_trace(obstacles, odom_x, odom_y, local_goals_x):
-    # I want to change this to only factor in a couple of obstacles
+    # I want to change this to only factor in a couple of obstacles, 
     radians_per_index = (2 * np.pi) / 640  # LiDAR resolution
     num_lidar = 640
     hallucinated_lidar = np.zeros((len(odom_x), num_lidar), dtype=float)
@@ -106,17 +109,11 @@ def ray_trace(obstacles, odom_x, odom_y, local_goals_x):
         current_odom_y = odom_y[odom_counter]
 
         angle_dict = {}  # Store the minimum distance per unique angle
-        num_close_obstacles = 10 # num of local goals divide by a constant so it maps to distance of whole path
-        close_obstacles = np.zeros((num_close_obstacles, 640, 2))
-        odom_per_lg  = int(odom_counter / len(local_goals_x)) #odom counts per local goal
-        lg_counter = odom_counter
-        print(f"local goal val {lg_counter} to the value {lg_counter + 10}")
-        close_obstacles = np.copy(obstacles[lg_counter:lg_counter + num_close_obstacles])
             
-        for obstacle_counter in range(len(close_obstacles)): #what value should this be?
+        for obstacle_counter in range(len(obstacles)): #what value should this be?
          
             for i in range(num_lidar): # a loop for each lidar angle
-                current_obstacle_x, current_obstacle_y = close_obstacles[obstacle_counter][i]
+                current_obstacle_x, current_obstacle_y = obstacles[obstacle_counter][i]
 
                 # Calculate angle of the obstacle relative to the robot
                 angle = math.atan2(current_obstacle_y - current_odom_y, current_obstacle_x - current_odom_x)
@@ -150,6 +147,49 @@ def hall_csv(hallucinated_lidar, output_file):
 
 
 
+def perp_circle_array(p1, p2, radius, offset_x):
+    odom_x1, odom_y1 = p1
+    odom_x2, odom_y2 = p2
+    mx, my = (odom_x1 + odom_x2) / 2 , (odom_y1 + odom_y2) / 2
+    if (odom_x2 - odom_x1) == 0:
+        print("vertical slope")
+        perp_slope = 0
+        dx, dy = 0, offset_x
+    elif odom_y2 - odom_y1 == 0:
+        perp_slope = np.inf
+        dx, dy = 0, offset_x
+    else:
+        slope = (odom_y2 - odom_y1) / (odom_x2 - odom_x1)
+        perp_slope = -1 / slope
+        mag = np.sqrt(1 + perp_slope **2)
+        dx = offset_x / mag
+        dy = (offset_x * perp_slope) / mag
+
+    cx, cy = mx + dx, my + dy
+
+    cx2, cy2 = mx - dx, my - dy
+    # Draw the original line
+    plt.plot([odom_x1, odom_x2], [odom_y1, odom_y2], 'b-', label="Original Line")
+
+    # Draw the perpendicular circle
+    theta = np.linspace(0, 2 * np.pi, 640)
+    circle_x = cx + radius * np.cos(theta)
+    circle_y = cy + radius * np.sin(theta)
+    plt.plot(circle_x, circle_y, 'r-', label="Perpendicular Circle")
+    
+    obstacleOne = Obstacle(cx,cy,circle_x,circle_y)    
+    
+
+
+    theta = np.linspace(0, 2 * np.pi, 640)
+    circle_x2 = cx2 + radius * np.cos(theta)
+    circle_y2 = cy2 + radius * np.sin(theta)
+    obstacleTwo = Obstacle(cx2, cy2, circle_x2, circle_y2)
+    
+    plt.plot(circle_x2, circle_y2, 'r-', label="Perpendicular Circle")
+
+    return obstacleOne, obstacleTwo 
+
 def perp_circle(p1, p2, radius, offset_x, obstacles, obstacle_counter):
     odom_x1, odom_y1 = p1
     odom_x2, odom_y2 = p2
@@ -181,15 +221,19 @@ def perp_circle(p1, p2, radius, offset_x, obstacles, obstacle_counter):
     plt.plot(circle_x, circle_y, 'r-', label="Perpendicular Circle")
     
 
-    obstacles[obstacle_counter] = np.column_stack((circle_x, circle_y))
+    #obstacles[obstacle_counter] = np.column_stack((circle_x, circle_y))
     obstacle_counter += 1
     theta = np.linspace(0, 2 * np.pi, 640)
     circle_x2 = cx2 + radius * np.cos(theta)
     circle_y2 = cy2 + radius * np.sin(theta)
 
-    obstacles[obstacle_counter] = np.column_stack((circle_x2, circle_y2))
+    #obstacles[obstacle_counter] = np.column_stack((circle_x2, circle_y2))
     obstacle_counter += 1
     plt.plot(circle_x2, circle_y2, 'r-', label="Perpendicular Circle")
+
+    obstacles.append(np.column_stack((circle_x, circle_y)))
+    obstacles.append(np.column_stack((circle_x2, circle_y2)))
+
 
     return obstacles, obstacle_counter 
 
