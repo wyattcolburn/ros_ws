@@ -112,8 +112,8 @@ def ray_trace(obstacles, odom_x, odom_y, local_goals_x):
         
         for obstacle_counter in range(len(obstacles)): #what value should this be?
             dist_to_obstacle =  math.sqrt((obstacles[obstacle_counter].centerPoint[0] - current_odom_x) ** 2 + (obstacles[obstacle_counter].centerPoint[1]  - current_odom_y) ** 2)   
-            if dist_to_obstacle < 1:
-
+            if dist_to_obstacle < 3:
+                print("entering here")
                 for i in range(num_lidar): # a loop for each lidar angle
                     current_obstacle_x = obstacles[obstacle_counter].x_points[i]
                     current_obstacle_y = obstacles[obstacle_counter].y_points[i]
