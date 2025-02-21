@@ -209,7 +209,7 @@ def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_
 
         #plt.show()        
     plt.close()
-def generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles, obstacle_counter, lidar_readings, output_folder="ray_frames"):
+def generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles, lidar_readings, output_folder="ray_frames"):
     """
     Generates and saves individual frames for LIDAR visualization.
     """
@@ -228,8 +228,9 @@ def generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles
         obstacleTracker = int(odomCounter / (len(odom_x) / len(local_goals_x)))
         
         for obstacle in obstacles:
-            
-            plt.plot(obstacle.x_points, obstacle.y_points, color='red')
+            if obstacle:
+
+                plt.plot(obstacle.x_points, obstacle.y_points, color='red')
         #print(f"before checkobst tracker : {obstacleTracker} and prev value {prevObstacleTracker} and odomval {odom_counter}")
                 # Update newObstacles only if obstacleTracker changes
         #if obstacleTracker != prevObstacleTracker:
@@ -277,6 +278,7 @@ def generate_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles, obsta
     print(f"len of number obstacles {len(obstacles)}")
     plt.clf()  # Clear previous plot
     print(f"length of lidar measurements {len(lidar_readings)}")
+    print(f"len of odom_x {len(odom_x)} and odom y {len(odom_y)}")
     # Replot the base elements
     plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
     plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
@@ -284,7 +286,8 @@ def generate_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles, obsta
     
     for obstacle in obstacles:
         
-        plt.plot(obstacle.x_points, obstacle.y_points, color='red')
+        if obstacle:
+            plt.plot(obstacle.x_points, obstacle.y_points, color='red')
     #print(f"before checkobst tracker : {obstacleTracker} and prev value {prevObstacleTracker} and odomval {odom_counter}")
             # Update newObstacles only if obstacleTracker changes
     #if obstacleTracker != prevObstacleTracker:
@@ -326,27 +329,18 @@ def generate_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles, obsta
 from concurrent.futures import ProcessPoolExecutor
 
 
-def generate_single_frame(odomCounter, odom_x, odom_y, local_goals_x, local_goals_y, obstacles, lidar_readings, output_folder):
+def generate_single_frame(odom_x, odom_y, local_goals_x, local_goals_y, obstacles, lidar_readings, output_folder):
     """
     Generates a single frame for visualization.
     """
+    print(f"len of odom_x {len(odom_x)} and odom y {len(odom_y)}")
     plt.figure(figsize=(8, 6))
-    plt.clf()
-
+    #plt.clf()
+    os.makedirs(output_folder, exist_ok=True)  # This prevents the FileNotFoundError 
     plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
     plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
 
-    obstacleTracker = int(odomCounter / (len(odom_x) / len(local_goals_x)))
-
-    newObstacles = []
-    if obstacleTracker * 2 < len(obstacles) - 1:
-        newObstacles.append(obstacles[obstacleTracker * 2])
-        newObstacles.append(obstacles[obstacleTracker * 2 + 1])
-
-    for obstacle in newObstacles:
-        dist_to_obstacle = math.sqrt((obstacle.centerPoint[0] - odom_x[odomCounter]) ** 2 +
-                                     (obstacle.centerPoint[1] - odom_y[odomCounter]) ** 2)
-        if dist_to_obstacle < 1:
+    for obstacle in obstacles:
             plt.plot(obstacle.x_points, obstacle.y_points, color='red')
 
     plt.xlabel("X Position (m)")
@@ -355,9 +349,9 @@ def generate_single_frame(odomCounter, odom_x, odom_y, local_goals_x, local_goal
     plt.grid(True)
     plt.legend(loc="best")
 
-    draw_ray(odom_x[odomCounter], odom_y[odomCounter], lidar_readings[odomCounter])
-
-    frame_path = f"{output_folder}/frame_{odomCounter:03d}.png"
+    #draw_ray(odom_x[odomCounter], odom_y[odomCounter], lidar_readings[odomCounter])
+    name = "curvy?"
+    frame_path = f"{output_folder}/{name}.png"
     plt.savefig(frame_path)
     plt.close()
     return frame_path  # For debugging/logging

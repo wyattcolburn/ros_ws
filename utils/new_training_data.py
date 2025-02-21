@@ -9,12 +9,12 @@ import matplotlib.pyplot as plt
 from ros_csv import extract_messages, save_to_csv
 import pandas as pd
 from visual_fast import perp_circle, ray_trace, hall_csv, ray_trace_one, perp_circle_array
-from visual_vid import draw_ray, draw_rays, generate_frames, generate_frames_obst, generate_frames_obst_parallel, generate_obst
+from visual_vid import draw_ray, draw_rays, generate_frames, generate_frames_obst, generate_single_frame, generate_frames_obst_parallel, generate_obst
 from path_distance import lg_distance
 
 # only things one should have to change
 
-input_bag = "/home/wyattcolburn/ros_ws/utils/rosbag2_2025_02_19-12_49_02"
+input_bag = "/home/wyattcolburn/ros_ws/utils/rosbag2_2025_02_19-12_26_51"
 #odom_csv_file = "straight.csv"
 odom_csv_file = "long_odom.csv"
 local_goal_file = "long_odom_lg.csv"
@@ -89,12 +89,13 @@ def main():
     obstacleArray = []
     obstacleArrayCounter = 0
     for i in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
-        obstacleOne, obstacleTwo = perp_circle_array((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), obstacle_radius, obstacle_offset)
+        obstacleOne, obstacleTwo = perp_circle_array((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), obstacle_radius, obstacle_offset, odom_x, odom_y)
         obstacleArray.append(obstacleOne)
         obstacleArray.append(obstacleTwo)
     lidar_readings = ray_trace(obstacleArray, odom_x, odom_y, local_goals_x) 
     print(lidar_readings)
-    generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacleArray, obstacleArrayCounter, lidar_readings, "straight_line_ray_test")
-    #generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacleArray, obstacleArrayCounter, lidar_readings, "straight_line_rays") 
+    generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacleArray, lidar_readings, "hard_lines")
+    #print(f"len of odom_x {len(odom_x)} and odom y {len(odom_y)}")
+    #generate_single_frame(odom_x, odom_y, local_goals_x, local_goals_y, obstacleArray, lidar_readings, "straight_line_obstacle_no_intersection") 
 if __name__ == "__main__":
     main()

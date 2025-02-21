@@ -111,29 +111,32 @@ def ray_trace(obstacles, odom_x, odom_y, local_goals_x):
         angle_dict = {}  # Store the minimum distance per unique angle
         
         for obstacle_counter in range(len(obstacles)): #what value should this be?
-            dist_to_obstacle =  math.sqrt((obstacles[obstacle_counter].centerPoint[0] - current_odom_x) ** 2 + (obstacles[obstacle_counter].centerPoint[1]  - current_odom_y) ** 2)   
-            if dist_to_obstacle < 3:
-                print("entering here")
-                for i in range(num_lidar): # a loop for each lidar angle
-                    current_obstacle_x = obstacles[obstacle_counter].x_points[i]
-                    current_obstacle_y = obstacles[obstacle_counter].y_points[i]
+            if obstacles[obstacle_counter]:
+                dist_to_obstacle =  math.sqrt((obstacles[obstacle_counter].centerPoint[0] - current_odom_x) ** 2 + (obstacles[obstacle_counter].centerPoint[1]  - current_odom_y) ** 2)   
+                if dist_to_obstacle < 3:
+                    print("entering here")
+                    for i in range(num_lidar): # a loop for each lidar angle
+                        current_obstacle_x = obstacles[obstacle_counter].x_points[i]
+                        current_obstacle_y = obstacles[obstacle_counter].y_points[i]
 
-                    # Calculate angle of the obstacle relative to the robot
-                    angle = math.atan2(current_obstacle_y - current_odom_y, current_obstacle_x - current_odom_x)
-                    # Calculate distance
-                    distance = math.sqrt((current_odom_x - current_obstacle_x) ** 2 + (current_odom_y - current_obstacle_y) ** 2)
-                    if distance > 2: # this shouldnt be an issue because osbtacles overlap
-                        distance = 0 #maybe max ranges
-                    
-                    # Normalize the angle to the closest LiDAR index { rad -> index }
-                    if angle < 0:
-                        angle = angle + 2 * math.pi
-                    angle_index = round(angle / radians_per_index)
+                        # Calculate angle of the obstacle relative to the robot
+                        angle = math.atan2(current_obstacle_y - current_odom_y, current_obstacle_x - current_odom_x)
+                        # Calculate distance
+                        distance = math.sqrt((current_odom_x - current_obstacle_x) ** 2 + (current_odom_y - current_obstacle_y) ** 2)
+                        if distance > 2: # this shouldnt be an issue because osbtacles overlap
+                            distance = 0 #maybe max ranges
+                        
+                        # Normalize the angle to the closest LiDAR index { rad -> index }
+                        if angle < 0:
+                            angle = angle + 2 * math.pi
+                        angle_index = round(angle / radians_per_index)
 
-                    # Store only the closest obstacle at each angle
-                    if angle_index not in angle_dict or distance < angle_dict[angle_index]:
-                        angle_dict[angle_index] = distance
+                        # Store only the closest obstacle at each angle
+                        if angle_index not in angle_dict or distance < angle_dict[angle_index]:
+                            angle_dict[angle_index] = distance
 
+                else:
+                    continue
             else:
                 continue
         # Convert dictionary back into the hallucinated_lidar array
@@ -211,7 +214,14 @@ def hall_csv(hallucinated_lidar, output_file):
 
 
 
-def perp_circle_array(p1, p2, radius, offset_x):
+   # Function to check if a circle intersects with odometry path
+def intersects_path(cx, cy, radius, odom_x, odom_y):
+    for ox, oy in zip(odom_x, odom_y):
+        dist = math.sqrt((cx - ox) ** 2 + (cy - oy) ** 2)
+        if dist <= radius:
+            return True  # Intersection detected
+    return False
+def perp_circle_array(p1, p2, radius, offset_x, odom_x, odom_y):
     odom_x1, odom_y1 = p1
     odom_x2, odom_y2 = p2
     mx, my = (odom_x1 + odom_x2) / 2 , (odom_y1 + odom_y2) / 2
@@ -239,19 +249,21 @@ def perp_circle_array(p1, p2, radius, offset_x):
     theta = np.linspace(0, 2 * np.pi, 640)
     circle_x = list(cx + radius * np.cos(theta))
     circle_y = list(cy + radius * np.sin(theta))
-    plt.plot(circle_x, circle_y, 'r-', label="Perpendicular Circle")
-    
-    obstacleOne = Obstacle(cx,cy,circle_x,circle_y)    
+  
     
 
 
     theta = np.linspace(0, 2 * np.pi, 640)
     circle_x2 = list(cx2 + radius * np.cos(theta))
     circle_y2 = list(cy2 + radius * np.sin(theta))
-    obstacleTwo = Obstacle(cx2, cy2, circle_x2, circle_y2)
     
-    plt.plot(circle_x2, circle_y2, 'r-', label="Perpendicular Circle")
 
+    # Check for intersection and create obstacles
+    obstacleOne = Obstacle(cx, cy, circle_x, circle_y) if not intersects_path(cx, cy, radius, odom_x, odom_y) else None
+    obstacleTwo = Obstacle(cx2, cy2, circle_x2, circle_y2) if not intersects_path(cx2, cy2, radius, odom_x, odom_y) else None 
+
+    #plt.plot(circle_x, circle_y, 'r-', label="Perpendicular Circle")
+    #plt.plot(circle_x2, circle_y2, 'r-', label="Perpendicular Circle")
     return obstacleOne, obstacleTwo 
 
 def perp_circle(p1, p2, radius, offset_x, obstacles, obstacle_counter):
