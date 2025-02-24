@@ -56,7 +56,15 @@ def extract_messages(bag_path):
                 grouped_data.setdefault(timestamp, {}).update({
                     f"scan_range_{i}": value
                 })
+        elif topic == "/cmd_vel":
+            v = msg_deserialized.linear.x
+            w = msg_deserialized.angular.z
+            print(f" v value {v}, w {w}")
 
+            grouped_data.setdefault(timestamp, {}).update({
+                "cmd_v": v, 
+                "cmd_w": w
+                })
             
     return grouped_data
 

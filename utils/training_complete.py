@@ -8,23 +8,50 @@ from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
 from scipy.spatial.transform import Rotation as R
 import math
+import csv
+from matplotlib.patches import Circle
 
-
-
-input_bag = "/home/wyattcolburn/ros_ws/utils/rosbag2_2025_02_19-12_49_02"
-frame_dkr = "training_complete_test"
+input_bag = "/home/wyattcolburn/ros_ws/utils/rosbag2_2025_02_19-12_12_38"
+frame_dkr = "idk_test"
+os.makedirs(frame_dkr, exist_ok=True)
 odom_csv_file = os.path.join(frame_dkr, "odom_data.csv")
+debug_lidar = os.path.join(frame_dkr, "debug.csv")
+lidar_file = os.path.join(frame_dkr, "lidar_data.csv")
 obstacle_radius = .1
 obstacle_offset = .4
-
+num_lidar_points = 1080
 
 class Obstacle:
-    def __init__(self, cx, cy, x_points, y_points):
+    def __init__(self, cx, cy):
         self.centerPoint = (cx,cy)
-        self.x_points = x_points
-        self.y_points = y_points
 
+def hall_csv(hallucinated_lidar, output_file):
+    with open(output_file, "w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerows(hallucinated_lidar)  # Writes all rows at once 
 
+def hall_csv_2(hallucinated_lidar, output_file):
+    """
+    Write each LiDAR value in a separate row, along with its row index (time step)
+    and angle index. This produces a CSV with columns:
+        row_index, angle_index, lidar_value
+    so that you don't have to scroll horizontally through 1080 columns.
+    """
+    with open(output_file, "w", newline="") as file:
+        writer = csv.writer(file)
+        # Optionally write a header:
+        writer.writerow(["RowIndex", "AngleIndex", "LidarValue"])
+
+        # hallucinated_lidar is assumed to be shape (num_rows, 1080)
+        for row_idx, row_data in enumerate(hallucinated_lidar):
+            for angle_idx, lidar_value in enumerate(row_data):
+                writer.writerow([row_idx, angle_idx, lidar_value])
+
+#def lidar_pipeline(hallucinated_lidar, odom_csv, output_csv):
+#
+#    with open(output_file, "w", newline="") as file:
+#        writer = csv.writer(file)
+#        writer.writeheader("odom
 def intersects_path(cx, cy, radius, odom_x, odom_y):
     for ox, oy in zip(odom_x, odom_y):
         dist = math.sqrt((cx - ox) ** 2 + (cy - oy) ** 2)
@@ -87,27 +114,11 @@ def perp_circle_array(p1, p2, radius, offset_x, odom_x, odom_y):
         dy = (offset_x * perp_slope) / mag
 
     cx, cy = mx + dx, my + dy
-
     cx2, cy2 = mx - dx, my - dy
-    # Draw the original line
-    plt.plot([odom_x1, odom_x2], [odom_y1, odom_y2], 'b-', label="Original Line")
-
-    # Draw the perpendicular circle
-    theta = np.linspace(0, 2 * np.pi, 640)
-    circle_x = list(cx + radius * np.cos(theta))
-    circle_y = list(cy + radius * np.sin(theta))
-  
     
-
-
-    theta = np.linspace(0, 2 * np.pi, 640)
-    circle_x2 = list(cx2 + radius * np.cos(theta))
-    circle_y2 = list(cy2 + radius * np.sin(theta))
-    
-
     # Check for intersection and create obstacles
-    obstacleOne = Obstacle(cx, cy, circle_x, circle_y) if not intersects_path(cx, cy, radius, odom_x, odom_y) else None
-    obstacleTwo = Obstacle(cx2, cy2, circle_x2, circle_y2) if not intersects_path(cx2, cy2, radius, odom_x, odom_y) else None 
+    obstacleOne = Obstacle(cx, cy) if not intersects_path(cx, cy, radius, odom_x, odom_y) else None
+    obstacleTwo = Obstacle(cx2, cy2) if not intersects_path(cx2, cy2, radius, odom_x, odom_y) else None 
 
     return obstacleOne, obstacleTwo 
 
@@ -145,7 +156,7 @@ def extract_messages(bag_path):
             qw = msg_deserialized.pose.pose.orientation.w
             yaw = R.from_quat([qx, qy, qz, qw]).as_euler('xyz')[2]
 
-            grouped_data.setdefault(timestamp, {}).update({
+            grouped_data.setdefault(timestamp, {}).update({ ## add getting local velocity and local angular velocity
                 "odom_x": x,
                 "odom_y": y,
                 "odom_yaw": yaw
@@ -165,6 +176,7 @@ def extract_messages(bag_path):
 
 def save_to_csv(bag_path, output_csv):
     """Converts extracted messages to CSV format."""
+    
     messages = extract_messages(bag_path)
 
     if not messages:
@@ -180,61 +192,86 @@ def save_to_csv(bag_path, output_csv):
 
     df.to_csv(output_csv, index=False)
     print(f"Saved {len(df)} messages to {output_csv}")
-
-
+def ray_circle_intersection(ray_origin_x, ray_origin_y, ray_angle, circle_center_x, circle_center_y, circle_radius):
+    """
+    Calculate the intersection of a ray with a circle.
+    Returns the distance to the closest intersection point, or None if no intersection.
+    """
+    # Vector from origin to circle center
+    dx = circle_center_x - ray_origin_x
+    dy = circle_center_y - ray_origin_y
+    
+    # Ray direction vector
+    ray_dir_x = math.cos(ray_angle)
+    ray_dir_y = math.sin(ray_angle)
+    
+    # Project vector to circle center onto ray direction
+    a = ray_dir_x * dx + ray_dir_y * dy
+    
+    # Square of perpendicular distance from circle center to ray
+    b = dx * dx + dy * dy - a * a
+    
+    # If perpendicular distance is greater than radius, no intersection
+    if b > circle_radius * circle_radius:
+        return None
+    
+    # Distance from closest point to intersection points
+    f = math.sqrt(circle_radius * circle_radius - b)
+    
+    # Distance to closest intersection point
+    t = a - f
+    
+    # If intersection is behind the ray origin, no valid intersection
+    if t < 0:
+        return None
+        
+    return t
 def ray_trace(obstacles, odom_x, odom_y, local_goals_x):
-    # I want to change this to only factor in a couple of obstacles, 
-    radians_per_index = (2 * np.pi) / 640  # LiDAR resolution
-    num_lidar = 640
-    hallucinated_lidar = np.zeros((len(odom_x), num_lidar), dtype=float)
-
-    for odom_counter in range(len(odom_x)):# Iterate over all odometry points
+    radians_per_index = (2 * np.pi) / num_lidar_points
+    hallucinated_lidar = np.zeros((len(odom_x), num_lidar_points), dtype=float)
+    
+    for odom_counter in range(len(odom_x)):
         current_odom_x = odom_x[odom_counter]
         current_odom_y = odom_y[odom_counter]
-
-        angle_dict = {}  # Store the minimum distance per unique angle
         
-        for obstacle_counter in range(len(obstacles)): #what value should this be?
-            if obstacles[obstacle_counter]:
-                dist_to_obstacle =  math.sqrt((obstacles[obstacle_counter].centerPoint[0] - current_odom_x) ** 2 + (obstacles[obstacle_counter].centerPoint[1]  - current_odom_y) ** 2)   
-                if dist_to_obstacle < 3:
-                    for i in range(num_lidar): # a loop for each lidar angle
-                        current_obstacle_x = obstacles[obstacle_counter].x_points[i]
-                        current_obstacle_y = obstacles[obstacle_counter].y_points[i]
-
-                        # Calculate angle of the obstacle relative to the robot
-                        angle = math.atan2(current_obstacle_y - current_odom_y, current_obstacle_x - current_odom_x)
-                        # Calculate distance
-                        distance = math.sqrt((current_odom_x - current_obstacle_x) ** 2 + (current_odom_y - current_obstacle_y) ** 2)
-                        if distance > 2: # this shouldnt be an issue because osbtacles overlap
-                            distance = 0 #maybe max ranges
+        # For each LiDAR angle
+        for i in range(num_lidar_points):
+            angle = i * radians_per_index
+            min_distance = float('inf')
+            
+            # Check intersection with each obstacle
+            for obstacle in obstacles:
+                if obstacle:  # Check if obstacle exists
+                    # Get circle properties (assuming obstacles have centerPoint and radius attributes)
+                    center_x = obstacle.centerPoint[0]
+                    center_y = obstacle.centerPoint[1]
+                    
+                    # Calculate distance to obstacle center
+                    dist_to_center = math.sqrt((center_x - current_odom_x)**2 + 
+                                             (center_y - current_odom_y)**2)
+                    
+                    # Only check nearby obstacles (optimization)
+                    if dist_to_center < 5 + obstacle_radius:
+                        intersection_dist = ray_circle_intersection(
+                            current_odom_x, current_odom_y, angle,
+                            center_x, center_y, obstacle_radius
+                        )
                         
-                        # Normalize the angle to the closest LiDAR index { rad -> index }
-                        if angle < 0:
-                            angle = angle + 2 * math.pi
-                        angle_index = round(angle / radians_per_index)
-
-                        # Store only the closest obstacle at each angle
-                        if angle_index not in angle_dict or distance < angle_dict[angle_index]:
-                            angle_dict[angle_index] = distance
-
-                else:
-                    continue
-            else:
-                continue
-        # Convert dictionary back into the hallucinated_lidar array
-        for angle_index, distance in angle_dict.items():
-            if 0 <= angle_index < num_lidar:  # Ensure index is within range
-                hallucinated_lidar[odom_counter][angle_index] = distance
-        #print(angle_dict)
+                        if intersection_dist is not None and intersection_dist < min_distance:
+                            min_distance = intersection_dist
+            
+            # Store the closest intersection distance
+            if min_distance != float('inf'):
+                hallucinated_lidar[odom_counter][i] = min_distance
+                
     return hallucinated_lidar
 
 def draw_ray(odom_x, odom_y, lidar_readings):
 
 
-    for lidar_counter in range(640):
+    for lidar_counter in range(len(lidar_readings)):
 
-        ang = lidar_counter * (2*np.pi / 640)
+        ang = lidar_counter * (2*np.pi / num_lidar_points)
         distance = lidar_readings[lidar_counter]
         current_x = odom_x
         current_y = odom_y
@@ -251,6 +288,7 @@ def generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles
     os.makedirs(output_folder, exist_ok=True)  # Ensure the folder exists
     newObstacles = []
     prevObstacleTracker = -1
+    print(f"len of lidar_readings {lidar_readings}")
     for odomCounter in range(0,len(odom_x),5):
         plt.figure(figsize=(8, 6))
         print(f"len of number obstacles {len(obstacles)}")
@@ -264,8 +302,8 @@ def generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles
         
         for obstacle in obstacles:
             if obstacle:
-
-                plt.plot(obstacle.x_points, obstacle.y_points, color='red')
+                circle = Circle((obstacle.centerPoint[0], obstacle.centerPoint[1]), obstacle_radius, fill=False, color='r')
+                plt.gca().add_patch(circle)
                 
         print("after plotting obstacles")
         # Labels, grid, and legend
@@ -327,7 +365,8 @@ def main():
         obstacleArray.append(obstacleOne)
         obstacleArray.append(obstacleTwo)
     lidar_readings = ray_trace(obstacleArray, odom_x, odom_y, local_goals_x) 
-    print(lidar_readings)
+    hall_csv(lidar_readings, lidar_file)
+    hall_csv_2(lidar_readings[0:1], debug_lidar)
     generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacleArray, lidar_readings, frame_dkr) 
 if __name__ == "__main__":
     main()
