@@ -13,12 +13,12 @@ from visual_vid import draw_ray, generate_frames
 
 
 # only things one should have to change
-input_bag = "/home/wyattcolburn/ros_ws/utils/rosbag2_2025_02_12-10_17_50"
+input_bag = "/home/wyattcolburn/ros_ws/utils/super_long"
 odom_csv_file = "long_odom.csv"
 local_goal_file = "long_odom_lg.csv"
 num_lg_goals = 20 # look into how A star does it
 lidar_data_file = "long_lidar.csv"
-frame_dkr = "long_frames"
+frame_dkr = "long_path"
 obstacle_radius = .2
 obstacle_offset = .7
 
@@ -74,7 +74,7 @@ def main():
     plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
 
     # Plot local goals
-    plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
+    #plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
 
     # Add arrows representing yaw at each local goal
     plt.quiver(local_goals_x, local_goals_y, dx, dy, angles='xy', scale_units='xy', scale=1, color='black', label="Local Goals Yaw")
@@ -82,28 +82,28 @@ def main():
 
     # Add legend for the path
     plt.legend(loc="best")
+    plt.show()
+    #obstacles = np.zeros((len(local_goals_x)*2, 640,2)) # each local goal gives two obstacles
+    #obstacle_counter = 0
+    #print(f"lenght of lcoal goals, {len(local_goals_x)}")
+    ## Labels and grid
+    #plt.xlabel("X Position (m)")
+    #plt.ylabel("Y Position (m)")
+    #plt.title("Odometry Path Visualization")
+    #plt.grid(True)
 
-    obstacles = np.zeros((len(local_goals_x)*2, 640,2)) # each local goal gives two obstacles
-    obstacle_counter = 0
-    print(f"lenght of lcoal goals, {len(local_goals_x)}")
-    # Labels and grid
-    plt.xlabel("X Position (m)")
-    plt.ylabel("Y Position (m)")
-    plt.title("Odometry Path Visualization")
-    plt.grid(True)
+    #print(len(local_goals_x))
+    #    
+    #for i in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
+    #    obstacles, obstacle_counter = perp_circle((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), obstacle_radius, obstacle_offset, obstacles, obstacle_counter)
+    #
 
-    print(len(local_goals_x))
-        
-    for i in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
-        obstacles, obstacle_counter = perp_circle((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), obstacle_radius, obstacle_offset, obstacles, obstacle_counter)
-    
-
-    test_odom_x = odom_x[0:99]
-    test_odom_y = odom_y[0:99]
-    lidar_readings = ray_trace(obstacles, odom_x, odom_y, local_goals_x) # give obstacle data and each odom point
-    hall_csv(lidar_readings, lidar_data_file)
-    print("data has been saved to lidar file")
-    generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacles, obstacle_counter, frame_dkr) 
-    print("frames have been saved")
+    #test_odom_x = odom_x[0:99]
+    #test_odom_y = odom_y[0:99]
+    #lidar_readings = ray_trace(obstacles, odom_x, odom_y, local_goals_x) # give obstacle data and each odom point
+    #hall_csv(lidar_readings, lidar_data_file)
+    #print("data has been saved to lidar file")
+    #generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_readings, obstacles, obstacle_counter, frame_dkr) 
+    #print("frames have been saved")
 if __name__ == "__main__":
     main()
