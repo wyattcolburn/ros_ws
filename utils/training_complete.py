@@ -19,7 +19,9 @@ cmd_csv = os.path.join(frame_dkr, "cmd_vel.csv")
 debug_lidar = os.path.join(frame_dkr, "debug.csv")
 lidar_file = os.path.join(frame_dkr, "lidar_data.csv")
 training_output = os.path.join(frame_dkr, "big_csv.csv")
+local_goals_output = os.path.join(frame_dkr, "local_goals.csv")
 path_output = os.path.join(frame_dkr, "odom_path")
+
 obstacle_radius = .1
 obstacle_offset = .4
 num_lidar_points = 1080
@@ -88,7 +90,7 @@ def intersects_path(cx, cy, radius, odom_x, odom_y):
         if dist <= radius:
             return True  # Intersection detected
     return False
-def lg_distance(input_file, output_file, interval, next_target):
+def lg_distance(input_file, output_file, interval, next_target, last_odom_x, last_odom_y):
     df = pd.read_csv(input_file)
 
     # Assuming columns ['x', 'y', 'z'] exist
@@ -115,7 +117,8 @@ def lg_distance(input_file, output_file, interval, next_target):
             local_goals_y.append(row['odom_y'])
             next_target += interval  # Update next target distance
     print(local_goals_x)
-
+    local_goals_x.append(last_odom_x)
+    local_goals_y.append(last_odom_y)
     # Create DataFrame
     goals_df = pd.DataFrame({'local_goals_x': local_goals_x, 'local_goals_y': local_goals_y})
 
@@ -269,7 +272,6 @@ def ray_circle_intersection(ray_origin_x, ray_origin_y, ray_angle, circle_center
         return None
         
     return t
-
 def ray_trace_optimized(obstacles, odom_x, odom_y, local_goals_x):
     import numpy as np
     import math
@@ -277,7 +279,7 @@ def ray_trace_optimized(obstacles, odom_x, odom_y, local_goals_x):
 
     # Pre-compute angles to avoid recalculating them for each position
     angles = np.linspace(0, 2 * np.pi, num_lidar_points, endpoint=False)
-    hallucinated_lidar = np.full((len(odom_x), num_lidar_points), np.inf, dtype=float)
+    hallucinated_lidar = np.zeros((len(odom_x), num_lidar_points), dtype=float)  # Initialize with 0
 
     # Extract obstacle data into arrays for vectorized operations
     obstacle_centers_x = np.array([obs.centerPoint[0] for obs in obstacles if obs])
@@ -301,7 +303,7 @@ def ray_trace_optimized(obstacles, odom_x, odom_y, local_goals_x):
 
             for i in range(len(angles)):
                 angle = angles[i]
-                min_distance = float('inf')
+                min_distance = None  # Initialize to None, as we'll check for valid intersections
 
                 # Ray direction vector
                 ray_dir_x = np.cos(angle)
@@ -339,12 +341,12 @@ def ray_trace_optimized(obstacles, odom_x, odom_y, local_goals_x):
                     else:
                         continue
 
-                    if intersection_dist < min_distance:
+                    # Update the closest intersection distance
+                    if min_distance is None or intersection_dist < min_distance:
                         min_distance = intersection_dist
 
-                # Store the closest intersection distance
-                if min_distance != float('inf'):
-                    hallucinated_lidar[odom_counter, i] = min_distance
+                # If no valid intersection is found, store 0; otherwise, store the closest intersection distance
+                hallucinated_lidar[odom_counter, i] = min_distance if min_distance is not None else 0
 
         return hallucinated_lidar
 
@@ -448,128 +450,53 @@ def generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacles
         print(f"Saved frame: {frame_path}")  # Debugging print statement
         
     plt.close()
-def generate_frames_obst_optimized(odom_x, odom_y, local_goals_x, local_goals_y, obstacles, 
-                                  lidar_readings, output_folder="ray_frames", frame_step=5):
-    """
-    Generates and saves individual frames for LIDAR visualization with optimized performance.
+
+def upscale_local_goals(local_goals_x, local_goals_y, odom_x, odom_y, output_csv):
+
+    # This function upscales the local goals to match the number of odom points, 
+    # until the current_odom is at local_goal then keep putting in CSV
+    print(f"len of odom {len(odom_x)} and len of lg {len(local_goals_x)}")
+    print(f"first val of odom: {(odom_x[0], odom_y[0])} and first of local goals {(local_goals_x[0], local_goals_y[0])}") 
+
+
+    currentLocalGoal = (local_goals_x[0], local_goals_y[0])
+    lg_upsampled = [] 
+    lgCounter = 0
+    odomCounter = 0
+    while len(odom_x) != len(lg_upsampled):
+        odomPoint = (odom_x[odomCounter], odom_y[odomCounter])
+        if odomPoint == currentLocalGoal:
+            # if have reached the local goal, update to next local goal
+            if lgCounter +1 != len(local_goals_y):
+                lgCounter += 1
+                currentLocalGoal = (local_goals_x[lgCounter], local_goals_y[lgCounter])
+                print("success, local goal has been reached")
+
+
+
+        lg_upsampled.append(currentLocalGoal)
+        odomCounter += 1
+        print("len of lg_upsampled", len(lg_upsampled), len(odom_x), lgCounter, len(local_goals_x))
+    print(len(lg_upsampled) == len(odom_x))
     
-    Parameters:
-    -----------
-    odom_x, odom_y : array-like
-        X and Y coordinates of odometry path
-    local_goals_x, local_goals_y : array-like
-        X and Y coordinates of local goals
-    obstacles : list
-        List of obstacles with centerPoint and radius attributes
-    lidar_readings : array-like
-        LIDAR readings for each odometry point
-    output_folder : str
-        Folder to save generated frames
-    frame_step : int
-        Step size for frame generation (larger = fewer frames)
-    """
-    import os
-    import matplotlib.pyplot as plt
-    from matplotlib.patches import Circle
-    import numpy as np
-    from concurrent.futures import ProcessPoolExecutor
-    import multiprocessing
+
+
+
+    with open(output_csv, 'w', newline = '') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['local_goals_x', 'local_goals_y'])
     
-    # Ensure output folder exists
-    os.makedirs(output_folder, exist_ok=True)
-    
-    # Pre-filter valid obstacles once
-    valid_obstacles = [obs for obs in obstacles if obs]
-    
-    # Create static elements only once
-    fig, ax = plt.subplots(figsize=(8, 6))
-    
-    # Plot static elements once
-    static_fig = plt.figure(figsize=(8, 6))
-    static_ax = static_fig.add_subplot(111)
-    static_ax.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
-    static_ax.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
-    
-    # Add static obstacle circles
-    for obstacle in valid_obstacles:
-        circle = Circle((obstacle.centerPoint[0], obstacle.centerPoint[1]), 
-                        obstacle_radius, fill=False, color='r')
-        static_ax.add_patch(circle)
-    
-    # Set up static elements
-    static_ax.set_xlabel("X Position (m)")
-    static_ax.set_ylabel("Y Position (m)")
-    static_ax.set_title("Odometry Path Visualization")
-    static_ax.grid(True)
-    static_ax.legend(loc="best")
-    
-    # Get axis limits from the static plot
-    x_min, x_max = static_ax.get_xlim()
-    y_min, y_max = static_ax.get_ylim()
-    
-    # Close the static figure (we just needed its settings)
-    plt.close(static_fig)
-    
-    # Function to generate a single frame
-    def generate_single_frame(odom_idx):
-        # Create a new figure with the same dimensions and limits
-        fig = plt.figure(figsize=(8, 6))
-        ax = fig.add_subplot(111)
-        
-        # Copy static elements
-        ax.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
-        ax.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
-        
-        # Add obstacle circles
-        for obstacle in valid_obstacles:
-            circle = Circle((obstacle.centerPoint[0], obstacle.centerPoint[1]), 
-                           obstacle_radius, fill=False, color='r')
-            ax.add_patch(circle)
-        
-        # Draw LIDAR rays
-        draw_ray(odom_x[odom_idx], odom_y[odom_idx], lidar_readings[odom_idx])
-        
-        # Highlight current position
-        ax.plot(odom_x[odom_idx], odom_y[odom_idx], marker='|', markersize=9, 
-               color='yellow', label="Current Odom")
-        
-        # Set consistent axis limits
-        ax.set_xlim(x_min, x_max)
-        ax.set_ylim(y_min, y_max)
-        
-        # Labels and grid
-        ax.set_xlabel("X Position (m)")
-        ax.set_ylabel("Y Position (m)")
-        ax.set_title("Odometry Path Visualization")
-        ax.grid(True)
-        ax.legend(loc="best")
-        
-        # Save the frame
-        frame_path = f"{output_folder}/frame_{odom_idx:03d}.png"
-        fig.savefig(frame_path, dpi=100)
-        plt.close(fig)
-        return odom_idx
-    
-    # Generate frames in parallel
-    frame_indices = list(range(0, len(odom_x), frame_step))
-    
-    # Determine number of workers (use fewer than CPU count to avoid memory issues)
-    num_cpus = max(1, multiprocessing.cpu_count() - 1)
-    
-    print(f"Generating {len(frame_indices)} frames using {num_cpus} processes...")
-    
-    # Use process pool for parallel frame generation
-    with ProcessPoolExecutor(max_workers=num_cpus) as executor:
-        results = list(executor.map(generate_single_frame, frame_indices))
-    
-    print(f"Generated {len(results)} frames in {output_folder}/")
-    return frame_indices
+        for i in range(len(lg_upsampled)):
+            writer.writerow([lg_upsampled[i][0], lg_upsampled[i][1]])
+
+                #return True
+
+
 def main():
 
     save_to_csv(input_bag, odom_csv_file, '/odom') # turned bag into csv
     
     save_to_csv(input_bag, cmd_csv, '/cmd_vel') # turned bag into csv
-    local_goals_x, local_goals_y = lg_distance(odom_csv_file, "lg_dist.csv", .1, 0)
     
     
     df = pd.read_csv(odom_csv_file)
@@ -577,44 +504,48 @@ def main():
     # Extract only x and y positions
     odom_x = df['odom_x'].tolist()
     odom_y = df['odom_y'].tolist()
+    
+    local_goals_x, local_goals_y = lg_distance(odom_csv_file, "lg_dist.csv", .1, .1, odom_x[-1], odom_y[-1])
+    print(odom_x[-1], odom_y[-1], local_goals_x[-1], local_goals_y[-1])
 
-    path_image(odom_x, odom_y, local_goals_x, local_goals_y, path_output)
-
+    #path_image(odom_x, odom_y, local_goals_x, local_goals_y, path_output)
+    
+    upscale_local_goals(local_goals_x, local_goals_y, odom_x, odom_y, "blank.csv")
     # Convert yaw angles to unit vectors for quiver
-    arrow_length = 0.1  # Adjust the arrow length as needed
+    #arrow_length = 0.1  # Adjust the arrow length as needed
 
 
-    # Create figure
-    plt.figure(figsize=(8, 6))
+    ## Create figure
+    #plt.figure(figsize=(8, 6))
 
-    # Plot odometry path (without yaw)
-    plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
+    ## Plot odometry path (without yaw)
+    #plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
 
-    # Plot local goals
-    plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
+    ## Plot local goals
+    #plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
 
-    # Add arrows representing yaw at each local goal
-    #plt.quiver(local_goals_x, local_goals_y, dx, dy, angles='xy', scale_units='xy', scale=1, color='black', label="Local Goals Yaw")
+    ## Add arrows representing yaw at each local goal
+    ##plt.quiver(local_goals_x, local_goals_y, dx, dy, angles='xy', scale_units='xy', scale=1, color='black', label="Local Goals Yaw")
 
 
-    # Add legend for the path
-    plt.legend(loc="best")
+    ## Add legend for the path
+    #plt.legend(loc="best")
 
-    
-        
-    print(len(local_goals_x))
-    
-    obstacleArray = []
-    obstacleArrayCounter = 0
-    for i in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
-        obstacleOne, obstacleTwo = perp_circle_array((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), obstacle_radius, obstacle_offset, odom_x, odom_y)
-        obstacleArray.append(obstacleOne)
-        obstacleArray.append(obstacleTwo)
-    lidar_readings = ray_trace_optimized(obstacleArray, odom_x, odom_y, local_goals_x) 
-    hall_csv(lidar_readings, lidar_file)
-    
-    oversample_cmdVel3(odom_csv_file, cmd_csv, cmd_output_csv)
-    #hall_csv_2(lidar_readings[0:1], debug_lidar)
-    generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacleArray, lidar_readings, frame_dkr) 
+    #
+    #    
+    #print(len(local_goals_x))
+    #
+    #obstacleArray = []
+    #obstacleArrayCounter = 0
+    #for i in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
+    #    obstacleOne, obstacleTwo = perp_circle_array((local_goals_x[i], local_goals_y[i]), (local_goals_x[i + 1], local_goals_y[i + 1]), obstacle_radius, obstacle_offset, odom_x, odom_y)
+    #    obstacleArray.append(obstacleOne)
+    #    obstacleArray.append(obstacleTwo)
+    #lidar_readings = ray_trace_optimized(obstacleArray, odom_x, odom_y, local_goals_x) 
+    #hall_csv(lidar_readings, lidar_file)
+    #
+    #oversample_cmdVel3(odom_csv_file, cmd_csv, cmd_output_csv)
+    ##hall_csv_2(lidar_readings[0:1], debug_lidar)
+    #generate_frames_obst(odom_x, odom_y, local_goals_x, local_goals_y, obstacleArray, lidar_readings, frame_dkr) 
 if __name__ == "__main__":
     main()
