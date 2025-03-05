@@ -11,15 +11,16 @@ import math
 import csv
 from matplotlib.patches import Circle
 
-input_bag = "/home/wyattcolburn/ros_ws/utils/ten_thousands"
-frame_dkr = "ten_thou"
+input_bag = "/home/wyattcolburn/ros_ws/utils/basic_test_carlos_output"
+
+frame_dkr = "basic_test_feb28"
 os.makedirs(frame_dkr, exist_ok=True)
 odom_csv_file = os.path.join(frame_dkr, "odom_data.csv")
 cmd_csv = os.path.join(frame_dkr, "cmd_vel.csv")
 debug_lidar = os.path.join(frame_dkr, "debug.csv")
-lidar_file = os.path.join(frame_dkr, "lidar_data.csv")
+lidar_file = os.path.join(frame_dkr, "test3_lidar_data.csv")
 training_output = os.path.join(frame_dkr, "big_csv.csv")
-local_goals_output = os.path.join(frame_dkr, "local_goals.csv")
+local_goals_output = os.path.join(frame_dkr, "test3_local_goals.csv")
 path_output = os.path.join(frame_dkr, "odom_path")
 
 obstacle_radius = .1
@@ -504,37 +505,36 @@ def main():
     # Extract only x and y positions
     odom_x = df['odom_x'].tolist()
     odom_y = df['odom_y'].tolist()
-    
+    len(odom_x) 
     local_goals_x, local_goals_y = lg_distance(odom_csv_file, "lg_dist.csv", .1, .1, odom_x[-1], odom_y[-1])
-    print(odom_x[-1], odom_y[-1], local_goals_x[-1], local_goals_y[-1])
 
-    #path_image(odom_x, odom_y, local_goals_x, local_goals_y, path_output)
+    path_image(odom_x, odom_y, local_goals_x, local_goals_y, path_output)
     
-    upscale_local_goals(local_goals_x, local_goals_y, odom_x, odom_y, "blank.csv")
-    # Convert yaw angles to unit vectors for quiver
-    #arrow_length = 0.1  # Adjust the arrow length as needed
+    #upscale_local_goals(local_goals_x, local_goals_y, odom_x, odom_y, local_goals_output)
+    ## Convert yaw angles to unit vectors for quiver
+    ##arrow_length = 0.1  # Adjust the arrow length as needed
 
 
-    ## Create figure
-    #plt.figure(figsize=(8, 6))
+    ### Create figure
+    ##plt.figure(figsize=(8, 6))
 
-    ## Plot odometry path (without yaw)
-    #plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
+    ### Plot odometry path (without yaw)
+    ##plt.plot(odom_x, odom_y, marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
 
-    ## Plot local goals
-    #plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
+    ### Plot local goals
+    ##plt.plot(local_goals_x, local_goals_y, marker='o', linestyle='-', markersize=3, color='red', label="Local Goals")
 
-    ## Add arrows representing yaw at each local goal
-    ##plt.quiver(local_goals_x, local_goals_y, dx, dy, angles='xy', scale_units='xy', scale=1, color='black', label="Local Goals Yaw")
+    ### Add arrows representing yaw at each local goal
+    ###plt.quiver(local_goals_x, local_goals_y, dx, dy, angles='xy', scale_units='xy', scale=1, color='black', label="Local Goals Yaw")
 
 
-    ## Add legend for the path
-    #plt.legend(loc="best")
+    ### Add legend for the path
+    ##plt.legend(loc="best")
 
-    #
-    #    
-    #print(len(local_goals_x))
-    #
+    ##
+    ##    
+    ##print(len(local_goals_x))
+    ##
     #obstacleArray = []
     #obstacleArrayCounter = 0
     #for i in range(len(local_goals_x)-1): #dont need an obstacle for each odom, just local goals
