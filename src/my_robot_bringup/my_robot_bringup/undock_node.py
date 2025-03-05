@@ -34,7 +34,11 @@ class UndockActionClient(Node):
         self.get_logger().info("***********************************************")
         # Start bag recording after undocking
         self.get_logger().info('Starting rosbag recording...')
-        subprocess.Popen(['ros2', 'bag', 'record', '/scan', '/scan_spoofed', '/tf', '/tf_static', '/odom', '/cmd_vel'])
+        
+        time_arg = "--use-sim-time" if self.get_parameter('use_sim_time').value else ""
+    
+        subprocess.Popen(['ros2', 'bag', 'record', '/scan', '/scan_spoofed', '/tf', '/tf_static', '/odom', '/cmd_vel', '/clock'])
+        
 
         ## Start random_motor node after undocking
         self.get_logger().info('Starting random_motor node...')

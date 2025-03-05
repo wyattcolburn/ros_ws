@@ -24,7 +24,8 @@ class HallucinateNode(Node):
         self.robot_y = 0
         self.robot_yaw = 0
         self.odom_counter = 0
-        self.lidar_data = self.load_lidar_data("/home/wyattcolburn/ros_ws/utils/hallucinated_lidar.csv")
+        
+        self.lidar_data = self.load_lidar_data("/home/wyattcolburn/ros_ws/utils/carlos_lidar_0.csv")
     def load_lidar_data(self, csv_file):
         """Loads LiDAR data from a CSV file and returns it as a list of lists."""
         lidar_values = []
@@ -39,8 +40,24 @@ class HallucinateNode(Node):
         return lidar_values
     def scan_callback(self, msg):
         
-        pass
-
+        self.get_logger().info(f"publishing faked scans with scan_callback")
+        
+        spoofed_scan = LaserScan()
+        spoofed_scan.header = msg.header
+        spoofed_scan.angle_min = msg.angle_min
+        spoofed_scan.angle_max = msg.angle_max
+        spoofed_scan.angle_increment = msg.angle_increment
+        spoofed_scan.time_increment = msg.time_increment
+        spoofed_scan.scan_time = msg.scan_time
+        spoofed_scan.range_min = msg.range_min
+        spoofed_scan.range_max = msg.range_max 
+        spoofed_scan.ranges= self.lidar_data[self.odom_counter]  # Read row from CSV
+        self.odom_counter +=1
+        if self.odom_counter > len(self.lidar_data) -1:
+            self.odom_counter = 0
+            self.get_logger().info(f"starting over lidar data")
+    
+        self.scan_publisher.publish(spoofed_scan)
     def odom_callback(self, msg):
 
         self.robot_x = msg.pose.pose.position.x
@@ -54,37 +71,6 @@ class HallucinateNode(Node):
         self.robot_yaw = self.quaternion_to_yaw(qx, qy, qz, qw)
 
         self.get_logger().info(f"Odom Update - X: {self.robot_x}, Y: {self.robot_y}, Yaw: {self.robot_yaw:.2f} rad")
-
-        self.publish_fake_scan()
-    def publish_fake_scan(self):
-        """Publish a fake LiDAR scan when scan_callback is never triggered."""
-        
-        msg = LaserScan()
-        msg.header.stamp = self.get_clock().now().to_msg()  # FIXED: Add timestamp
-        msg.header.frame_id = "odom"  # Ensure this frame exists in your TF tree
-
-
-         # Ensure the counter is within range
-        if self.odom_counter >= len(self.lidar_data):
-            self.get_logger().warn("Reached end of LiDAR CSV data, looping back to start.")
-            self.odom_counter = 0  # Reset to the beginning
-
-        # Get the current row from CSV
-        spoofed_ranges = self.lidar_data[self.odom_counter]  # Read row from CSV
-
-
-        # Fake LiDAR scan data
-        msg.angle_min = -math.pi
-        msg.angle_max = math.pi
-        msg.angle_increment = (msg.angle_max - msg.angle_min) / len(spoofed_ranges)
-        msg.time_increment = 0.0
-        msg.scan_time = 0.1
-        msg.range_min = 0.1
-        msg.range_max = 10.0
-        msg.ranges = spoofed_ranges
-
-        self.get_logger().info("Publishing default spoofed LiDAR scan...")
-        self.scan_publisher.publish(msg)
 
 
     def quaternion_to_yaw(self, qx, qy, qz, qw):

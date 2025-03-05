@@ -27,7 +27,7 @@ class randomMotor(Node):
     def __init__(self, speed, type, v_steps, w_steps):
         super().__init__('random_motor_node')
 
-        self.get_logger().info('Random motor node has started')
+        self.get_logger().info('Random motor node has started **************************************************************')
         self.publisher_ = self.create_publisher(Twist, '/cmd_vel', 10)
         self.timer_period = speed#isnt this convolted? 
         self.random_type = type

@@ -10,7 +10,7 @@ setup(
         # Install launch files
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/turtlebot4_ignition.launch.py', 'launch/ros_ign_bridge.launch.py', 'launch/sample_world.launch.py', 'launch/turtlebot4_nodes.launch.py', 'launch/basic_world.launch.py','launch/test_dependecies.launch.py', 'launch/turtlebot4_spawn.launch.py', 'launch/bag_poc.launch.py', 'launch/training.launch.py', 'launch/undock.launch.py']),
+        ('share/' + package_name + '/launch', ['launch/turtlebot4_ignition.launch.py', 'launch/ros_ign_bridge.launch.py', 'launch/sample_world.launch.py', 'launch/turtlebot4_nodes.launch.py', 'launch/basic_world.launch.py','launch/test_dependecies.launch.py', 'launch/turtlebot4_spawn.launch.py', 'launch/bag_poc.launch.py', 'launch/training.launch.py', 'launch/undock.launch.py', 'launch/testing.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -26,7 +26,10 @@ setup(
             'random_motor= my_robot_bringup.random_motor:main',
             'Hallucination= my_robot_bringup.Hallucination:main',
             'undock_node= my_robot_bringup.undock_node:main',
-            'local_goal= my_robot_bringup.local_goal:main'
-        ],
+            'test_undock_node= my_robot_bringup.test_undock_node:main',
+            'local_goal= my_robot_bringup.local_goal:main',
+            'Hall_prev= my_robot_bringup.Hallucination_prev_work:main',
+            'Test_cmd= my_robot_bringup.test_node:main',
+            'training_node= my_robot_bringup.training_node:main']
     },
 )

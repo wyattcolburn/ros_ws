@@ -29,7 +29,7 @@ class HallucinateNode(Node):
         self.get_logger().info(f"Num of Lidar Measurements: {len(ranges)}")
         print("angle min: ", msg.angle_min, "angle max: ", msg.angle_max)
 
-        spoofed_ranges =[0.0] * 640
+        spoofed_ranges =[2.0] * 640
         num_readings = len(spoofed_ranges)  # Total LIDAR readings
         mid_index = num_readings // 2  # Forward direction index
 
@@ -48,30 +48,30 @@ class HallucinateNode(Node):
         scans_per_half_width = round(math.degrees(target_theta_width) / angle_increment)
         total_scans = 2*scans_per_half_height + 2 * scans_per_half_width
 
-        corner_list = [0]
-        for i in range(8): 
-            if i in (1,2,5,6):
-                corner_list.append(corner_list[-1]+scans_per_half_width)
-            else:
-                corner_list.append(corner_list[-1] + scans_per_half_height)
-            print(corner_list)
-        dimensions = [width, height, height, width, width, height, height, width]
-        
-        print(f"length of corner_list {len(corner_list)}")
-        for corner_list_counter in range(len(corner_list)-1):
-            print("entering loop")
-            start_index = corner_list[corner_list_counter]
-            end_index = corner_list[corner_list_counter + 1]
-            dim = dimensions[corner_list_counter]
-            print(f"start index {start_index} end index {end_index} dim {dim}") 
-            for pixel_counter in range(int(start_index), int(end_index)):
-                if corner_list_counter % 2 == 0:
-                    theta_degrees = (pixel_counter - start_index) * .5625
-                else:
-                    theta_degrees = (end_index - pixel_counter) * .5625
-                theta_rad = math.radians(theta_degrees)
-                hyp = dim/math.cos(theta_rad + 1E-5)
-                spoofed_ranges[pixel_counter] = hyp
+        #corner_list = [0]
+        #for i in range(8): 
+        #    if i in (1,2,5,6):
+        #        corner_list.append(corner_list[-1]+scans_per_half_width)
+        #    else:
+        #        corner_list.append(corner_list[-1] + scans_per_half_height)
+        #    print(corner_list)
+        #dimensions = [width, height, height, width, width, height, height, width]
+        #
+        #print(f"length of corner_list {len(corner_list)}")
+        #for corner_list_counter in range(len(corner_list)-1):
+        #    print("entering loop")
+        #    start_index = corner_list[corner_list_counter]
+        #    end_index = corner_list[corner_list_counter + 1]
+        #    dim = dimensions[corner_list_counter]
+        #    print(f"start index {start_index} end index {end_index} dim {dim}") 
+        #    for pixel_counter in range(int(start_index), int(end_index)):
+        #        if corner_list_counter % 2 == 0:
+        #            theta_degrees = (pixel_counter - start_index) * .5625
+        #        else:
+        #            theta_degrees = (end_index - pixel_counter) * .5625
+        #        theta_rad = math.radians(theta_degrees)
+        #        hyp = dim/math.cos(theta_rad + 1E-5)
+        #        spoofed_ranges[pixel_counter] = hyp
         
         spoofed_scan = LaserScan() # type of topic
         spoofed_scan.header = msg.header

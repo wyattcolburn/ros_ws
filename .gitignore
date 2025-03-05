@@ -8,6 +8,7 @@
 *.db3
 rosbag2_*
 *.mcap
-
+ros_ws/utils/ray_frames*/
+ros_ws/utils/frame_test
 rosbag2_*
 *.db3
