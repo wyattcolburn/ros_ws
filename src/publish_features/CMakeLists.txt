@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.5)
-project(my_raylib_ros2_package)
+cmake_minimum_required(VERSION 3.10...3.18)
+project(publish_features)
 
 # Find ament and ROS2 dependencies
 find_package(ament_cmake REQUIRED)
