@@ -15,7 +15,7 @@ class TestCMD(Node):
         self.publisher_ = self.create_publisher(Twist, '/cmd_vel', 10)
         
         #get this from training.launch.py
-        csv_file = '/home/wyattcolburn/model/test1_data/cmd_vel_output.csv'
+        csv_file = '/home/wyattcolburn/model/test1/output_data/cmd_vel.csv'
         
         self.cmd_data = pd.read_csv(csv_file)
         self.index = 0

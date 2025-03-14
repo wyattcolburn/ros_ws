@@ -15,9 +15,6 @@ class CombinedNode(Node):
         super().__init__('combined_node')
         
         # Declare and retrieve parameters
-        self.declare_parameter('input_dkr', '/home/wyattcolburn/ros_ws/utils/ten_thou/')
-        self.declare_parameter('use_sim_time', False)
-        self.input_dkr = self.get_parameter('input_dkr').value
         
         # Setup publisher for Twist commands
         self.publisher_ = self.create_publisher(Twist, '/cmd_vel', 10)
