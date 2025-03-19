@@ -15,6 +15,12 @@
  *			    to verify the syncronzation is working
  *
  *			    [200~https://github.com/ros-navigation/navigation2/blob/main/nav2_simple_commander/nav2_simple_commander/example_follow_path.py
+ *
+ *
+ *
+ *
+ *
+ *This node: takes the data published from publish_features node and applies to raytracing node?
 */
 
 
@@ -25,24 +31,23 @@
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
 
+
+//header files
+#include "obstacles.hpp"
+#include "raytracing.hpp"
+#include "mpc.hpp"
 using namespace std::chrono_literals;
 
-class dataNode : public rclcpp::Node
+class middleNode: public rclcpp::Node
 {
 public:
-  dataNode() : Node("data_node")
+  middleNode() : Node("middle_node")
   {
     // Create a subscriber to the /odom topic.
-    // The message type is nav_msgs::msg::Odometry.
-    odom_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      "/odom", 10,
-      std::bind(&dataNode::odom_callback, this, std::placeholders::_1));
-	lidar_subscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-			"/scan", 10,
-			std::bind(&dataNode::lidar_callback, this, std::placeholders::_1));
-
-    // Create a publisher that publishes std_msgs::msg::String messages.
-    publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("packetOut", 10);
+    // The message type is std::msg:Float64MulitArray
+    data_subscriber_ = this->create_subscription<std_msgs::msg::Float64MutliArray>(
+      "/packetOut", 10,
+      std::bind(&dataNode::data_callback, this, std::placeholders::_1));
 
     // Create a timer that calls timer_callback() every 500ms.
     timer_ = this->create_wall_timer(
@@ -55,41 +60,30 @@ private:
   
   static constexpr size_t ODOM_FIELD_COUNT = 4;
   static constexpr size_t LIDAR_COUNT = 1080;
-  double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT];
+  double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT];
+
+  double odom_x, odom_y, local_goal_x, local_goal_y, current_cmd_v, current_cmd_w;
+  double lidar_ranges[LIDAR_COUNT];
 
 
-  // Callback function for the /odom subscriber.
-  void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
+
+  //output, will contain min of hallucinated lidar, and obstacle coordinates  
+  static constexpr size_t OBSTACLE_COUNT = 8; //
+
+  double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + OBSTACLE_COUNT];
+
+  // Callback function for the /packoutOut subscriber
+  void data_callback(const std_msgs::msg::Float64MultiArray packetIn)
   {
-      packetOut[0] = msg->pose.pose.position.x,
-      packetOut[1] =msg->pose.pose.position.y,
-	  packetOut[2] = msg->twist.twist.linear.x,
- 	  packetOut[3] = msg->twist.twist.angular.z;
-    
-	  RCLCPP_INFO(
-      this->get_logger(),
-      "Received /odom: position [x: %.2f, y: %.2f, odom_v : %.2f, odom_w : %.2f, odom_w], ",
-	  packetOut[0],
-	  packetOut[1],
-	  packetOut[2],
-	  packetOut[3]);
+	  odom_x = packetIn[0];
+	  odom_y = packetIn[1];
+	  current_cmd_v = packetIn[2];
+	  current_cmd_w = packetIn[3];
+	  for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter ++){
+		  lidar_ranges = packetIn[4+lidar_counter];
+	  }
   }
-
-  void lidar_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg){
-	  //printing out how many ranges there are to verify sim working 
-	  size_t num_ranges = msg->ranges.size();
-	
-	  std::cout << "Type of ranges:     " << typeid(msg->ranges[0]).name() << std::endl;
-	  size_t offset = ODOM_FIELD_COUNT;
-	  //upscaling floats to doubles
-	  std::transform(msg->ranges.begin(), msg->ranges.end(), packetOut + offset,
-			[](float value) -> double { return static_cast<double>(value); });
-	  RCLCPP_INFO(
-		this->get_logger(),
-		"Received /laserscan: num_ranges: %ld",
-		num_ranges);
-
-  }
+  
   // Timer callback function for publishing messages.
   void timer_callback()
   {
@@ -102,7 +96,6 @@ private:
     publisher_->publish(msg);
 	printPacketOut();
   }
-  private:
   void printPacketOut() {
     // Calculate the total number of elements in the packetOut array.
     size_t totalElements = ODOM_FIELD_COUNT + LIDAR_COUNT;
@@ -113,12 +106,7 @@ private:
   }
 
   // Subscriber for /odom.
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscription_;
-  // Subscriber for /laser_Scan
-  rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr lidar_subscription_;
-  // Publisher for chatter.
-  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr publisher_;
-  // Timer for periodic publishing.
+  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr data_subscriber_;
   rclcpp::TimerBase::SharedPtr timer_;
 };
 
@@ -127,7 +115,7 @@ int main(int argc, char * argv[])
   // Initialize the ROS 2 system.
   rclcpp::init(argc, argv);
   // Create and spin the node.
-  rclcpp::spin(std::make_shared<dataNode>());
+  rclcpp::spin(std::make_shared<middleNode>());
   // Shutdown the ROS 2 system.
   rclcpp::shutdown();
   return 0;
