@@ -1,3 +1,4 @@
+
 /*
  * The purpose of this node is to publish the feature data to the neural net plug in
  *
@@ -28,6 +29,8 @@
 //time sync library
 #include "message_filters/subscriber.h"
 #include "message_filters/time_synchronizer.h"
+#include "message_filters/sync_policies/approximate_time.h"
+
 using namespace std::chrono_literals;
 
 
@@ -48,9 +51,11 @@ public:
 
 	uint32_t queue_size=10;
 
-	sync = std::make_shared<message_filters::TimeSynchronizer<sensor_msgs::msg::LaserScan, nav_msgs::msg::Odometry>>(LaserScan_sub, Odom_sub, queue_size);
+	typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::LaserScan, nav_msgs::msg::Odometry> MySyncPolicy;
+	sync_approx = std::make_shared<message_filters::Synchronizer<MySyncPolicy>>(MySyncPolicy(queue_size), LaserScan_sub, Odom_sub);
 
-	sync->registerCallback(std::bind(&dataNode::SyncCallback, this, std::placeholders::_1,std::placeholders:: _2));
+
+	sync_approx->registerCallback(std::bind(&dataNode::SyncCallback, this, std::placeholders::_1,std::placeholders:: _2));
 
 	}
     // Create a timer that calls timer_callback() every 500ms.
@@ -60,13 +65,33 @@ public:
 
 private:
 
+  static constexpr size_t ODOM_FIELD_COUNT = 4;
+  static constexpr size_t LIDAR_COUNT = 1080;
+  double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT];
 void SyncCallback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & laser_scan,
     const nav_msgs::msg::Odometry::ConstSharedPtr & odom)
 {
   //where all the code processing to make new packet should be
   RCLCPP_INFO(this->get_logger(), "Sync callback with %u and %u as times",
     laser_scan->header.stamp.sec, odom->header.stamp.sec);
+
+	odom_callback(odom);
 }
+  void odom_callback(const nav_msgs::msg::Odometry::ConstSharedPtr msg)
+  {
+      packetOut[0] = msg->pose.pose.position.x;
+      packetOut[1] =msg->pose.pose.position.y;
+	  packetOut[2] = msg->twist.twist.linear.x;
+ 	  packetOut[3] = msg->twist.twist.angular.z;
+    
+	  RCLCPP_INFO(
+      this->get_logger(),
+      "Received /odom: position [x: %.2f, y: %.2f, odom_v : %.2f, odom_w : %.2f, odom_w], ",
+	  packetOut[0],
+	  packetOut[1],
+	  packetOut[2],
+	  packetOut[3]);
+  }
   // Packet definition 
   // doubles < odom_x, odom_y, odom_v, odom_w, need local_goals_x, local_goal_y, lidar data >
 /*  
@@ -139,8 +164,11 @@ void SyncCallback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & laser_scan
   
   rclcpp::TimerBase::SharedPtr timer_;
   message_filters::Subscriber<nav_msgs::msg::Odometry> Odom_sub;
+
+  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::LaserScan, nav_msgs::msg::Odometry> MySyncPolicy;
+  std::shared_ptr<message_filters::Synchronizer<MySyncPolicy>> sync_approx;
+  
   message_filters::Subscriber<sensor_msgs::msg::LaserScan> LaserScan_sub;
-  std::shared_ptr<message_filters::TimeSynchronizer<sensor_msgs::msg::LaserScan, nav_msgs::msg::Odometry>> sync;
 };
 
 int main(int argc, char * argv[])

@@ -1,0 +1,11 @@
+March 21: 5:22
+Goals: 
+	
+	Implement message filters API to synce odom/lidar data
+		
+	https://docs.ros.org/en/humble/p/message_filters/doc/Tutorials/Writing-A-Time-Synchronizer-Cpp.html
+	
+
+	Commander API to get local goals
+
+

@@ -45,19 +45,20 @@ public:
   {
     // Create a subscriber to the /odom topic.
     // The message type is std::msg:Float64MulitArray
-    data_subscriber_ = this->create_subscription<std_msgs::msg::Float64MutliArray>(
+    data_subscriber_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
       "/packetOut", 10,
-      std::bind(&dataNode::data_callback, this, std::placeholders::_1));
+      std::bind(&middleNode::data_callback, this, std::placeholders::_1));
 
     // Create a timer that calls timer_callback() every 500ms.
     timer_ = this->create_wall_timer(
-      500ms, std::bind(&dataNode::timer_callback, this));
-  }
+			500ms, std::bind(&middleNode::timer_callback, this));
+			}
+
 
 private:
-  // Packet definition 
-  // doubles < odom_x, odom_y, odom_v, odom_w, need local_goals_x, local_goal_y, lidar data >
-  
+// Packet definition 
+// doubles < odom_x, odom_y, odom_v, odom_w, need local_goals_x, local_goal_y, lidar data >
+
   static constexpr size_t ODOM_FIELD_COUNT = 4;
   static constexpr size_t LIDAR_COUNT = 1080;
   double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT];
@@ -73,7 +74,12 @@ private:
   double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + OBSTACLE_COUNT];
 
   // Callback function for the /packoutOut subscriber
-  void data_callback(const std_msgs::msg::Float64MultiArray packetIn)
+  void data_callback(const std_msgs::msg::Float64MultiArray& packetIn){
+	  return;}
+
+  /*
+
+  void data_callback(const std_msgs::msg::Float64MultiArray& packetIn)
   {
 	  odom_x = packetIn[0];
 	  odom_y = packetIn[1];
@@ -83,7 +89,7 @@ private:
 		  lidar_ranges = packetIn[4+lidar_counter];
 	  }
   }
-  
+ */ 
   // Timer callback function for publishing messages.
   void timer_callback()
   {
@@ -93,7 +99,7 @@ private:
 		  msg.data[i] = packetOut[i];
 	  }
 	  RCLCPP_INFO(this->get_logger(), "Publishing odom data");
-    publisher_->publish(msg);
+//publisher_->publish(msg);
 	printPacketOut();
   }
   void printPacketOut() {
@@ -108,6 +114,7 @@ private:
   // Subscriber for /odom.
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr data_subscriber_;
   rclcpp::TimerBase::SharedPtr timer_;
+	
 };
 
 int main(int argc, char * argv[])
