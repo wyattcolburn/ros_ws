@@ -62,6 +62,7 @@ def generate_launch_description():
                     [pkg_nav2_bringup, 'launch', 'localization_launch.py'])),
             launch_arguments={'namespace': namespace,
                               'map': LaunchConfiguration('map'),
+                              'yaml_filename': LaunchConfiguration('map'),
                               'use_sim_time': use_sim_time,
                               'params_file': LaunchConfiguration('params')}.items()),
     ])

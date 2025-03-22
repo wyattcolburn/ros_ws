@@ -190,6 +190,11 @@ global_costmap:
       use_sim_time: True
       robot_radius: 0.175
       resolution: 0.06
+      #adding 3 lines
+      width: 10      
+      height: 10        
+      origin_x: -5.0      
+      origin_y: -5.0
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       obstacle_layer:
@@ -223,7 +228,7 @@ planner_server:
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
       tolerance: 0.5
-      use_astar: false
+      use_astar: true 
       allow_unknown: true
 
 smoother_server:
@@ -290,3 +295,16 @@ velocity_smoother:
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
     velocity_timeout: 1.0
+
+lifecycle_manager:
+  ros__parameters:
+    use_sim_time: True
+    autostart: True
+    node_names:
+      - map_server
+      - amcl
+      - planner_server
+      - controller_server
+      - behavior_server
+      - bt_navigator
+
