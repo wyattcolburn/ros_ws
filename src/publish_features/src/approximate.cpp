@@ -80,7 +80,17 @@ private:
 	    //RCLCPP_INFO(this->get_logger(), "Sync callback with %u and %u as times",
 		 //   laser_scan->header.stamp.sec, odom->header.stamp.sec);
 
-	    //odom_callback(odom);
+	    odom_callback(odom);
+		lidar_callback(laser_scan);
+		
+		std_msgs::msg::Float64MultiArray msg;
+		msg.data.resize(ODOM_FIELD_COUNT+LIDAR_COUNT);
+		for (size_t i = 0; i <ODOM_FIELD_COUNT+ LIDAR_COUNT; ++i){
+		    msg.data[i] = packetOut[i];
+		}
+		RCLCPP_INFO(this->get_logger(), "Publishing synced data");
+	
+		publisher_->publish(msg);
 	}
 
 
@@ -108,29 +118,12 @@ private:
   
   // Packet definition 
   // doubles < odom_x, odom_y, odom_v, odom_w, need local_goals_x, local_goal_y, lidar data >
-/*  
   static constexpr size_t ODOM_FIELD_COUNT = 4;
   static constexpr size_t LIDAR_COUNT = 1080;
   double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT];
 
 
-  // Callback function for the /odom subscriber.
-  void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
-  {
-      packetOut[0] = msg->pose.pose.position.x,
-      packetOut[1] =msg->pose.pose.position.y,
-	  packetOut[2] = msg->twist.twist.linear.x,
- 	  packetOut[3] = msg->twist.twist.angular.z;
-    
-	  RCLCPP_INFO(
-      this->get_logger(),
-      "Received /odom: position [x: %.2f, y: %.2f, odom_v : %.2f, odom_w : %.2f, odom_w], ",
-	  packetOut[0],
-	  packetOut[1],
-	  packetOut[2],
-	  packetOut[3]);
-  }
-
+  //filling packet out with lidar values
   void lidar_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg){
 	  //printing out how many ranges there are to verify sim working 
 	  size_t num_ranges = msg->ranges.size();
@@ -141,24 +134,10 @@ private:
 	  std::transform(msg->ranges.begin(), msg->ranges.end(), packetOut + offset,
 			[](float value) -> double { return static_cast<double>(value); });
 	  RCLCPP_INFO(
-		this->get_logger(),
-		"Received /laserscan: num_ranges: %ld",
-		num_ranges);
+		
+	  this->get_logger(), "Received /laserscan: num_ranges: %ld", num_ranges);
 
   }
-  // Timer callback function for publishing messages.
-  void timer_callback()
-  {
-	  std_msgs::msg::Float64MultiArray msg;
-	  msg.data.resize(ODOM_FIELD_COUNT);
-	  for (size_t i = 0; i <ODOM_FIELD_COUNT; ++i){
-		  msg.data[i] = packetOut[i];
-	  }
-	  RCLCPP_INFO(this->get_logger(), "Publishing odom data");
-    publisher_->publish(msg);
-	printPacketOut();
-  }
-  private:
   void printPacketOut() {
     // Calculate the total number of elements in the packetOut array.
     size_t totalElements = ODOM_FIELD_COUNT + LIDAR_COUNT;
@@ -167,14 +146,16 @@ private:
       std::cout << "packetOut[" << i << "] = " << packetOut[i] << std::endl;
     }
   }
-*/
-  // Subscriber for /odom.
+  
+
+// Subscriber for /odom.
   //rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscription_;
   // Subscriber for /laser_Scan
   //rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr lidar_subscription_;
+  
   // Publisher for chatter.
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr publisher_;
-
+  // Subscriber for local goals data
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr lg_subscriber_;
   // Timer for periodic publishing
   
