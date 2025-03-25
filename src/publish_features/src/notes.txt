@@ -14,4 +14,9 @@ March 24: 19:21 So publishing local goals data using python Commander API to top
 
 Need to create a subscriber, but only a one time subscriber, it needs to be dynamic because not sure how many local goals will be created, depending on a map
 
+To Do: 
+	need to figure out what we are going to do with these obstacles
 
+March 25: 
+
+First thing to do is to process the obstacle data string, 

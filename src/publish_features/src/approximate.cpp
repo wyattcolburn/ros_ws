@@ -116,15 +116,8 @@ private:
   }
 
   
-  // Packet definition 
-  // doubles < odom_x, odom_y, odom_v, odom_w, need local_goals_x, local_goal_y, lidar data >
-  static constexpr size_t ODOM_FIELD_COUNT = 4;
-  static constexpr size_t LIDAR_COUNT = 1080;
-  double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT];
-
-
   //filling packet out with lidar values
-  void lidar_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg){
+  void lidar_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg){
 	  //printing out how many ranges there are to verify sim working 
 	  size_t num_ranges = msg->ranges.size();
 	
