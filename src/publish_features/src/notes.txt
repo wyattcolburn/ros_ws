@@ -9,3 +9,9 @@ Goals:
 	Commander API to get local goals
 
 
+
+March 24: 19:21 So publishing local goals data using python Commander API to topic "local_goals", using delimenter \0
+
+Need to create a subscriber, but only a one time subscriber, it needs to be dynamic because not sure how many local goals will be created, depending on a map
+
+

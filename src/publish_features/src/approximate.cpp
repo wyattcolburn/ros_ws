@@ -25,7 +25,7 @@
 #include "std_msgs/msg/string.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
-
+#include <vector>
 //time sync library
 #include "message_filters/subscriber.h"
 #include "message_filters/time_synchronizer.h"
@@ -41,13 +41,16 @@ public:
   {
     // Create a subscriber to the /odom topic.
     // The message type is nav_msgs::msg::Odometry.
-	  rclcpp::QoS qos = rclcpp::QoS(10);
-	  Odom_sub.subscribe(this,"/odom", qos.get_rmw_qos_profile());
-	  LaserScan_sub.subscribe(this, "/scan", qos.get_rmw_qos_profile());
+	rclcpp::QoS qos = rclcpp::QoS(10);
+	Odom_sub.subscribe(this,"/odom", qos.get_rmw_qos_profile());
+	LaserScan_sub.subscribe(this, "/scan", qos.get_rmw_qos_profile());
 
 
     // Create a publisher that publishes std_msgs::msg::String messages.
     publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("packetOut", qos);
+
+	lg_subscriber_ = this->create_subscription<std_msgs::msg::String>(
+			"local_goals", 10, std::bind(&dataNode::lg_subscriber_callback, this, std::placeholders::_1));
 
 	uint32_t queue_size=10;
 
@@ -68,15 +71,19 @@ private:
   static constexpr size_t ODOM_FIELD_COUNT = 4;
   static constexpr size_t LIDAR_COUNT = 1080;
   double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT];
-void SyncCallback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & laser_scan,
-    const nav_msgs::msg::Odometry::ConstSharedPtr & odom)
-{
-  //where all the code processing to make new packet should be
-  RCLCPP_INFO(this->get_logger(), "Sync callback with %u and %u as times",
-    laser_scan->header.stamp.sec, odom->header.stamp.sec);
+	
 
-	odom_callback(odom);
-}
+	void SyncCallback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & laser_scan,
+		const nav_msgs::msg::Odometry::ConstSharedPtr & odom)
+	{
+	  //where all the code processing to make new packet should be
+	    //RCLCPP_INFO(this->get_logger(), "Sync callback with %u and %u as times",
+		 //   laser_scan->header.stamp.sec, odom->header.stamp.sec);
+
+	    //odom_callback(odom);
+	}
+
+
   void odom_callback(const nav_msgs::msg::Odometry::ConstSharedPtr msg)
   {
       packetOut[0] = msg->pose.pose.position.x;
@@ -86,12 +93,19 @@ void SyncCallback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & laser_scan
     
 	  RCLCPP_INFO(
       this->get_logger(),
-      "Received /odom: position [x: %.2f, y: %.2f, odom_v : %.2f, odom_w : %.2f, odom_w], ",
+	  "Received /odom: position [x: %.2f, y: %.2f, odom_v : %.2f, odom_w : %.2f, odom_w], ",
 	  packetOut[0],
 	  packetOut[1],
 	  packetOut[2],
 	  packetOut[3]);
   }
+
+  void lg_subscriber_callback(const std_msgs::msg::String::ConstSharedPtr msg)
+  {
+		RCLCPP_INFO(this->get_logger(), "I heard: '%s'", msg->data.c_str());
+  }
+
+  
   // Packet definition 
   // doubles < odom_x, odom_y, odom_v, odom_w, need local_goals_x, local_goal_y, lidar data >
 /*  
@@ -160,6 +174,8 @@ void SyncCallback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & laser_scan
   //rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr lidar_subscription_;
   // Publisher for chatter.
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr publisher_;
+
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr lg_subscriber_;
   // Timer for periodic publishing
   
   rclcpp::TimerBase::SharedPtr timer_;
