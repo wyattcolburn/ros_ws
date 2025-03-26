@@ -49,8 +49,6 @@ public:
     // Create a publisher that publishes std_msgs::msg::String messages.
     publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("packetOut", qos);
 
-	lg_subscriber_ = this->create_subscription<std_msgs::msg::String>(
-			"local_goals", 10, std::bind(&dataNode::lg_subscriber_callback, this, std::placeholders::_1));
 
 	uint32_t queue_size=10;
 
@@ -110,10 +108,6 @@ private:
 	  packetOut[3]);
   }
 
-  void lg_subscriber_callback(const std_msgs::msg::String::ConstSharedPtr msg)
-  {
-		RCLCPP_INFO(this->get_logger(), "I heard: '%s'", msg->data.c_str());
-  }
 
   
   //filling packet out with lidar values
@@ -149,7 +143,6 @@ private:
   // Publisher for chatter.
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr publisher_;
   // Subscriber for local goals data
-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr lg_subscriber_;
   // Timer for periodic publishing
   
   rclcpp::TimerBase::SharedPtr timer_;

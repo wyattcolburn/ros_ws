@@ -1,0 +1,20 @@
+March 24:
+
+To Do:
+
+Want a method which decodes the packet Out topic string, into local goals, values into obstacles
+
+General method (main loop)
+
+	1) Receive a message
+	2) Calculate Hallucinated Lidar
+	3) Min of real and hallucinated lidar
+	4) Publish lidar data and obstacle data (reformat the obstacle data)
+
+March 25: 
+	I want this node to handle all the obstacle stuff,
+
+
+	Created Local Goal manager (should check if there is a next local goal before moving to next local goal, what if we are at the goal??
+
+

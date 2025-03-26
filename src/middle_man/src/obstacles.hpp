@@ -1,15 +1,20 @@
 #ifndef OBSTACLES_H
 #define OBSTACLES_H
 #include "raytracing.hpp"
+#include "local_goal.hpp"
 #include <iostream>
 #include <cmath>
 #include <utility>
-#include <utility>
+#include <vector>
+
+#define RADIUS = 10;
 class Obstacle{
     public:	
 		float center_x, center_y, radius;
 };
-const int MAX_OBSTACLES = 8;
+//function prototypes
+std::pair<Obstacle,Obstacle> create_obstacle(double current_lg_x, double current_lg_y, double next_lg_x, double next_lg_y);
+const int MAX_OBSTACLES = 100;
 struct ObstacleManager{
 
 	Obstacle obstacle_array[MAX_OBSTACLES];
@@ -38,7 +43,28 @@ struct ObstacleManager{
 		}
 	return -1; //no space
 	}
-  
+ 
+	void local_goals_to_obs(Local_Goal_Manager& local_manager_){
+		//does not work
+		std::vector<Local_Goal> local_goal_vec;
+		local_goal_vec = local_manager_.getLocalGoalVector();
+
+		for (int lg_counter = 0; lg_counter < local_goal_vec.size(); lg_counter++){
+
+			if (lg_counter + 1 > local_goal_vec.size()) 
+			{
+				return;
+			}
+			Local_Goal current_lg = local_goal_vec[lg_counter];
+			Local_Goal next_lg = local_goal_vec[lg_counter+1];
+
+			std::pair<Obstacle, Obstacle> obs_pair = create_obstacle(current_lg.x_point, current_lg.y_point, next_lg.x_point, next_lg.y_point);
+			add_obstacle(obs_pair.first);
+			add_obstacle(obs_pair.second);
+		}
+		return;
+	}
+
 	// Get array of active obstacles for passing to functions
     const Obstacle* get_active_obstacles(int& out_count) { //pass by reference
         static Obstacle active_obs[MAX_OBSTACLES]; //static
@@ -61,7 +87,4 @@ const float OFFSET = 20.0;
 const float LG1_x = 400.0;
 const float LG1_y = 400.0;
 
-//function prototypes
-std::pair<Obstacle,Obstacle> create_obstacle(float current_lg_x, float current_lg_y, 
-		float next_lg_x, float next_lg_y);
 #endif

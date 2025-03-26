@@ -8,7 +8,7 @@ using namespace std;
 //	we can assume that it is like an array of points, Ox, Oy
 //	Still want to use the perpidicular approach with requires a offset value
 
-std::pair<Obstacle,Obstacle> create_obstacle(float current_lg_x, float current_lg_y, float next_lg_x, float next_lg_y){
+std::pair<Obstacle,Obstacle> create_obstacle(double current_lg_x, double current_lg_y, double next_lg_x, double next_lg_y){
 	
 	//verify slope not zero
 	//calculate inverse slope
