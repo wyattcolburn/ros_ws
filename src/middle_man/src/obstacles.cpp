@@ -1,3 +1,4 @@
+#include "local_goal.hpp"
 #include "raytracing.hpp"
 #include "obstacles.hpp"
 #include <iostream>
@@ -27,12 +28,14 @@ std::pair<Obstacle,Obstacle> create_obstacle(double current_lg_x, double current
 	cout << "pont values "  << current_lg_x << "   " << current_lg_y << "    " <<  next_lg_x << "     "<< next_lg_y << "    "<< endl;	
 	if ((current_lg_x - next_lg_x) == 0){
         cout << "vertical slope" << endl;
-		offset_x = 0;
-		offset_y = OFFSET;
+		offset_x = OFFSET;
+		offset_y = 0;
 	}
 
 	else if ((current_lg_y - next_lg_y) == 0) {
 		cout << "horizontal slope" << endl;
+		offset_x= 0;
+		offset_y = OFFSET;
 	}
 
 	else {
@@ -58,9 +61,12 @@ std::pair<Obstacle,Obstacle> create_obstacle(double current_lg_x, double current
 	Obstacle ob1;
 	ob1.center_x = ob1_x;
 	ob1.center_y = ob1_y;
+	ob1.radius = RADIUS;
 	Obstacle ob2;
 	ob2.center_x = ob2_x;
 	ob2.center_y = ob2_y;
+	ob2.radius = RADIUS;
     cout << "center x " << ob1.center_x << "center y" << ob1.center_y << endl;	
 	return {ob1,ob2};
 }
+

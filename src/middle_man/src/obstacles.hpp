@@ -7,10 +7,11 @@
 #include <utility>
 #include <vector>
 
-#define RADIUS = 10;
+const float RADIUS=10;
+const int NUM_VALID_OBSTACLES=30;
 class Obstacle{
     public:	
-		float center_x, center_y, radius;
+		double center_x, center_y, radius;
 };
 //function prototypes
 std::pair<Obstacle,Obstacle> create_obstacle(double current_lg_x, double current_lg_y, double next_lg_x, double next_lg_y);
@@ -19,25 +20,25 @@ struct ObstacleManager{
 
 	Obstacle obstacle_array[MAX_OBSTACLES];
 	bool is_active[MAX_OBSTACLES];
-	int count; //num of obstacles current in array
+	int obstacle_count; //num of obstacles current in array
 		
 	
 	//init function
-    ObstacleManager() : count(0) {
+    ObstacleManager() : obstacle_count(0) {
 		for (int i = 0; i < MAX_OBSTACLES; i++) {
 			is_active[i] = false;
 		}
 	}
 	//function for creating obstacles
 	int add_obstacle(const Obstacle& obs) {
-		if (count >= MAX_OBSTACLES) return -1;
+		if (obstacle_count >= MAX_OBSTACLES) return -1;
 
 		for (int i = 0; i < MAX_OBSTACLES; i++) {
 			
 			if(!is_active[i]){
 				obstacle_array[i] = obs;
 				is_active[i] = true;
-				count++;
+				obstacle_count++;
 				return 1;
 			}
 		}
@@ -49,7 +50,7 @@ struct ObstacleManager{
 		std::vector<Local_Goal> local_goal_vec;
 		local_goal_vec = local_manager_.getLocalGoalVector();
 
-		for (int lg_counter = 0; lg_counter < local_goal_vec.size(); lg_counter++){
+		for (int lg_counter = 0; lg_counter < local_goal_vec.size() - 1; lg_counter++){
 
 			if (lg_counter + 1 > local_goal_vec.size()) 
 			{
@@ -64,6 +65,25 @@ struct ObstacleManager{
 		}
 		return;
 	}
+	void update_obstacles(Local_Goal_Manager& local_manager_){
+
+		int local_goal_counter = local_manager_.get_local_goal_counter(); //returns which local goal we are on, if we are on local goal 0, we are on obstacle 0,1
+	    std::cout << "local goal counter" << local_goal_counter << std::endl;
+
+
+		for (int counter = 0; counter < obstacle_count; counter++){
+			//std::cout << "counter for loop" << counter << std::endl;
+			if ((counter >= local_goal_counter) && (counter <= local_goal_counter + NUM_VALID_OBSTACLES - 1)) {
+				is_active[counter] = true;
+			}
+
+			else {
+				is_active[counter] = false;
+			}
+		}
+		std::cout << "have arrived to the end of update obstacle function" << std::endl;
+		return;
+    }
 
 	// Get array of active obstacles for passing to functions
     const Obstacle* get_active_obstacles(int& out_count) { //pass by reference
@@ -83,7 +103,7 @@ struct ObstacleManager{
 
 
 
-const float OFFSET = 20.0;
+const float OFFSET = 15.0;
 const float LG1_x = 400.0;
 const float LG1_y = 400.0;
 

@@ -1,4 +1,5 @@
 #include "raytracing.hpp"
+#include "local_goal.hpp"
 
 void draw_lidar(float odom_x, float odom_y,float* distances, int num_lidar_readings) {
 
@@ -19,19 +20,29 @@ void draw_lidar(float odom_x, float odom_y,float* distances, int num_lidar_readi
             }
         }
 }
+
+
 void compute_lidar_distances(
-    float ray_origin_x, float ray_origin_y,
+    double ray_origin_x, double ray_origin_y,
     int num_lidar_readings,
     ObstacleManager& local_manager, 
-    float* distances) {
+    double* distances) {
 
 
 	// Get current obstacles
 	int num_obstacles;
-	const Obstacle* active_obstacles =local_manager.get_active_obstacles(num_obstacles);
-    // Precompute the angle step for efficiency
-    float angle_step = 2.0f * M_PI / num_lidar_readings;
+	const Obstacle* active_obstacles = local_manager.get_active_obstacles(num_obstacles);
 
+
+	//std::cout << "origin point : " << ray_origin_x << "  " << ray_origin_y << std::endl;
+
+	
+	//std::cout << "size of active obstacles" << num_obstacles << std::endl;
+	//std::cout << "********************************************************" << std::endl;
+	//std::cout << "first obstacle :  " << active_obstacles[0].center_x << "   " << active_obstacles[0].center_y << std::endl;
+	// Precompute the angle step for efficiency
+    float angle_step = 2.0f * M_PI / num_lidar_readings;
+	std::cout << "have computed all the angles for lidar cast" << std::endl;
     // For each ray direction
     for (int index = 0; index < num_lidar_readings; index++) {
         // Initialize to max distance to find closest
@@ -39,12 +50,16 @@ void compute_lidar_distances(
 
         // Calculate direction vector for this ray
         float theta = angle_step * index;
+		//std::cout << "num lidar : " << num_lidar_readings << std::endl;
+		//std::cout << "theta : " << theta << std::endl;
         float dx = cosf(theta);
         float dy = sinf(theta);
 
         // Test against each obstacle
         for (int obs = 0; obs < num_obstacles; obs++) {
             // Get obstacle data
+			//
+			//std::cout << "looking at obstacle : " << obs << std::endl;
             float Cx = active_obstacles[obs].center_x;
             float Cy = active_obstacles[obs].center_y;
             float radius = active_obstacles[obs].radius;
@@ -58,8 +73,9 @@ void compute_lidar_distances(
 
             // Compute discriminant
             float discriminant = b * b - 4.0f * a * c;
-
+			//std::cout << "discriminant" << discriminant << std::endl;
             if (discriminant >= 0.0f) {
+				std::cout << "We have intersection" << std::endl;
                 // Has intersection(s)
                 float sqrt_discriminant = sqrtf(discriminant);
                 float t1 = (-b - sqrt_discriminant) / (2.0f * a);
@@ -78,7 +94,7 @@ void compute_lidar_distances(
 
         // If no intersection was found, mark with -1
         if (distances[index] == std::numeric_limits<float>::max()) {
-            distances[index] = -1.0f;
+            distances[index] = MAX_RANGE;
         }
     }
 }

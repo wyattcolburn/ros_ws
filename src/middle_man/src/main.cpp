@@ -31,7 +31,7 @@
 #include "std_msgs/msg/string.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
-
+#include <algorithm> // for std::min
 
 //header files
 #include "obstacles.hpp"
@@ -50,13 +50,25 @@ public:
   {
     // Create a subscriber to the /odom topic.
     // The message type is std::msg:Float64MulitArray
+	auto qos2 = rclcpp::QoS(rclcpp::KeepLast(10))
+    .reliability(rclcpp::ReliabilityPolicy::Reliable)
+    .durability(rclcpp::DurabilityPolicy::TransientLocal);
+	rclcpp::QoS qos = rclcpp::QoS(10);
     data_subscriber_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
       "/packetOut", 10,
       std::bind(&middleNode::data_callback, this, std::placeholders::_1));
 
 	lg_subscriber_ = this->create_subscription<std_msgs::msg::String>(
 			"local_goals", 10, std::bind(&middleNode::lg_subscriber_callback, this, std::placeholders::_1));
-    // Create a timer that calls timer_callback() every 500ms.
+
+	packetOut_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("neuralNetInput", qos);
+    
+	scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>( "scan", 10,
+				std::bind(&middleNode::scan_sub_callback, this, std::placeholders::_1));
+   
+	hall_pub_= this->create_publisher<sensor_msgs::msg::LaserScan>("HallScan", qos2);
+
+	// Create a timer that calls timer_callback() every 500ms.
     //timer_ = this->create_wall_timer(
 	//		500ms, std::bind(&middleNode::timer_callback, this));
 			}
@@ -68,26 +80,84 @@ private:
   Local_Goal_Manager local_goal_manager_;
   ObstacleManager obstacle_manager_;
   static constexpr size_t ODOM_FIELD_COUNT = 4;
-  static constexpr size_t LIDAR_COUNT = 1080;
+  static constexpr size_t LIDAR_COUNT = 640;
   double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT];
 
   double odom_x, odom_y, local_goal_x, local_goal_y, current_cmd_v, current_cmd_w;
-  double lidar_ranges[LIDAR_COUNT];
-
+  double real_lidar_ranges[LIDAR_COUNT];
+  double hall_lidar_ranges[LIDAR_COUNT];
+  double min_lidar_ranges[LIDAR_COUNT];
+  
+// This is to check if the robot hasnot moved, dont do all the expensive computations
+  double prev_odom_x, prev_odom_y;
+  bool first_callback = true;
+  bool obstacle_callback = false;
 
 
   //output, will contain min of hallucinated lidar, and obstacle coordinates  
-  static constexpr size_t OBSTACLE_COUNT = 8; //
+  static constexpr size_t OBSTACLE_COUNT = 30; //kk
 
-  double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + OBSTACLE_COUNT];
+  double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + OBSTACLE_COUNT*2];
 
   // Callback function for the /packoutOut subscriber, main loop
   void data_callback(const std_msgs::msg::Float64MultiArray& packetIn){
-	  RCLCPP_INFO(this->get_logger(), "RECEIVING SYNCED DATA");
-	  local_goal_manager_.updateLocalGoal(); //update local goal, now need to add to output array
-      proccessOdomLidar(packetIn);						  
+	
+	if (!obstacle_callback) {
+		RCLCPP_INFO(this->get_logger(), "Have no received obstacle data");
+		return;
 
-	  return;
+	}
+	  proccessOdomLidar(packetIn);						  
+	RCLCPP_INFO_STREAM(this->get_logger(),
+			   "odom_x: " << odom_y << "\n" <<
+				"odom_y: " << odom_y << "\n"
+               << "prev_odom_x: " << prev_odom_x << "\n"
+               << "prev_odom_y: " << prev_odom_y);
+
+	  if ((!first_callback) && (odom_x == prev_odom_x) && (odom_y == prev_odom_y)) {
+
+		  RCLCPP_INFO(this->get_logger(), "ROBOT HAS NOT MOVED");
+		  return;
+	  }
+	  prev_odom_x = odom_x;
+	  prev_odom_y = odom_y;
+
+	  if (first_callback) {
+		  RCLCPP_INFO(this->get_logger(), "First callback has hit");
+		  first_callback = false;
+	  }
+
+
+	  RCLCPP_INFO(this->get_logger(), "procssed Odom lidar");
+	  local_goal_manager_.updateLocalGoal(odom_x, odom_y); //update local goal, now need to add to output array
+	  RCLCPP_INFO(this->get_logger(), "update local goal");
+	  obstacle_manager_.update_obstacles(local_goal_manager_);
+//	  RCLCPP_INFO(this->get_logger(), "update obstacles");
+	  RCLCPP_INFO(this->get_logger(), "have finished updating the obstacles");
+      //test(obstacle_manager_);
+	  compute_lidar_distances(odom_x, odom_y, LIDAR_COUNT, obstacle_manager_, &hall_lidar_ranges[0]); //compute the fake lidar reading 
+	  RCLCPP_INFO(this->get_logger(), "compute lidar distances");
+	  min_lidar();
+	  //RCLCPP_INFO(this->get_logger(), "min lidar");
+	  processPacketOut();
+	  RCLCPP_INFO(this->get_logger(), "create output packet");
+
+	  int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
+	  std_msgs::msg::Float64MultiArray msg;
+	  msg.data.resize(packetOut_size);
+	  RCLCPP_INFO(this->get_logger(), "SIZE OF packetOUt %d", packetOut_size);
+	  
+
+
+	  for (size_t i = 0; i < packetOut_size; ++i){
+		  msg.data[i] = static_cast<double>(packetOut[i]);
+	  }
+
+	  RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
+	  packetOut_publisher_->publish(msg);
+
+	  RCLCPP_INFO(this->get_logger(), "PUBLISHING NEURAL NET INPUT MESSAGE");
+
   }
 
 
@@ -101,18 +171,58 @@ private:
 		{
 			splitString(msg);
 			obstacle_manager_.local_goals_to_obs(local_goal_manager_);		
-			std::cout << "Num of obstacles created    :" << obstacle_manager_.count << std::endl;
+			std::cout << "Num of obstacles created    :" << obstacle_manager_.obstacle_count << std::endl;
+			int num_obs; 
+			const Obstacle* obstacle_list = obstacle_manager_.get_active_obstacles(num_obs);
+
+			for (int i = 0; i < num_obs; i++) {
+				std::cout << "obs coords : " << obstacle_list[i].center_x << "  "<< obstacle_list[i].center_y << std::endl;
+			}
+			obstacle_callback = true;
 		}
   }
+  
+  void scan_sub_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg)
+  {
 
+	  sensor_msgs::msg::LaserScan hall_msg;
+
+	  hall_msg.header = scanMsg->header;
+	  hall_msg.angle_min = scanMsg->angle_min;
+	  hall_msg.angle_max = scanMsg->angle_max;
+	  hall_msg.angle_increment = scanMsg->angle_increment;
+	  hall_msg.time_increment = scanMsg->time_increment;
+	  hall_msg.scan_time = scanMsg->scan_time;
+	  hall_msg.range_min = scanMsg->range_min;
+	  hall_msg.range_max = scanMsg->range_max;
+	  std::vector<float>hall_lidar_publish;
+	  for (int i = 0; i < LIDAR_COUNT; i++) {
+		  hall_lidar_publish.push_back(static_cast<float>(min_lidar_ranges[i]));
+		  //RCLCPP_INFO(this->get_logger(), "Lidar value : %f", min_lidar_ranges[i]);
+	  }
+	  hall_msg.ranges = hall_lidar_publish;
+
+       hall_pub_->publish(hall_msg);
+	   RCLCPP_INFO(this->get_logger(), "Publishing fake lidar");
+		return;
+  }
+  void min_lidar(){
+
+	  for (int lidar_compare_counter = 0; lidar_compare_counter < LIDAR_COUNT; lidar_compare_counter++) {
+
+		  min_lidar_ranges[lidar_compare_counter] = std::min(real_lidar_ranges[lidar_compare_counter], hall_lidar_ranges[lidar_compare_counter]);
+
+	  }
+	  return;
+  }
   void proccessOdomLidar(const std_msgs::msg::Float64MultiArray& packetIn)
   {
-	  odom_x = packetIn[0];
-	  odom_y = packetIn[1];
-	  current_cmd_v = packetIn[2];
-	  current_cmd_w = packetIn[3];
+	  odom_x = packetIn.data[0];
+	  odom_y = packetIn.data[1];
+	  current_cmd_v = packetIn.data[2];
+	  current_cmd_w = packetIn.data[3];
 	  for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter ++){
-		  lidar_ranges = packetIn[4+lidar_counter];
+		  real_lidar_ranges[lidar_counter] = packetIn.data[4+lidar_counter];
 	  }
   }
   
@@ -123,6 +233,19 @@ private:
 	packetOut[2] = current_cmd_v;
 	packetOut[3] = current_cmd_w;
 
+	for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter++){
+		packetOut[4+lidar_counter] = hall_lidar_ranges[lidar_counter];
+	}
+
+	//filled with min lidar data
+	int num_obstacles;
+	const Obstacle* current_obstacles = obstacle_manager_.get_active_obstacles(num_obstacles);
+		
+	for (int local_obstacle_counter = 0; local_obstacle_counter < num_obstacles; local_obstacle_counter++) {
+		int index = ODOM_FIELD_COUNT + LIDAR_COUNT + local_obstacle_counter*2;
+		packetOut[index]= current_obstacles[local_obstacle_counter].center_x;
+		packetOut[index+1]= current_obstacles[local_obstacle_counter].center_y;
+	}
 	return;
 
   }
@@ -181,9 +304,12 @@ private:
   
   // Subscriber for /obstacle data
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr lg_subscriber_;
-  
+ 
+  //Subscriber to real lidar scan
+  rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
-	
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr packetOut_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr hall_pub_;
 };
 
 int main(int argc, char * argv[])

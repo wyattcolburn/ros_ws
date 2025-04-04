@@ -4,6 +4,7 @@
 #include <vector>
 #include <cmath>
 #include <cstdint>
+#include <iostream>
 
 
 
@@ -36,7 +37,10 @@ class Local_Goal_Manager {
 
 
 		}
+		int get_local_goal_counter(){
 
+			return current_local_goal_counter;
+		}
 		Local_Goal getCurrentGoal() {
 			return data_vector[current_local_goal_counter];
 		}
@@ -44,15 +48,20 @@ class Local_Goal_Manager {
 		std::vector<Local_Goal> getLocalGoalVector(){
 			return data_vector;
 		}
-	private:
 
 		std::vector<Local_Goal>data_vector;
 		uint8_t current_local_goal_counter = 0;
 	    
-		void updateLocalGoal(double odom_x, double odom_y, double yaw) {
+		void updateLocalGoal(double odom_x, double odom_y) {
 			//this is to update the local goal, aka when you have reached current
 			//goal within a threshold, then get next one
-		    double dx = std::abs(odom_x - data_vector[current_local_goal_counter].x_point);
+			//
+
+		 if (data_vector.empty() || current_local_goal_counter >= data_vector.size()) {
+			std::cout << "No more local goals available" << std::endl;
+			return;
+    }
+			double dx = std::abs(odom_x - data_vector[current_local_goal_counter].x_point);
 		    double dy = std::abs(odom_y - data_vector[current_local_goal_counter].y_point);
 
 
