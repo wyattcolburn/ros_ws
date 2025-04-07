@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 
-const float RADIUS=5;
+const float RADIUS=10;
 const int NUM_VALID_OBSTACLES=30;
 class Obstacle{
     public:	
@@ -51,7 +51,7 @@ struct ObstacleManager{
 
 		for (int lg_counter = 0; lg_counter < static_cast<int>(local_goal_vec.size() - 1); lg_counter++){
 
-			if (lg_counter + 1 > local_goal_vec.size()) 
+			if (lg_counter + 1 > static_cast<int>(local_goal_vec.size())) 
 			{
 				return;
 			}
@@ -102,6 +102,8 @@ struct ObstacleManager{
 
 
 
-const float OFFSET = 5.0;
+const float OFFSET = 15.0;
+const float LG1_x = 400.0;
+const float LG1_y = 400.0;
 
 #endif

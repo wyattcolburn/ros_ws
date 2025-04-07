@@ -1,0 +1,9 @@
+<class_libraries>
+    <library path="onnx_controller">
+        <class type="onnx_controller::ONNXController" base_class_type="nav2_core::Controller">
+            <description>
+                ONNX-based Navigation Controller for Nav2
+            </description>
+        </class>
+    </library>
+</class_libraries>

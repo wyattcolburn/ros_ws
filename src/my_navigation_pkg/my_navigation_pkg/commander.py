@@ -23,7 +23,7 @@ class MyCommander(Node):
         init_pose.header.stamp = self.nav.get_clock().now().to_msg()
         init_pose.pose.position.x = 0.0
         init_pose.pose.position.y = 0.5
-        init_pose.pose.orientation.w = 1.0
+        init_pose.pose.orientation.z = 1.0
         self.nav.setInitialPose(init_pose)
 
         self.nav.lifecycleStartup()  
@@ -37,9 +37,9 @@ class MyCommander(Node):
         goal_pose = PoseStamped()
         goal_pose.header.frame_id = 'map'
         goal_pose.header.stamp = self.nav.get_clock().now().to_msg()
-        goal_pose.pose.position.x = 0.0 # no idea how we would do this dynamically
-        goal_pose.pose.position.y = 0.6
-        goal_pose.pose.orientation.w = 1.0
+        goal_pose.pose.position.x = 0.6 # no idea how we would do this dynamically
+        goal_pose.pose.position.y = 1.6
+        init_pose.pose.orientation.z = 1.0
 
         # Get path
         path = self.nav.getPath(init_pose, goal_pose)
@@ -53,8 +53,8 @@ class MyCommander(Node):
                 yaw, pitch, roll = quat2euler([q.w, q.x, q.y, q.z])
 
 
-                if local_goals_msg:
-                    local_goals_msg += "|" 
+                #if local_goals_msg:
+                #    local_goals_msg += "|" 
                 local_goals_msg += f"{pose.pose.position.x}|{pose.pose.position.y}|{yaw}|"
 
                 print(local_goals_msg)

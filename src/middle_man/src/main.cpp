@@ -100,6 +100,7 @@ private:
   bool obstacle_callback = false;
   int local_goal_reached = 0;
 
+  bool local_goal_callback = false;
   //output, will contain min of hallucinated lidar, and obstacle coordinates  
   static constexpr size_t OBSTACLE_COUNT = 30; //kk
 
@@ -108,7 +109,7 @@ private:
   // Callback function for the /packoutOut subscriber, main loop
   void data_callback(const std_msgs::msg::Float64MultiArray& packetIn){
 	
-	if (!obstacle_callback) {
+	if (!local_goal_callback) {
 		RCLCPP_INFO(this->get_logger(), "Have no received obstacle data");
 		return;
 
@@ -173,6 +174,9 @@ private:
 
   void lg_subscriber_callback(const std_msgs::msg::String::ConstSharedPtr msg)
   {
+	  return;
+
+	  /*
 		if (local_goal_manager_.getLocalGoalVector().size() > 0)
 		{
 			RCLCPP_INFO(this->get_logger(), "Already filled obstacle array");
@@ -189,7 +193,7 @@ private:
 				std::cout << "obs coords : " << obstacle_list[i].center_x << "  "<< obstacle_list[i].center_y << std::endl;
 			}
 			obstacle_callback = true;
-		}
+		} */
   }
   void plan_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg){
 
@@ -198,18 +202,32 @@ private:
 	// Need to create obstacles -->, then start normal operation of hallucinating lidar
 	//
 	// Need to validate then I am reaching next local goal
-	  RCLCPP_INFO(this->get_logger(), "HITTING PATH CALLBACK");
+	//
+	//
+	  if (local_goal_callback) {
+		  RCLCPP_INFO(this->get_logger(), "ALREADY HAVE DATA");
+		
+		  RCLCPP_INFO(this->get_logger(), "How many local goals %d", local_goal_manager_.get_local_goal_counter());
+		return ;
+	  }
 
-	  RCLCPP_INFO(this->get_logger(), "Path data %zu poses", pathMsg->poses.size());
-      std::vector<Local_Goal> local_goal_vec;
+	  else {
+		  RCLCPP_INFO(this->get_logger(), "HITTING PATH CALLBACK");
 
-	  for (size_t i = 0; i < pathMsg->poses.size(); i++) {
-		  Local_Goal currentLG;
-		  currentLG.x_point = pathMsg->poses[i].pose.position.x;
-		  currentLG.y_point = pathMsg->poses[i].pose.position.y;
-		  currentLG.yaw = tf2::getYaw(pathMsg->poses[i].pose.orientation);
-		  local_goal_vec.push_back(currentLG);
-  
+		  RCLCPP_INFO(this->get_logger(), "Path data %zu poses", pathMsg->poses.size());
+		  std::vector<Local_Goal> local_goal_vec;
+
+		  for (size_t i = 0; i < pathMsg->poses.size(); i++) {
+			  Local_Goal currentLG;
+			  local_goal_manager_.add_local_goal(pathMsg->poses[i].pose.position.x, pathMsg->poses[i].pose.position.y, tf2::getYaw(pathMsg->poses[i].pose.orientation));
+		  }
+
+		  RCLCPP_INFO(this->get_logger(), "How many local goals %d", local_goal_manager_.get_local_goal_counter());
+		  obstacle_manager_.local_goals_to_obs(local_goal_manager_);
+		  int num_obstacles = obstacle_manager_.obstacle_count;
+		  RCLCPP_INFO(this->get_logger(), "NUm of obstacles %d", num_obstacles);
+
+		  local_goal_callback = true; 
 	  }
   }
   void scan_sub_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg)
