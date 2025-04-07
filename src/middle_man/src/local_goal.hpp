@@ -52,14 +52,14 @@ class Local_Goal_Manager {
 		std::vector<Local_Goal>data_vector;
 		uint8_t current_local_goal_counter = 0;
 	    
-		void updateLocalGoal(double odom_x, double odom_y) {
+		int updateLocalGoal(double odom_x, double odom_y) {
 			//this is to update the local goal, aka when you have reached current
 			//goal within a threshold, then get next one
 			//
 
 		 if (data_vector.empty() || current_local_goal_counter >= data_vector.size()) {
 			std::cout << "No more local goals available" << std::endl;
-			return;
+			return 0;
     }
 			double dx = std::abs(odom_x - data_vector[current_local_goal_counter].x_point);
 		    double dy = std::abs(odom_y - data_vector[current_local_goal_counter].y_point);
@@ -70,9 +70,10 @@ class Local_Goal_Manager {
 			if (distance < THRESHOLD){
 			    //advance to next local goal
 				current_local_goal_counter++; 
+				return 1;
 			}
 
-			return;
+			return 0;
 		}
 };
 

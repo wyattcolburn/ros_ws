@@ -23,7 +23,8 @@
  *This node: takes the data published from publish_features node and applies to raytracing node?
 */
 
-
+#include <tf2/utils.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <chrono>
 #include "local_goal.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -31,6 +32,8 @@
 #include "std_msgs/msg/string.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
+#include "nav_msgs/msg/path.hpp"
+
 #include <algorithm> // for std::min
 
 //header files
@@ -61,13 +64,16 @@ public:
 	lg_subscriber_ = this->create_subscription<std_msgs::msg::String>(
 			"local_goals", 10, std::bind(&middleNode::lg_subscriber_callback, this, std::placeholders::_1));
 
-	packetOut_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("neuralNetInput", qos);
-    
+	//packetOut_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("neuralNetInput", qos);
+    packetOut_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("neuralNetInput", 10);
+	
+	
+	path_sub_ = this->create_subscription<nav_msgs::msg::Path>("/plan", 10, std::bind(&middleNode::plan_callback, this, std::placeholders::_1));
+
 	scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>( "scan", 10,
 				std::bind(&middleNode::scan_sub_callback, this, std::placeholders::_1));
    
 	hall_pub_= this->create_publisher<sensor_msgs::msg::LaserScan>("HallScan", qos2);
-
 	// Create a timer that calls timer_callback() every 500ms.
     //timer_ = this->create_wall_timer(
 	//		500ms, std::bind(&middleNode::timer_callback, this));
@@ -92,7 +98,7 @@ private:
   double prev_odom_x, prev_odom_y;
   bool first_callback = true;
   bool obstacle_callback = false;
-
+  int local_goal_reached = 0;
 
   //output, will contain min of hallucinated lidar, and obstacle coordinates  
   static constexpr size_t OBSTACLE_COUNT = 30; //kk
@@ -129,9 +135,9 @@ private:
 
 
 	  RCLCPP_INFO(this->get_logger(), "procssed Odom lidar");
-	  local_goal_manager_.updateLocalGoal(odom_x, odom_y); //update local goal, now need to add to output array
+	  local_goal_reached = local_goal_manager_.updateLocalGoal(odom_x, odom_y); //If return 1, local goal was updated, need to update obstacles then, if 0, same obstacles
 	  RCLCPP_INFO(this->get_logger(), "update local goal");
-	  obstacle_manager_.update_obstacles(local_goal_manager_);
+	obstacle_manager_.update_obstacles(local_goal_manager_);
 //	  RCLCPP_INFO(this->get_logger(), "update obstacles");
 	  RCLCPP_INFO(this->get_logger(), "have finished updating the obstacles");
       //test(obstacle_manager_);
@@ -146,16 +152,20 @@ private:
 	  std_msgs::msg::Float64MultiArray msg;
 	  msg.data.resize(packetOut_size);
 	  RCLCPP_INFO(this->get_logger(), "SIZE OF packetOUt %d", packetOut_size);
-	  
 
-
+	  RCLCPP_INFO(this->get_logger(), "Size of neural net output %zu", msg.data.size());
+	  // Test with a simpler message
+		if (!packetOut_publisher_) {
+    RCLCPP_ERROR(this->get_logger(), "Publisher is null!");
+    return;
+}
+									   //
 	  for (size_t i = 0; i < packetOut_size; ++i){
 		  msg.data[i] = static_cast<double>(packetOut[i]);
 	  }
 
 	  RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
 	  packetOut_publisher_->publish(msg);
-
 	  RCLCPP_INFO(this->get_logger(), "PUBLISHING NEURAL NET INPUT MESSAGE");
 
   }
@@ -181,10 +191,31 @@ private:
 			obstacle_callback = true;
 		}
   }
+  void plan_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg){
+
+	//need to take in the message and make sure it is going to local_manager, so that I can create obstacles as well
+	// Then need to add logic to make sure this only ones once?? multiple paths?
+	// Need to create obstacles -->, then start normal operation of hallucinating lidar
+	//
+	// Need to validate then I am reaching next local goal
+	  RCLCPP_INFO(this->get_logger(), "HITTING PATH CALLBACK");
+
+	  RCLCPP_INFO(this->get_logger(), "Path data %zu poses", pathMsg->poses.size());
+      std::vector<Local_Goal> local_goal_vec;
+
+	  for (size_t i = 0; i < pathMsg->poses.size(); i++) {
+		  Local_Goal currentLG;
+		  currentLG.x_point = pathMsg->poses[i].pose.position.x;
+		  currentLG.y_point = pathMsg->poses[i].pose.position.y;
+		  currentLG.yaw = tf2::getYaw(pathMsg->poses[i].pose.orientation);
+		  local_goal_vec.push_back(currentLG);
   
+	  }
+  }
   void scan_sub_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg)
   {
-
+      //This function is to get the scan message and replicate the message but with min values, 
+	  //aka what will feed into the neural network. Publishing under "/HallScan"
 	  sensor_msgs::msg::LaserScan hall_msg;
 
 	  hall_msg.header = scanMsg->header;
@@ -203,7 +234,7 @@ private:
 	  hall_msg.ranges = hall_lidar_publish;
 
        hall_pub_->publish(hall_msg);
-	   RCLCPP_INFO(this->get_logger(), "Publishing fake lidar");
+	//RCLCPP_INFO(this->get_logger(), "Publishing fake lidar");
 		return;
   }
   void min_lidar(){
@@ -217,6 +248,8 @@ private:
   }
   void proccessOdomLidar(const std_msgs::msg::Float64MultiArray& packetIn)
   {
+
+	  //This is possible because of the statically defined packets
 	  odom_x = packetIn.data[0];
 	  odom_y = packetIn.data[1];
 	  current_cmd_v = packetIn.data[2];
@@ -307,9 +340,11 @@ private:
  
   //Subscriber to real lidar scan
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr packetOut_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr hall_pub_;
+
 };
 
 int main(int argc, char * argv[])

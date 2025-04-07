@@ -9,8 +9,8 @@
 #include <iostream>
 //function prototypes
 //
-constexpr MIN_RANGE = .16452;
-constexpr MAX_RANGE = 12.00; //??
+constexpr double MIN_RANGE = .16452;
+constexpr double MAX_RANGE = 12.00; //??
 class Obstacle;
 class ObstacleManager;
 

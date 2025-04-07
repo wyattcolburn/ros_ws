@@ -1,6 +1,5 @@
 #ifndef OBSTACLES_H
 #define OBSTACLES_H
-#include "raytracing.hpp"
 #include "local_goal.hpp"
 #include <iostream>
 #include <cmath>
@@ -50,7 +49,7 @@ struct ObstacleManager{
 		std::vector<Local_Goal> local_goal_vec;
 		local_goal_vec = local_manager_.getLocalGoalVector();
 
-		for (int lg_counter = 0; lg_counter < local_goal_vec.size() - 1; lg_counter++){
+		for (int lg_counter = 0; lg_counter < static_cast<int>(local_goal_vec.size() - 1); lg_counter++){
 
 			if (lg_counter + 1 > local_goal_vec.size()) 
 			{
