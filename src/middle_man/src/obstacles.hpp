@@ -6,8 +6,8 @@
 #include <utility>
 #include <vector>
 
-const float RADIUS=5;
-const int NUM_VALID_OBSTACLES=30;
+const float RADIUS=1;
+const int NUM_VALID_OBSTACLES=2;
 class Obstacle{
     public:	
 		double center_x, center_y, radius;
@@ -15,6 +15,8 @@ class Obstacle{
 //function prototypes
 std::pair<Obstacle,Obstacle> create_obstacle(double current_lg_x, double current_lg_y, double next_lg_x, double next_lg_y);
 const int MAX_OBSTACLES = 100;
+
+const float OFFSET = 2.0;
 struct ObstacleManager{
 
 	Obstacle obstacle_array[MAX_OBSTACLES];
@@ -61,14 +63,19 @@ struct ObstacleManager{
 			std::pair<Obstacle, Obstacle> obs_pair = create_obstacle(current_lg.x_point, current_lg.y_point, next_lg.x_point, next_lg.y_point);
 			add_obstacle(obs_pair.first);
 			add_obstacle(obs_pair.second);
+
+			std::cout << "Obstacle at " << obs_pair.first.center_x<< "  " << obs_pair.first.center_y<< std::endl;
 		}
 		return;
 	}
 	void update_obstacles(Local_Goal_Manager& local_manager_){
 
+		//current goal is local_goal_counter, 
+		// sliding window is, local_goal_counter ------------ +10 
+
 		int local_goal_counter = local_manager_.get_local_goal_counter(); //returns which local goal we are on, if we are on local goal 0, we are on obstacle 0,1
 	    std::cout << "local goal counter" << local_goal_counter << std::endl;
-
+		std::cout << "counter bounds are: " << local_goal_counter << "   to   " << NUM_VALID_OBSTACLES -1 + local_goal_counter << std::endl;
 
 		for (int counter = 0; counter < obstacle_count; counter++){
 			//std::cout << "counter for loop" << counter << std::endl;
@@ -82,26 +89,24 @@ struct ObstacleManager{
 		}
 		std::cout << "have arrived to the end of update obstacle function" << std::endl;
 		return;
-    }
+	}
 
 	// Get array of active obstacles for passing to functions
-    const Obstacle* get_active_obstacles(int& out_count) { //pass by reference
-        static Obstacle active_obs[MAX_OBSTACLES]; //static
-        out_count = 0;
-        
-        for (int i = 0; i < MAX_OBSTACLES; i++) {
-            if (is_active[i]) {
-                active_obs[out_count++] = obstacle_array[i];
-            }
-        }
-        
-        return active_obs;
-    }
+	const Obstacle* get_active_obstacles(int& out_count) { //pass by reference
+		static Obstacle active_obs[MAX_OBSTACLES]; //static
+		out_count = 0;
+
+		for (int i = 0; i < MAX_OBSTACLES; i++) {
+			if (is_active[i]) {
+				active_obs[out_count++] = obstacle_array[i];
+			}
+		}
+
+		return active_obs;
+	}
 };
 
 
 
-
-const float OFFSET = 5.0;
 
 #endif

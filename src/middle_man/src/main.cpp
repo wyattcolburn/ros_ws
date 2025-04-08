@@ -101,8 +101,10 @@ private:
   int local_goal_reached = 0;
 
   bool local_goal_callback = false;
+
+  bool main_loop_once = false;
   //output, will contain min of hallucinated lidar, and obstacle coordinates  
-  static constexpr size_t OBSTACLE_COUNT = 30; //kk
+  static constexpr size_t OBSTACLE_COUNT = 2; //kk
 
   double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + OBSTACLE_COUNT*2];
 
@@ -114,13 +116,10 @@ private:
 		return;
 
 	}
-	  proccessOdomLidar(packetIn);						  
-	RCLCPP_INFO_STREAM(this->get_logger(),
-			   "odom_x: " << odom_y << "\n" <<
-				"odom_y: " << odom_y << "\n"
-               << "prev_odom_x: " << prev_odom_x << "\n"
-               << "prev_odom_y: " << prev_odom_y);
-
+    if (main_loop_once) {
+		RCLCPP_INFO(this->get_logger(), "ALREADY RAN ONCE");
+		return;
+	}
 	  if ((!first_callback) && (odom_x == prev_odom_x) && (odom_y == prev_odom_y)) {
 
 		  RCLCPP_INFO(this->get_logger(), "ROBOT HAS NOT MOVED");
@@ -134,20 +133,12 @@ private:
 		  first_callback = false;
 	  }
 
-
-	  RCLCPP_INFO(this->get_logger(), "procssed Odom lidar");
+      proccessOdomLidar(packetIn);
 	  local_goal_reached = local_goal_manager_.updateLocalGoal(odom_x, odom_y); //If return 1, local goal was updated, need to update obstacles then, if 0, same obstacles
-	  RCLCPP_INFO(this->get_logger(), "update local goal");
-	obstacle_manager_.update_obstacles(local_goal_manager_);
-//	  RCLCPP_INFO(this->get_logger(), "update obstacles");
-	  RCLCPP_INFO(this->get_logger(), "have finished updating the obstacles");
-      //test(obstacle_manager_);
+	  obstacle_manager_.update_obstacles(local_goal_manager_);
 	  compute_lidar_distances(odom_x, odom_y, LIDAR_COUNT, obstacle_manager_, &hall_lidar_ranges[0]); //compute the fake lidar reading 
-	  RCLCPP_INFO(this->get_logger(), "compute lidar distances");
 	  min_lidar();
-	  //RCLCPP_INFO(this->get_logger(), "min lidar");
 	  processPacketOut();
-	  RCLCPP_INFO(this->get_logger(), "create output packet");
 
 	  int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
 	  std_msgs::msg::Float64MultiArray msg;
@@ -168,6 +159,8 @@ private:
 	  RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
 	  packetOut_publisher_->publish(msg);
 	  RCLCPP_INFO(this->get_logger(), "PUBLISHING NEURAL NET INPUT MESSAGE");
+
+	  main_loop_once = true;
 
   }
 
@@ -212,17 +205,16 @@ private:
 	  }
 
 	  else {
-		  RCLCPP_INFO(this->get_logger(), "HITTING PATH CALLBACK");
+		  RCLCPP_INFO(this->get_logger(), "HITTING PATH CALLBACK: receiving local goals from /plan topic");
 
 		  RCLCPP_INFO(this->get_logger(), "Path data %zu poses", pathMsg->poses.size());
 		  std::vector<Local_Goal> local_goal_vec;
 
-		  for (size_t i = 0; i < pathMsg->poses.size(); i++) {
-			  Local_Goal currentLG;
+		  for (size_t i = 0; i < pathMsg->poses.size(); i+=3) {
 			  local_goal_manager_.add_local_goal(pathMsg->poses[i].pose.position.x, pathMsg->poses[i].pose.position.y, tf2::getYaw(pathMsg->poses[i].pose.orientation));
 		  }
 
-		  RCLCPP_INFO(this->get_logger(), "How many local goals %d", local_goal_manager_.get_local_goal_counter());
+		  RCLCPP_INFO(this->get_logger(), "How many local goals %d", local_goal_manager_.get_local_goal_counter()); //creates all the o
 		  obstacle_manager_.local_goals_to_obs(local_goal_manager_);
 		  int num_obstacles = obstacle_manager_.obstacle_count;
 		  RCLCPP_INFO(this->get_logger(), "NUm of obstacles %d", num_obstacles);
@@ -246,7 +238,7 @@ private:
 	  hall_msg.range_max = scanMsg->range_max;
 	  std::vector<float>hall_lidar_publish;
 	  for (int i = 0; i < LIDAR_COUNT; i++) {
-		  hall_lidar_publish.push_back(static_cast<float>(min_lidar_ranges[i]));
+		  hall_lidar_publish.push_back(static_cast<float>(hall_lidar_ranges[i]));
 		  //RCLCPP_INFO(this->get_logger(), "Lidar value : %f", min_lidar_ranges[i]);
 	  }
 	  hall_msg.ranges = hall_lidar_publish;

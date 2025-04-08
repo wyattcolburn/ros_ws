@@ -32,15 +32,19 @@ void compute_lidar_distances(
 	// Get current obstacles
 	int num_obstacles;
 	const Obstacle* active_obstacles = local_manager.get_active_obstacles(num_obstacles);
+    std::cout << "**************************************** : " << num_obstacles << std::endl;
 
+	std::cout << "num lidar reading :   " << num_lidar_readings << std::endl;
 
-	//std::cout << "origin point : " << ray_origin_x << "  " << ray_origin_y << std::endl;
 
 	
-	//std::cout << "size of active obstacles" << num_obstacles << std::endl;
-	//std::cout << "********************************************************" << std::endl;
-	//std::cout << "first obstacle :  " << active_obstacles[0].center_x << "   " << active_obstacles[0].center_y << std::endl;
-	// Precompute the angle step for efficiency
+	std::cout << "size of active obstacles" << num_obstacles << std::endl;
+	std::cout << "********************************************************" << std::endl;
+	for (int i = 0; i < num_obstacles; i++) {
+		std::cout << "ith obstacle : " << i << "    " << active_obstacles[i].center_x << "   " << active_obstacles[i].center_y << std::endl;
+	
+	}
+		// Precompute the angle step for efficiency
     float angle_step = 2.0f * M_PI / num_lidar_readings;
 	std::cout << "have computed all the angles for lidar cast" << std::endl;
     // For each ray direction
@@ -56,7 +60,7 @@ void compute_lidar_distances(
         float dy = sinf(theta);
 
         // Test against each obstacle
-        for (int obs = 0; obs < num_obstacles; obs++) {
+        for (int obs = 0; obs < 6; obs++) {
             // Get obstacle data
 			//
 			//std::cout << "looking at obstacle : " << obs << std::endl;
@@ -75,7 +79,6 @@ void compute_lidar_distances(
             float discriminant = b * b - 4.0f * a * c;
 			//std::cout << "discriminant" << discriminant << std::endl;
             if (discriminant >= 0.0f) {
-				std::cout << "We have intersection" << std::endl;
                 // Has intersection(s)
                 float sqrt_discriminant = sqrtf(discriminant);
                 float t1 = (-b - sqrt_discriminant) / (2.0f * a);

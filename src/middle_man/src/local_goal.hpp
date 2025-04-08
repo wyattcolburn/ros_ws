@@ -33,7 +33,6 @@ class Local_Goal_Manager {
 			new_local_goal.yaw = yaw;
 
 			data_vector.push_back(std::move(new_local_goal));
-			current_local_goal_counter++;
 			return;
 
 
