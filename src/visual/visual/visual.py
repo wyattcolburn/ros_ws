@@ -30,10 +30,15 @@ class Visual(Node):
         self.ob_list=[]
 
         self.lidar_data=[]
+        self.latest_middleman_msg = None
+
+        self.odom_x = 0
+        self.odom_y = 0
 
     def lg_callback(self, msg):
 
         print("I HEAR PLAN MESSAGES ***********************")
+        print(f"len of msg.poses is : {len(msg.poses)}")
         for pose in msg.poses:
 
 
@@ -46,6 +51,9 @@ class Visual(Node):
         len_msg_data = len(msg.data)
         self.get_logger().info('Len of msg_data is "%d"' % len_msg_data)
 
+        self.odom_x = msg.data[0]
+        self.odom_y = msg.data[1]
+        self.latest_middleman_msg = msg
         for i in range(self.ODOM_COUNT, self.LIDAR_COUNT + self.ODOM_COUNT):
             self.lidar_data.append(msg.data[i])
 
@@ -69,10 +77,11 @@ class Visual(Node):
         figure = pyplot.figure(figsize=(14, 10))
         ax = figure.add_subplot(1, 1, 1)
 
-        for goal in self.lg_list[0:2]:
+        for goal in self.lg_list:
             ax.plot(goal.center_x, goal.center_y, 'bo')  # Draw goal center as blue dot
 
-            # Draw yaw as arrow
+        ax.plot(self.odom_x, self.odom_y, 'yo')
+            # kDraw yaw as arrow
             #dx = 0.5 * math.cos(goal.yaw)
             #dy = 0.5 * math.sin(goal.yaw)
             #ax.arrow(goal.center_x, goal.center_y, dx, dy,
@@ -83,21 +92,26 @@ class Visual(Node):
         ax.set_ylabel("Y")
         ax.grid(True)
         ax.axis('equal')
-        
+       
 
-        for obs in self.ob_list:
-            circle = patches.Circle((obs.center_x, obs.center_y), radius=10,
+        #obs1 = self.ob_list[0]
+        #obs2 = self.ob_list[1]
+        #print(f"ob1 is {obs1.center_x} and {obs1.center_y} ob2 is {obs2.center_x, obs2.center_y}")
+        #circle = patches.Circle((obs1.center_x, obs1.center_y), radius=2,
+        #                            edgecolor='red', facecolor='none', linewidth=2)
+        #circle1 = patches.Circle((obs2.center_x, obs2.center_y), radius=2,
+        #                            edgecolor='red', facecolor='none', linewidth=2)
+        #ax.add_patch(circle)
+        #ax.add_patch(circle1)
+        for obs in self.ob_list[0:6]:
+            circle = patches.Circle((obs.center_x, obs.center_y), radius=1,
                                         edgecolor='red', facecolor='none', linewidth=2)
             ax.add_patch(circle)
 
 
-        for local_goal in self.lg_list:
-            circle = patches.Circle((local_goal.center_x, local_goal.center_y), radius = 1, edgecolor='green')
-            ax.add_patch(circle)
         angle_incrementor = (2* math.pi)/ self.LIDAR_COUNT
-        origin_point = (self.lg_list[0].center_x, self.lg_list[0].center_y)
-        
-        """
+        origin_point = (self.latest_middleman_msg.data[0], self.latest_middleman_msg.data[1])
+        print(f"origin point is {origin_point}") 
         for i in range(len(self.lidar_data)):
             angle = angle_incrementor* i
             dx = math.cos(angle) * self.lidar_data[i]
@@ -107,7 +121,6 @@ class Visual(Node):
 
             pyplot.plot([origin_point[0], projected_point[0]], [origin_point[1], projected_point[1]])
 
-"""
 
 
         ax.set_xlim(-20, 20)

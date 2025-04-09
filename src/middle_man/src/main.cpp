@@ -104,7 +104,7 @@ private:
 
   bool main_loop_once = false;
   //output, will contain min of hallucinated lidar, and obstacle coordinates  
-  static constexpr size_t OBSTACLE_COUNT = 2; //kk
+  static constexpr size_t OBSTACLE_COUNT = 10; //kk
 
   double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + OBSTACLE_COUNT*2];
 
@@ -115,10 +115,6 @@ private:
 		RCLCPP_INFO(this->get_logger(), "Have no received obstacle data");
 		return;
 
-	}
-    if (main_loop_once) {
-		RCLCPP_INFO(this->get_logger(), "ALREADY RAN ONCE");
-		return;
 	}
 	  if ((!first_callback) && (odom_x == prev_odom_x) && (odom_y == prev_odom_y)) {
 
@@ -149,7 +145,6 @@ private:
 	  // Test with a simpler message
 		if (!packetOut_publisher_) {
     RCLCPP_ERROR(this->get_logger(), "Publisher is null!");
-    return;
 }
 									   //
 	  for (size_t i = 0; i < packetOut_size; ++i){

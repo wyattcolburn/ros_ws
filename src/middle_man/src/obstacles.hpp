@@ -5,9 +5,11 @@
 #include <cmath>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
-const float RADIUS=1;
-const int NUM_VALID_OBSTACLES=2;
+
+const float RADIUS=.5;
+const int NUM_VALID_OBSTACLES=10;
 class Obstacle{
     public:	
 		double center_x, center_y, radius;
@@ -75,7 +77,7 @@ struct ObstacleManager{
 
 		int local_goal_counter = local_manager_.get_local_goal_counter(); //returns which local goal we are on, if we are on local goal 0, we are on obstacle 0,1
 	    std::cout << "local goal counter" << local_goal_counter << std::endl;
-		std::cout << "counter bounds are: " << local_goal_counter << "   to   " << NUM_VALID_OBSTACLES -1 + local_goal_counter << std::endl;
+		std::cout << "sliding window bounds are: " << local_goal_counter << "   to   " << std::min(NUM_VALID_OBSTACLES -1 + local_goal_counter, local_manager_.get_num_lg()) << std::endl;
 
 		for (int counter = 0; counter < obstacle_count; counter++){
 			//std::cout << "counter for loop" << counter << std::endl;

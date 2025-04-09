@@ -8,7 +8,7 @@
 
 
 
-#define THRESHOLD .1
+constexpr float THRESHOLD = 0.75f;
 
 
 class Local_Goal{
@@ -20,6 +20,8 @@ class Local_Goal_Manager {
 
 
 	public:
+
+		float prev_distance = 0;
 		void add_construct_lg(Local_Goal newLG){
 
 			data_vector.push_back(std::move(newLG));
@@ -49,15 +51,18 @@ class Local_Goal_Manager {
 			return data_vector;
 		}
 
+		int get_num_lg(){
+			return data_vector.size();
+		}
 		std::vector<Local_Goal>data_vector;
 		uint8_t current_local_goal_counter = 0;
-	   
+		uint8_t num_lg;	   
 		
 		int updateLocalGoal(double odom_x, double odom_y) {
 			//this is to update the local goal, aka when you have reached current
 			//goal within a threshold, then get next one
 			//
-
+	     std::cout << "CHECKING IF AT NEXT LOCAL GOAL" << std::endl;
 		 if (data_vector.empty() || current_local_goal_counter >= data_vector.size()) {
 			std::cout << "No more local goals available" << std::endl;
 			return 0;
@@ -67,13 +72,19 @@ class Local_Goal_Manager {
 
 
 		    double distance = std::sqrt(dx*dx + dy*dy);
-
+			std::cout << "distance to next local goal   " << distance << std::endl;
+			std::cout << "prev distance : " << prev_distance << std::endl;
 			if (distance < THRESHOLD){
 			    //advance to next local goal
 				current_local_goal_counter++; 
+				std::cout << "HAVE REACHED LOCAL GOAL" << std::endl;
 				return 1;
 			}
 
+			else if (distance > prev_distance + .1) {
+				current_local_goal_counter++;
+			}
+			prev_distance = distance;
 			return 0;
 		}
 };
