@@ -59,7 +59,7 @@ class Local_Goal_Manager {
 		uint8_t current_local_goal_counter = 0;
 		uint8_t num_lg;	   
 
-
+		int increasing_counter = 0;
 		double previous_x = 0;
 		double previous_y = 0;
 		bool first_position = true;
@@ -94,9 +94,15 @@ class Local_Goal_Manager {
 			double dx = odom_x - data_vector[current_local_goal_counter].x_point;
 			double dy = odom_y - data_vector[current_local_goal_counter].y_point;
 			double distance = std::sqrt(dx*dx + dy*dy);
-			
+		    	
 			std::cout << "Distance to current local goal (" << current_local_goal_counter << "): " << distance << std::endl;
-			
+		    if (prev_distance > 0 && distance > prev_distance) {
+				increasing_counter++;
+				std::cout << "Distance is increasing: counter at: " << increasing_counter << std::endl;
+			} 
+			else {
+				increasing_counter = 0; // Reset counter if distance is not increasing
+			}	 
 			// Approach 1: Check if we've reached the goal directly
 			if (distance < THRESHOLD) {
 				std::cout << "REACHED LOCAL GOAL" << std::endl;
@@ -104,7 +110,12 @@ class Local_Goal_Manager {
 				prev_distance = 0; // Reset for next goal
 				return 1;
 			}
-			
+		    
+			if (increasing_counter > 10) {
+				current_local_goal_counter++;
+				prev_distance = 0;
+				increasing_counter = 0;
+			}
 			// Calculate heading from position changes
 			double heading_x = 0;
 			double heading_y = 0;
@@ -139,13 +150,17 @@ class Local_Goal_Manager {
 					}
 				}
 			}
-			
+		    if (distance > prev_distance) {
+				increasing_counter++;
+				std::cout << "Distance is increasing : counter at : " << increasing_counter << std::endl;
+			}
 			// Update previous position for next calculation
 			previous_x = odom_x;
 			previous_y = odom_y;
 			
 			// Store distance for next comparison
 			prev_distance = distance;
+			
 			return 0;
 		}
 /*

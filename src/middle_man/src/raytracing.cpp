@@ -23,10 +23,6 @@ void compute_lidar_distances(
 	
 	std::cout << "size of active obstacles" << num_obstacles << std::endl;
 	std::cout << "********************************************************" << std::endl;
-	for (int i = 0; i < num_obstacles; i++) {
-		std::cout << "ith obstacle : " << i << "    " << active_obstacles[i].center_x << "   " << active_obstacles[i].center_y << std::endl;
-	
-	}
 		// Precompute the angle step for efficiency
     float angle_step = 2.0f * kPi / num_lidar_readings;
 	std::cout << "have computed all the angles for lidar cast" << std::endl;
@@ -37,6 +33,7 @@ void compute_lidar_distances(
 
         // Calculate direction vector for this ray
         float theta = -M_PI + angle_step * index;
+		std::cout << "index is : " << theta << std::endl;
 		//std::cout << "num lidar : " << num_lidar_readings << std::endl;
 		//std::cout << "theta : " << theta << std::endl;
         float dx = cosf(theta);
