@@ -81,7 +81,7 @@ struct ObstacleManager{
 
 		for (int counter = 0; counter < obstacle_count; counter++){
 			//std::cout << "counter for loop" << counter << std::endl;
-			if ((counter >= local_goal_counter) && (counter <= local_goal_counter + NUM_VALID_OBSTACLES - 1)) {
+			if ((counter >= local_goal_counter) && (counter <= std::min(local_goal_counter + NUM_VALID_OBSTACLES - 1, local_manager_.get_num_lg()))) {
 				is_active[counter] = true;
 			}
 
