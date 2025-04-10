@@ -1,6 +1,11 @@
 #include "local_goal.hpp"
 #include "obstacles.hpp"
 #include "nav_msgs/msg/path.hpp"
+
+#ifdef PI
+#undef PI
+#endif
+#include "raytracing.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -66,6 +71,7 @@ class obsValid: public rclcpp::Node
 		  auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
 		  auto marker_array = make_markers(obs_list, static_cast<size_t>(num_obs));
 		  marker_pub_->publish(marker_array);
+		  compute_lidar_distances(odom_x, odom_y, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges);
 		}
 void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
     if (local_goal_manager_.get_num_lg() > 0) {
@@ -148,8 +154,26 @@ void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
 	  }
 
 		void scan_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg){
+				
+			  sensor_msgs::msg::LaserScan hall_msg;
 
-			return;
+			  hall_msg.header = scanMsg->header;
+			  hall_msg.angle_min = scanMsg->angle_min;
+			  hall_msg.angle_max = scanMsg->angle_max;
+			  hall_msg.angle_increment = scanMsg->angle_increment;
+			  hall_msg.time_increment = scanMsg->time_increment;
+			  hall_msg.scan_time = scanMsg->scan_time;
+			  hall_msg.range_min = scanMsg->range_min;
+			  hall_msg.range_max = scanMsg->range_max;
+			  std::vector<float>hall_lidar_publish;
+			  for (int i = 0; i < LIDAR_COUNT; i++) {
+				  hall_lidar_publish.push_back(static_cast<float>(hall_lidar_ranges[i]));
+				  //RCLCPP_INFO(this->get_logger(), "Lidar value : %f", min_lidar_ranges[i]);
+			  }
+			  hall_msg.ranges = hall_lidar_publish;
+
+			  hall_pub_->publish(hall_msg);
+		      return;
 		}
 
 		visualization_msgs::msg::MarkerArray make_markers(const Obstacle* obs_list, size_t count) {

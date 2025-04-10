@@ -1,25 +1,8 @@
 #include "raytracing.hpp"
 #include "local_goal.hpp"
 
-void draw_lidar(float odom_x, float odom_y,float* distances, int num_lidar_readings) {
+constexpr float kPi = 3.14159265358979323846f;
 
-        float angle_step = 2.0f * M_PI / num_lidar_readings;
-        for (int i = 0; i < num_lidar_readings; i += 1) {
-            float theta = angle_step * i;
-            float dx = cosf(theta);
-            float dy = sinf(theta);
-            
-            if (distances[i] > 0) {
-                // Draw hit rays in green
-                DrawLine(
-                    odom_x, odom_y,
-                    odom_x + dx * distances[i],
-                    odom_y + dy * distances[i],
-                    GREEN
-                );
-            }
-        }
-}
 
 
 void compute_lidar_distances(
@@ -45,7 +28,7 @@ void compute_lidar_distances(
 	
 	}
 		// Precompute the angle step for efficiency
-    float angle_step = 2.0f * M_PI / num_lidar_readings;
+    float angle_step = 2.0f * kPi / num_lidar_readings;
 	std::cout << "have computed all the angles for lidar cast" << std::endl;
     // For each ray direction
     for (int index = 0; index < num_lidar_readings; index++) {
@@ -53,14 +36,14 @@ void compute_lidar_distances(
         distances[index] = std::numeric_limits<float>::max();
 
         // Calculate direction vector for this ray
-        float theta = angle_step * index;
+        float theta = -M_PI + angle_step * index;
 		//std::cout << "num lidar : " << num_lidar_readings << std::endl;
 		//std::cout << "theta : " << theta << std::endl;
         float dx = cosf(theta);
         float dy = sinf(theta);
 
         // Test against each obstacle
-        for (int obs = 0; obs < 6; obs++) {
+        for (int obs = 0; obs < num_obstacles; obs++) {
             // Get obstacle data
 			//
 			//std::cout << "looking at obstacle : " << obs << std::endl;

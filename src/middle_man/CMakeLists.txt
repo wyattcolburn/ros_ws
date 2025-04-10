@@ -11,7 +11,7 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 # Create an executable from the source file
 add_executable(${PROJECT_NAME}_node src/main.cpp src/mpc.cpp src/obstacles.cpp src/raytracing.cpp)
-add_executable(${PROJECT_NAME}_valid src/obs_validation.cpp src/obstacles.cpp)
+add_executable(${PROJECT_NAME}_valid src/obs_validation.cpp src/obstacles.cpp src/raytracing.cpp)
 
 
 # Link against ROS2 packages
