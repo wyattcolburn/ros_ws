@@ -31,10 +31,13 @@ class obsValid: public rclcpp::Node
 		  "/packetOut", 10,
 		  std::bind(&obsValid::data_callback, this, std::placeholders::_1));
 
-			path_sub_ = this->create_subscription<nav_msgs::msg::Path>("/plan", 10, std::bind(&obsValid::path_callback, this, std::placeholders::_1));
-			marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array", 10);
-			scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>("/scan", 10, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
-			hall_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("/HallScan", 10);
+		path_sub_ = this->create_subscription<nav_msgs::msg::Path>("/plan", 10, std::bind(&obsValid::path_callback, this, std::placeholders::_1));
+		
+		scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>("/scan", 10, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
+		
+		marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array", 10);
+		hall_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("/HallScan", 10);
+		
 		tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
 		tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
@@ -51,131 +54,147 @@ class obsValid: public rclcpp::Node
 		std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 		std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
-	    static constexpr size_t ODOM_FIELD_COUNT = 4;
+	    static constexpr size_t ODOM_FIELD_COUNT = 5;
 	    static constexpr size_t LIDAR_COUNT = 640;
 	    double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT];
 
-	    double odom_x, odom_y, local_goal_x, local_goal_y, current_cmd_v, current_cmd_w;
+	    double odom_x, odom_y, local_goal_x, local_goal_y, yaw, current_cmd_v, current_cmd_w;
 
 	    double real_lidar_ranges[LIDAR_COUNT];
 	    double hall_lidar_ranges[LIDAR_COUNT];
 
 		double map_x = 0;
 		double map_y = 0;
-	    void data_callback(const std_msgs::msg::Float64MultiArray& packetin){
-			
+		double map_yaw = 0;
+	    
+	void data_callback(const std_msgs::msg::Float64MultiArray& packetin){
+		
 		processOdomLidar(packetin);	
-		  
+		std::cout << "**************** yaw value : " << yaw << std::endl;
+		 
+		geometry_msgs::msg::PoseStamped odom_pose;
+		odom_pose.header.frame_id = "odom";
+		odom_pose.header.stamp = rclcpp::Time(0);  // latest available transform
+		odom_pose.pose.position.x = odom_x;
+		odom_pose.pose.position.y = odom_y;
+		odom_pose.pose.position.z = 0.0;
 
-		geometry_msgs::msg::PointStamped odom_point_msg;
-		odom_point_msg.header.frame_id = "odom";
-		odom_point_msg.header.stamp = rclcpp::Time(0);
-		odom_point_msg.point.x = odom_x;
-		odom_point_msg.point.y = odom_y;
-		odom_point_msg.point.z = 0.0;
+		// If you have yaw:
+		tf2::Quaternion q;
+		q.setRPY(0, 0, yaw);  // only yaw
+		odom_pose.pose.orientation = tf2::toMsg(q);
 
+		geometry_msgs::msg::PoseStamped map_pose;
 		try {
-			geometry_msgs::msg::PointStamped map_point_msg = tf_buffer_->transform(odom_point_msg, "map");
-			map_x = map_point_msg.point.x;
-			map_y = map_point_msg.point.y;
+			map_pose = tf_buffer_->transform(odom_pose, "map");
+
+			// Transformed output
+			map_x = map_pose.pose.position.x;
+			map_y = map_pose.pose.position.y;
+
+			// Extract yaw if needed
+			tf2::Quaternion q_map;
+			tf2::fromMsg(map_pose.pose.orientation, q_map);
+			double roll, pitch, yaw;
+			tf2::Matrix3x3(q_map).getRPY(roll, pitch, yaw);
+			map_yaw = yaw;
+
 		} catch (const tf2::TransformException &ex) {
-			RCLCPP_ERROR(rclcpp::get_logger("raytracing"), "Failed to transform odom point: %s", ex.what());
+			RCLCPP_ERROR(rclcpp::get_logger("raytracing"), "Failed to transform odom pose: %s", ex.what());
 			return;
 		}
 
+
 		RCLCPP_INFO(this->get_logger(),
-			"odom (%.2f, %.2f) -> map (%.2f, %.2f)",
-			odom_x, odom_y, map_x, map_y);
+			"odom (%.2f, %.2f) -> map (%.2f, %.2f) yaw %.2f), map_yaw %.2f",
+			odom_x, odom_y, map_x, map_y, yaw, map_yaw);
 
 
-
-
-		  local_goal_manager_.updateLocalGoal(odom_x, odom_y); 																							
+		  local_goal_manager_.updateLocalGoal(odom_x, odom_y); //local goals have already been converted to odom																							
 		  obstacle_manager_.update_obstacles(local_goal_manager_);
+		  
 		  int num_obs;
 		  auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
 		  auto marker_array = make_markers(obs_list, static_cast<size_t>(num_obs));
 		  marker_pub_->publish(marker_array);
 		  
+		  
 
+		  map_compute_lidar_distances(map_x, map_y, map_yaw, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges, *tf_buffer_);
+	
+				
+		return;
+	}
 
-
-		  map_compute_lidar_distances(map_x, map_y, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges, *tf_buffer_);
+	void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
+		if (local_goal_manager_.get_num_lg() > 0) {
+			RCLCPP_INFO(this->get_logger(), "ALREADY HAVE LOCAL GOALS");
+			return;
 		}
-
-
-
-
-
-void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
-    if (local_goal_manager_.get_num_lg() > 0) {
-        RCLCPP_INFO(this->get_logger(), "ALREADY HAVE LOCAL GOALS");
-        return;
-    }
-    
-    RCLCPP_INFO(this->get_logger(), "Received %zu poses in frame %s", 
-                pathMsg->poses.size(), pathMsg->header.frame_id.c_str());
-    
-    // Get transform from map to odom
-    geometry_msgs::msg::TransformStamped transform;
-    try {
-        transform = tf_buffer_->lookupTransform("odom", "map", tf2::TimePointZero);
-        RCLCPP_INFO(this->get_logger(), "Successfully got transform from map to odom");
-    } catch (tf2::TransformException &ex) {
-        RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
-        return;
-    }
-    
-    for (size_t i = 0; i < pathMsg->poses.size(); i+=8) {
-        // Transform position from map to odom frame
-        geometry_msgs::msg::PoseStamped pose_in_map;
-        geometry_msgs::msg::PoseStamped pose_in_odom;
-        
-        pose_in_map.header.frame_id = "map";
-        pose_in_map.pose = pathMsg->poses[i].pose;
-        
-        try {
-            tf2::doTransform(pose_in_map, pose_in_odom, transform);
-            
-            // Extract yaw from quaternion
-            tf2::Quaternion q(
-                pose_in_odom.pose.orientation.x,
-                pose_in_odom.pose.orientation.y,
-                pose_in_odom.pose.orientation.z,
-                pose_in_odom.pose.orientation.w
-            );
-            double roll, pitch, yaw;
-            tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-            
-            // Add transformed goal to manager
-            local_goal_manager_.add_local_goal(
-                pose_in_odom.pose.position.x,
-                pose_in_odom.pose.position.y, 
-                yaw
-            );
-        } catch (tf2::TransformException &ex) {
-            RCLCPP_ERROR(this->get_logger(), "Transform error on pose %zu: %s", i, ex.what());
-            continue;  // Skip this goal and try the next
-        }
-    }
-    
-    RCLCPP_INFO(this->get_logger(), "Our current Odom position is %f %f", odom_x, odom_y);
-    
-    if (local_goal_manager_.get_num_lg() > 0) {
-        RCLCPP_INFO(this->get_logger(), "FIRST GOAL VALUES ARE %f and %f", 
-                local_goal_manager_.data_vector[0].x_point, 
-                local_goal_manager_.data_vector[0].y_point);
-        RCLCPP_INFO(this->get_logger(), "SIZE OF LOCAL_GOAL_VECTOR %d", 
-                local_goal_manager_.get_num_lg());
-        
-        obstacle_manager_.local_goals_to_obs(local_goal_manager_); 
-        local_goal_manager_.set_distance_vector(odom_x, odom_y);
-    } else {
-        RCLCPP_WARN(this->get_logger(), "No local goals were added after transformation");
-    }
-    
-    return;
-}
+		
+		RCLCPP_INFO(this->get_logger(), "Received %zu poses in frame %s", 
+					pathMsg->poses.size(), pathMsg->header.frame_id.c_str());
+		
+		// Get transform from map to odom
+		geometry_msgs::msg::TransformStamped transform;
+		try {
+			transform = tf_buffer_->lookupTransform("odom", "map", tf2::TimePointZero);
+			RCLCPP_INFO(this->get_logger(), "Successfully got transform from map to odom");
+		} catch (tf2::TransformException &ex) {
+			RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
+			return;
+		}
+		
+		for (size_t i = 0; i < pathMsg->poses.size(); i+=8) {
+			// Transform position from map to odom frame
+			geometry_msgs::msg::PoseStamped pose_in_map;
+			geometry_msgs::msg::PoseStamped pose_in_odom;
+			
+			pose_in_map.header.frame_id = "map";
+			pose_in_map.pose = pathMsg->poses[i].pose;
+			
+			try {
+				tf2::doTransform(pose_in_map, pose_in_odom, transform);
+				
+				// Extract yaw from quaternion
+				tf2::Quaternion q(
+					pose_in_odom.pose.orientation.x,
+					pose_in_odom.pose.orientation.y,
+					pose_in_odom.pose.orientation.z,
+					pose_in_odom.pose.orientation.w
+				);
+				double roll, pitch, yaw;
+				tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+				
+				// Add transformed goal to manager
+				local_goal_manager_.add_local_goal(
+					pose_in_odom.pose.position.x,
+					pose_in_odom.pose.position.y, 
+					yaw
+				);
+			} catch (tf2::TransformException &ex) {
+				RCLCPP_ERROR(this->get_logger(), "Transform error on pose %zu: %s", i, ex.what());
+				continue;  // Skip this goal and try the next
+			}
+		}
+		
+		RCLCPP_INFO(this->get_logger(), "Our current Odom position is %f %f", odom_x, odom_y);
+		
+		if (local_goal_manager_.get_num_lg() > 0) {
+			RCLCPP_INFO(this->get_logger(), "FIRST GOAL VALUES ARE %f and %f", 
+					local_goal_manager_.data_vector[0].x_point, 
+					local_goal_manager_.data_vector[0].y_point);
+			RCLCPP_INFO(this->get_logger(), "SIZE OF LOCAL_GOAL_VECTOR %d", 
+					local_goal_manager_.get_num_lg());
+			
+			obstacle_manager_.local_goals_to_obs(local_goal_manager_); 
+			local_goal_manager_.set_distance_vector(odom_x, odom_y);
+		} else {
+			RCLCPP_WARN(this->get_logger(), "No local goals were added after transformation");
+		}
+		
+		return;
+	}
 	  void processOdomLidar(const std_msgs::msg::Float64MultiArray& packetIn)
 	  {
 
@@ -184,6 +203,7 @@ void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
 		  odom_y = packetIn.data[1];
 		  current_cmd_v = packetIn.data[2];
 		  current_cmd_w = packetIn.data[3];
+		  yaw = packetIn.data[4];
 		  return;
 	  }
 
@@ -224,8 +244,9 @@ void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
 
 				geometry_msgs::msg::PointStamped map_point;
 				try {
-					map_point = tf_buffer_->transform(odom_point, "map");  // ✅ correct overload
-				} catch (const tf2::TransformException &ex) {
+					map_point = tf_buffer_->transform(odom_point, "map");  
+				} 
+				catch (const tf2::TransformException &ex) {
 					RCLCPP_ERROR(this->get_logger(), "Transform failed for obstacle %zu: %s", i, ex.what());
 					continue;
 				}
@@ -260,6 +281,8 @@ void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
 			return marker_array;
 		}
 };
+
+
 int main(int argc, char * argv[]) {
     rclcpp::init(argc, argv);
     rclcpp::spin(std::make_shared<obsValid>());

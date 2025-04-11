@@ -5,12 +5,20 @@
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
+#include <cmath>
 constexpr float kPi = 3.14159265358979323846f;
 
 
+double normalize_angle(double angle_rad) {
+    while (angle_rad > M_PI)
+        angle_rad -= 2.0 * M_PI;
+    while (angle_rad < -M_PI)
+        angle_rad += 2.0 * M_PI;
+    return angle_rad;
+}
 
 void map_compute_lidar_distances(
-	double map_origin_x, double map_origin_y, 
+	double map_origin_x, double map_origin_y, double map_yaw, 
 	int num_lidar_readings, ObstacleManager& local_manager_,
 	double* distances, tf2_ros::Buffer& tf_buffer)
 
@@ -59,9 +67,11 @@ void map_compute_lidar_distances(
         distances[index] = std::numeric_limits<float>::max();
 
         // Calculate direction vector for this ray
-        float theta = -M_PI + angle_step * index;
+		float theta_prev = map_yaw -M_PI/2 + angle_step * index;
+
+        float theta = normalize_angle(theta_prev);
+
 		//std::cout << "num lidar : " << num_lidar_readings << std::endl;
-		//std::cout << "theta : " << theta << std::endl;
         float dx = cosf(theta);
         float dy = sinf(theta);
 
@@ -185,3 +195,6 @@ void compute_lidar_distances(
         }
     }
 }
+
+
+

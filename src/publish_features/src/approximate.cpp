@@ -30,7 +30,9 @@
 #include "message_filters/subscriber.h"
 #include "message_filters/time_synchronizer.h"
 #include "message_filters/sync_policies/approximate_time.h"
+#include <tf2/LinearMath/Matrix3x3.h>
 
+#include <tf2/LinearMath/Quaternion.h>
 using namespace std::chrono_literals;
 
 
@@ -66,7 +68,7 @@ public:
 
 private:
 
-  static constexpr size_t ODOM_FIELD_COUNT = 4;
+  static constexpr size_t ODOM_FIELD_COUNT = 5;
   static constexpr size_t LIDAR_COUNT = 1080;
   double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT];
 	
@@ -86,8 +88,9 @@ private:
 		for (size_t i = 0; i <ODOM_FIELD_COUNT+ LIDAR_COUNT; ++i){
 		    msg.data[i] = packetOut[i];
 		}
-		RCLCPP_INFO(this->get_logger(), "Publishing synced data");
-	
+		RCLCPP_INFO(this->get_logger(), "Publishing synced data");	
+		std::cout << "packet Out index 4    : " << msg.data[4] << std::endl;
+		
 		publisher_->publish(msg);
 	}
 
@@ -98,14 +101,27 @@ private:
       packetOut[1] =msg->pose.pose.position.y;
 	  packetOut[2] = msg->twist.twist.linear.x;
  	  packetOut[3] = msg->twist.twist.angular.z;
+	  
     
-	  RCLCPP_INFO(
+		tf2::Quaternion q(
+			msg->pose.pose.orientation.x,
+			msg->pose.pose.orientation.y,
+			msg->pose.pose.orientation.z,
+			msg->pose.pose.orientation.w
+		);
+		double roll, pitch, yaw;
+		tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+ 
+		RCLCPP_INFO(
       this->get_logger(),
-	  "Received /odom: position [x: %.2f, y: %.2f, odom_v : %.2f, odom_w : %.2f, odom_w], ",
+	  "Received /odom: position [x: %.2f, y: %.2f, odom_v : %.2f, odom_w : %.2f, odom_w, yaw : %.2f], ",
 	  packetOut[0],
 	  packetOut[1],
 	  packetOut[2],
-	  packetOut[3]);
+	  packetOut[3],
+	  yaw);
+
+	  packetOut[4] = yaw;
   }
 
 

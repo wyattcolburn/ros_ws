@@ -22,7 +22,9 @@ void compute_lidar_distances(
 		double* distances);
 
 void map_compute_lidar_distances(
-	double map_origin_x, double map_origin_y, 
+	double map_origin_x, double map_origin_y, double map_yaw, 
 	int num_lidar_readings, ObstacleManager& local_mangager,
 	double* distances, tf2_ros::Buffer& tf_buffer_); 
+
+double normalize_angle(double angle_min);
 #endif
