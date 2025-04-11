@@ -59,20 +59,54 @@ class obsValid: public rclcpp::Node
 
 	    double real_lidar_ranges[LIDAR_COUNT];
 	    double hall_lidar_ranges[LIDAR_COUNT];
-	
-	    void data_callback(const std_msgs::msg::Float64MultiArray& packetIn){
-			
-		  processOdomLidar(packetIn);	
 
+		double map_x = 0;
+		double map_y = 0;
+	    void data_callback(const std_msgs::msg::Float64MultiArray& packetin){
 			
+		processOdomLidar(packetin);	
+		  
+
+		geometry_msgs::msg::PointStamped odom_point_msg;
+		odom_point_msg.header.frame_id = "odom";
+		odom_point_msg.header.stamp = rclcpp::Time(0);
+		odom_point_msg.point.x = odom_x;
+		odom_point_msg.point.y = odom_y;
+		odom_point_msg.point.z = 0.0;
+
+		try {
+			geometry_msgs::msg::PointStamped map_point_msg = tf_buffer_->transform(odom_point_msg, "map");
+			map_x = map_point_msg.point.x;
+			map_y = map_point_msg.point.y;
+		} catch (const tf2::TransformException &ex) {
+			RCLCPP_ERROR(rclcpp::get_logger("raytracing"), "Failed to transform odom point: %s", ex.what());
+			return;
+		}
+
+		RCLCPP_INFO(this->get_logger(),
+			"odom (%.2f, %.2f) -> map (%.2f, %.2f)",
+			odom_x, odom_y, map_x, map_y);
+
+
+
+
 		  local_goal_manager_.updateLocalGoal(odom_x, odom_y); 																							
 		  obstacle_manager_.update_obstacles(local_goal_manager_);
 		  int num_obs;
 		  auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
 		  auto marker_array = make_markers(obs_list, static_cast<size_t>(num_obs));
 		  marker_pub_->publish(marker_array);
-		  compute_lidar_distances(odom_x, odom_y, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges);
+		  
+
+
+
+		  map_compute_lidar_distances(map_x, map_y, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges, *tf_buffer_);
 		}
+
+
+
+
+
 void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
     if (local_goal_manager_.get_num_lg() > 0) {
         RCLCPP_INFO(this->get_logger(), "ALREADY HAVE LOCAL GOALS");
