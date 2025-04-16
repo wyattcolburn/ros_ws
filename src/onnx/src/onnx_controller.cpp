@@ -103,6 +103,7 @@ namespace onnx_controller
     }
 
     void ONNXController::setSpeedLimit(const double &speed_limit, const bool &percentage){
+		RCLCPP_INFO(logger_, "Set speed limit");
         (void) speed_limit;
         (void) percentage;
     }
@@ -113,12 +114,12 @@ namespace onnx_controller
         nav2_core::GoalChecker *goal_checker)
     {
         (void) goal_checker;    // Not needed
-
+		RCLCPP_INFO(logger_, "REACHING COMPUTE VELOCITY");
         // Define Shape
         // 1080 From LIDAR
         // 3 From Odom (x,y,phi)
         // 3 From local goals (x,y,phi)
-        std::vector<int64_t> inputShape = {1, 1086};    // Vector vs Array??
+        std::vector<int64_t> inputShape = {1, 664};    // Vector vs Array??
         std::vector<double> input_data = latest_onnx_input_.data;
         
         // Define Array
@@ -139,6 +140,8 @@ namespace onnx_controller
         double predicted_linear = output_data[0];
         double predicted_angular = output_data[1];
 
+		RCLCPP_INFO(logger_, "output data %f", predicted_linear);
+
         geometry_msgs::msg::TwistStamped cmd_vel;
         cmd_vel.header.frame_id = pose.header.frame_id;
         cmd_vel.twist.linear.x = predicted_linear;
@@ -151,6 +154,7 @@ namespace onnx_controller
 
     void ONNXController::setPlan(const nav_msgs::msg::Path &path)
     {
+		RCLCPP_INFO(logger_, "Got a plan");
         global_pub_->publish(path);
         global_plan_ = path;
     }

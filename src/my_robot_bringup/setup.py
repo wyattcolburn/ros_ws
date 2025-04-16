@@ -30,6 +30,7 @@ setup(
             'local_goal= my_robot_bringup.local_goal:main',
             'Hall_prev= my_robot_bringup.Hallucination_prev_work:main',
             'Test_cmd= my_robot_bringup.test_node:main',
-            'training_node= my_robot_bringup.training_node:main']
+            'training_node= my_robot_bringup.training_node:main',
+            'validation_training=my_robot_bringup.validation_training:main']
     },
 )

@@ -125,7 +125,7 @@ class obsValid: public rclcpp::Node
 		  
 
 		  map_compute_lidar_distances(map_x, map_y, map_yaw, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges, *tf_buffer_);
-		   processPacketOut();	
+		 processPacketOut();	
 				
 		  int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
 		  std_msgs::msg::Float64MultiArray msg;

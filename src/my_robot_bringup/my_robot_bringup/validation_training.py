@@ -11,6 +11,13 @@ from scipy.stats import truncnorm
 import pandas as pd
 
 from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import LaserScan, PointCloud2
+
+# TF2 and Laser Geometry imports
+import tf2_ros
+from tf2_sensor_msgs import do_transform_cloud
+from laser_geometry import LaserProjection  # Make sure this package is available
+
 # To do first make sure this can move the robot according to the random motor movements from combined_dir, bang!! 
 
 # See raw lidar
@@ -25,6 +32,9 @@ class validate(Node):
         self.scan_sub = self.create_subscription(LaserScan, "/scan", self.scan_callback, 10) 
         self.publisher_ = self.create_publisher(Twist, '/cmd_vel', 10)
         self.hall_pub_ = self.create_publisher(LaserScan, '/HallScan', 10)
+        self.pc_pub = self.create_publisher(PointCloud2, '/transformed_cloud', 10)
+
+
         
         #get this from training.launch.py
         csv_file = '/home/wyattcolburn/model/training/train_1/cmd_vel_output.csv'
@@ -39,7 +49,18 @@ class validate(Node):
         self.lidar_data = self.load_lidar_data('/home/wyattcolburn/model/training/train_1/lidar_data.csv')
 
         print(f"size of cmd data : {len(self.cmd_data)} and lidar data size : {len(self.lidar_data)}")
-    
+ # TF2 setup: create a buffer and listener to get transforms
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        
+        # LaserProjection instance to convert LaserScan to PointCloud2
+        self.lp = LaserProjection()    
+
+
+
+
+
+
     def publish(self):
         if self.index < self.max_index:
             msg = Twist()
@@ -66,6 +87,30 @@ class validate(Node):
         spoofed_scan.range_max = msg.range_max 
         spoofed_scan.ranges= self.lidar_data[self.index]  # Read row from CSV
         self.hall_pub_.publish(spoofed_scan)
+        # Convert LaserScan to PointCloud2
+        try:
+            pc2 = self.lp.projectLaser(spoofed_scan)
+        except Exception as e:
+            self.get_logger().error(f"Error projecting laser: {e}")
+            return
+
+        # Transform point cloud from the LaserScan's frame (likely "odom")
+        # to the fixed "map" frame.
+        try:
+            # Lookup the transform (wait up to 1 second)
+            transform = self.tf_buffer.lookup_transform(
+                "map",
+                spoofed_scan.header.frame_id,
+                spoofed_scan.header.stamp,
+                rclpy.duration.Duration(seconds=1.0)
+            )
+            # Transform the cloud message to map frame
+            transformed_pc2 = do_transform_cloud(pc2, transform)
+            transformed_pc2.header.frame_id = "map"
+            self.pc_pub.publish(transformed_pc2)
+        except Exception as ex:
+            self.get_logger().warn(f"TF transform failed: {ex}")
+
 
 
     def load_lidar_data(self, csv_file):
