@@ -38,6 +38,7 @@ class obsValid: public rclcpp::Node
 		marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array", 10);
 		hall_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("/HallScan", 10);
 		
+		packetOut_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("neuralNetInput", 10);
 		tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
 		tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
@@ -51,13 +52,16 @@ class obsValid: public rclcpp::Node
 	    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
 		rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
 		rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr hall_pub_;
+		rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr packetOut_publisher_;
 		std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 		std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+		
 
 	    static constexpr size_t ODOM_FIELD_COUNT = 5;
 	    static constexpr size_t LIDAR_COUNT = 640;
-	    double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT];
+	    double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + NUM_VALID_OBSTACLES *2];
 
+	    double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT];
 	    double odom_x, odom_y, local_goal_x, local_goal_y, yaw, current_cmd_v, current_cmd_w;
 
 	    double real_lidar_ranges[LIDAR_COUNT];
@@ -121,10 +125,53 @@ class obsValid: public rclcpp::Node
 		  
 
 		  map_compute_lidar_distances(map_x, map_y, map_yaw, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges, *tf_buffer_);
-	
+		   processPacketOut();	
 				
-		return;
+		  int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
+		  std_msgs::msg::Float64MultiArray msg;
+		  msg.data.resize(packetOut_size);
+		  RCLCPP_INFO(this->get_logger(), "SIZE OF packetOUt %d", packetOut_size);
+
+		  RCLCPP_INFO(this->get_logger(), "Size of neural net output %zu", msg.data.size());
+		  // Test with a simpler message
+			if (!packetOut_publisher_) {
+		RCLCPP_ERROR(this->get_logger(), "Publisher is null!");
 	}
+										   //
+		  for (size_t i = 0; i < packetOut_size; ++i){
+			  msg.data[i] = static_cast<double>(packetOut[i]);
+		  }
+
+		  RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
+		  packetOut_publisher_->publish(msg);
+		  RCLCPP_INFO(this->get_logger(), "PUBLISHING NEURAL NET INPUT MESSAGE");
+			return;
+	}
+
+	  void processPacketOut()
+  {
+	packetOut[0] = odom_x;
+	packetOut[1] = odom_y;
+	packetOut[2] = current_cmd_v;
+	packetOut[3] = current_cmd_w;
+
+	for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter++){
+		packetOut[4+lidar_counter] = hall_lidar_ranges[lidar_counter];
+	}
+
+	//filled with min lidar data
+	int num_obstacles;
+	const Obstacle* current_obstacles = obstacle_manager_.get_active_obstacles(num_obstacles);
+
+	for (int local_obstacle_counter = 0; local_obstacle_counter < num_obstacles; local_obstacle_counter++) {
+		int index = ODOM_FIELD_COUNT + LIDAR_COUNT + local_obstacle_counter*2;
+		packetOut[index]= current_obstacles[local_obstacle_counter].center_x;
+		packetOut[index+1]= current_obstacles[local_obstacle_counter].center_y;
+	}
+	return;
+
+  }
+
 
 	void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
 		if (local_goal_manager_.get_num_lg() > 0) {

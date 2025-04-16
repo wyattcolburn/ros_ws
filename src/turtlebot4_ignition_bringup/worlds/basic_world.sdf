@@ -72,6 +72,7 @@
             <plugin name='__default__' filename='__default__' />
             <pose>0 0 0 0 -0 0</pose>
         </model>
+
         <model name='border'>
             <pose>0 0 1 0 0 0</pose>
             <static>true</static>
@@ -98,81 +99,36 @@
                     </material>
                 </visual>
             </link>
-            <link name='wall2'>
-                <pose>10.005 0 0 0 0 0</pose>
-                <static>true</static>
-                <collision name='wall2_collision'>
-                    <geometry>
-                        <box>
-                            <size>0.01 20 2</size>
-                        </box>
-                    </geometry>
-                </collision>
-                <visual name='wall2_visual'>
-                    <geometry>
-                        <box>
-                            <size>0.01 20 2</size>
-                        </box>
-                    </geometry>
-                    <material>
-                        <ambient>0.1 0.1 0.1 1</ambient>
-                        <diffuse>0 0.01 0.05 1</diffuse>
-                        <specular>0 0.01 0.05 1</specular>
-                    </material>
-                </visual>
-            </link>
-            <link name='wall3'>
-                <pose>0 10.005 0 0 0 0</pose>
-                <static>true</static>
-                <collision name='wall3_collision'>
-                    <geometry>
-                        <box>
-                            <size>20 0.01 2</size>
-                        </box>
-                    </geometry>
-                </collision>
-                <visual name='wall3_visual'>
-                    <geometry>
-                        <box>
-                            <size>20 0.01 2</size>
-                        </box>
-                    </geometry>
-                    <material>
-                        <ambient>0.1 0.1 0.1 1</ambient>
-                        <diffuse>0 0.01 0.05 1</diffuse>
-                        <specular>0 0.01 0.05 1</specular>
-                    </material>
-                </visual>
-            </link>
-            <link name='wall4'>
-                <pose>0 -10.005 0 0 0 0</pose>
-                <static>true</static>
-                <collision name='wall4_collision'>
-                    <geometry>
-                        <box>
-                            <size>20 0.01 2</size>
-                        </box>
-                    </geometry>
-                    <material>
-                        <ambient>0.1 0.1 0.1 1</ambient>
-                        <diffuse>0 0.01 0.05 1</diffuse>
-                        <specular>0 0.01 0.05 1</specular>
-                    </material>
-                </collision>
-                <visual name='wall4_visual'>
-                    <geometry>
-                        <box>
-                            <size>20 0.01 2</size>
-                        </box>
-                    </geometry>
-                    <material>
-                        <ambient>0.1 0.1 0.1 1</ambient>
-                        <diffuse>0 0.01 0.05 1</diffuse>
-                        <specular>0 0.01 0.05 1</specular>
-                    </material>
-                </visual>
-            </link>
         </model>
-        <!-- You can add optional sandbox elements here -->
+
+        <model name='obstacles'>
+            <pose>0 0 0.5 0 0 0</pose>
+            <static>true</static>
+            <link name='wall1'>
+                <pose>-6.5 -9 0 0 0 0</pose>
+                <static>true</static>
+                <collision name='wall1_collision'>
+                    <geometry>
+                        <box>
+                            <size>1 2 1</size>
+                        </box>
+                    </geometry>
+                </collision>
+                <visual name='wall1_visual'>
+                    <geometry>
+                        <box>
+                            <size>1 2 1</size>
+                        </box>
+                    </geometry>
+                    <material>
+                        <ambient>0.1 0.1 0.1 1</ambient>
+                        <diffuse>0 0.1 0.2 1</diffuse>
+                        <specular>0 0.01 0.05 1</specular>
+                    </material>
+                </visual>
+            </link>
+
+
+        </model>
     </world>
 </sdf>

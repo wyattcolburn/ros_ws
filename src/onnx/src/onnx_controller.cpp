@@ -11,6 +11,10 @@
 #include "std_msgs/msg/float64_multi_array.hpp"
 
 #include "mpc.hpp"
+#include "pluginlib/class_list_macros.hpp"
+PLUGINLIB_EXPORT_CLASS(onnx_controller::ONNXController, nav2_core::Controller)
+
+
 using nav2_util::declare_parameter_if_not_declared;
 using nav2_util::geometry_utils::euclidean_distance;
 
@@ -65,7 +69,7 @@ namespace onnx_controller
 
         global_pub_ = node->create_publisher<nav_msgs::msg::Path>("received_global_plan", 1);
         onnx_sub_ = node->create_subscription<std_msgs::msg::Float64MultiArray>(
-            "/onnx_input", rclcpp::QoS(10),
+            "/neuralNetInput", rclcpp::QoS(10),
             std::bind(&ONNXController::onnxInputCallback, this, std::placeholders::_1)
         );
     }
@@ -155,6 +159,10 @@ namespace onnx_controller
     {
         // get latest input from model and hallucination node
         latest_onnx_input_ = *msg;
+        RCLCPP_INFO(
+            logger_,
+            "Receiving Input from Middle man..."
+        );
     }
 
 

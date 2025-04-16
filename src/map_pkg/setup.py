@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'my_robot_bringup'
+package_name = 'map_pkg'
 
 setup(
     name=package_name,
