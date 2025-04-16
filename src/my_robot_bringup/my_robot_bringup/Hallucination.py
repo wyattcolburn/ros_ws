@@ -6,6 +6,9 @@ import math
 import numpy as np
 import csv
 threshold = 10
+
+
+
 class HallucinateNode(Node):
     def __init__(self):
         super().__init__("hallucinate_lidar")
@@ -26,6 +29,7 @@ class HallucinateNode(Node):
         self.odom_counter = 0
         
         self.lidar_data = self.load_lidar_data("/home/wyattcolburn/ros_ws/utils/carlos_lidar_0.csv")
+
     def load_lidar_data(self, csv_file):
         """Loads LiDAR data from a CSV file and returns it as a list of lists."""
         lidar_values = []
@@ -38,6 +42,7 @@ class HallucinateNode(Node):
         except Exception as e:
             self.get_logger().error(f"Error loading CSV: {e}")
         return lidar_values
+    
     def scan_callback(self, msg):
         
         self.get_logger().info(f"publishing faked scans with scan_callback")
