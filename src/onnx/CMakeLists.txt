@@ -78,16 +78,11 @@ install(DIRECTORY include/
   DESTINATION include/
 )
 
-# Install launch files
-install(DIRECTORY
-  launch
-  DESTINATION share/${PROJECT_NAME}/
-)
 
-# Install config files
-install(DIRECTORY
-  config
-  DESTINATION share/${PROJECT_NAME}/
+# This macro ensures pluginlib can find the XML
+pluginlib_export_plugin_description_file(
+  nav2_core
+  onnx_controller.xml
 )
 
 if(BUILD_TESTING)

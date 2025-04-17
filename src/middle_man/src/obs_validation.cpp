@@ -59,7 +59,7 @@ class obsValid: public rclcpp::Node
 
 	    static constexpr size_t ODOM_FIELD_COUNT = 5;
 	    static constexpr size_t LIDAR_COUNT = 640;
-	    double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + NUM_VALID_OBSTACLES *2];
+	    double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + NUM_VALID_OBSTACLES];
 
 	    double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT];
 	    double odom_x, odom_y, local_goal_x, local_goal_y, yaw, current_cmd_v, current_cmd_w;

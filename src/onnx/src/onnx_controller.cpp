@@ -116,10 +116,11 @@ namespace onnx_controller
         (void) goal_checker;    // Not needed
 		RCLCPP_INFO(logger_, "REACHING COMPUTE VELOCITY");
         // Define Shape
-        // 1080 From LIDAR
+        // 640 From LIDAR
         // 3 From Odom (x,y,phi)
         // 3 From local goals (x,y,phi)
-        std::vector<int64_t> inputShape = {1, 664};    // Vector vs Array??
+		// 20 obstacles for MPC
+        std::vector<int64_t> inputShape = {1, 665};    // Vector vs Array??
         std::vector<double> input_data = latest_onnx_input_.data;
         
         // Define Array
