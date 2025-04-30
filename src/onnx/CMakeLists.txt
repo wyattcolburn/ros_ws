@@ -1,10 +1,16 @@
 cmake_minimum_required(VERSION 3.10)
 project(onnx)
+# Install ONNX Runtime headers
+# Install ONNX Runtime library
+# Correct include and library paths
+install(DIRECTORY ${ONNXRUNTIME_INCLUDE_PATH}/
+  DESTINATION include/onnxruntime
+)
 
-# Set ONNX Runtime paths once
-set(ONNXRUNTIME_PATH $ENV{HOME}/onnxruntime/onnxruntime-linux-x64-1.16.3)
-include_directories(${ONNXRUNTIME_PATH}/include)
-link_directories(${ONNXRUNTIME_PATH}/lib)
+# Install header files
+install(DIRECTORY include/
+  DESTINATION include/
+)
 
 # Enable C++17 for ONNX Runtime
 set(CMAKE_CXX_STANDARD 17)
@@ -47,6 +53,8 @@ set(dependencies
   std_msgs  # Added for Float64MultiArray
 )
 
+include_directories(/home/mobrob/Downloads/onnxruntime-linux-x64-1.21.0/include)
+link_directories(/home/mobrob/Downloads/onnxruntime-linux-x64-1.21.0/lib)
 # Create ONNX Plugin
 add_library(onnx_controller SHARED src/onnx_controller.cpp src/mpc.cpp)
 

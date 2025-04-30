@@ -36,7 +36,7 @@ ament_target_dependencies(${PROJECT_NAME}_valid
   geometry_msgs
 )
 # Link against raylib
-target_link_libraries(${PROJECT_NAME}_node raylib)
+target_link_libraries(${PROJECT_NAME}_node)
 
 install(TARGETS 
   ${PROJECT_NAME}_node

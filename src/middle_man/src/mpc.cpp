@@ -1,6 +1,5 @@
 #include "mpc.hpp"
 #include "obstacles.hpp"
-#include "raylib.h"
 /* This function will take in a the output of NN (cmd_v, cmd_w)
  * and calculate the safety factor
  * 
