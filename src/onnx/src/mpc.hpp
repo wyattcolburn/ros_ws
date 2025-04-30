@@ -16,6 +16,8 @@ bool circles_intersect(const Obstacle& c1, const Obstacle& c2);
 std::pair<float, float> modulation(float odom_x, float odom_y,
 		float input_cmd_v, float input_cmd_w, ObstacleManager& local_manager, Obstacle* future_points);
 
+std::pair<float, float> modulation_onnx(float odom_x, float odom_y,
+		float input_cmd_v, float input_cmd_w, std::vector<Obstacle> obstacle_data);
 
 
 #endif 

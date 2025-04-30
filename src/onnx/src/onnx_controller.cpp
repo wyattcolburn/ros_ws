@@ -61,7 +61,7 @@ namespace onnx_controller
         // Get input and output names
         Ort::AllocatorWithDefaultOptions ort_alloc;
         Ort::AllocatedStringPtr inputName = session_->GetInputNameAllocated(0, ort_alloc);
-        Ort::AllocatedStringPtr outputName = session_->GetInputNameAllocated(0, ort_alloc);
+        Ort::AllocatedStringPtr outputName = session_->GetOutputNameAllocated(0, ort_alloc);
         input_name_ = { inputName.get()};
         output_name_ = { outputName.get()};
         inputName.release();
@@ -108,50 +108,6 @@ namespace onnx_controller
         (void) percentage;
     }
 
-    geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(
-        const geometry_msgs::msg::PoseStamped &pose,
-        const geometry_msgs::msg::Twist &, //do i need this line?
-        nav2_core::GoalChecker *goal_checker)
-    {
-        (void) goal_checker;    // Not needed
-		RCLCPP_INFO(logger_, "REACHING COMPUTE VELOCITY");
-        // Define Shape
-        // 640 From LIDAR
-        // 3 From Odom (x,y,phi)
-        // 3 From local goals (x,y,phi)
-		// 20 obstacles for MPC
-        std::vector<int64_t> inputShape = {1, 665};    // Vector vs Array??
-        std::vector<double> input_data = latest_onnx_input_.data;
-        
-        // Define Array
-        std::vector<double> input;
-
-        // Define tensor
-        auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
-        Ort::Value inputTensor = Ort::Value::CreateTensor<double>(memory_info, input_data.data(),
-                input_data.size(), inputShape.data(), inputShape.size()); 
-
-        const char* const* input_names = input_name_.data();
-        const char* const* output_names = output_name_.data();
-
-        Ort::RunOptions runOptions;
-        std::vector<Ort::Value> outputTensor = session_->Run(runOptions, input_names, &inputTensor, 1, output_names, 1);
-
-        double* output_data = outputTensor[0].GetTensorMutableData<double>();
-        double predicted_linear = output_data[0];
-        double predicted_angular = output_data[1];
-
-		RCLCPP_INFO(logger_, "output data %f", predicted_linear);
-
-        geometry_msgs::msg::TwistStamped cmd_vel;
-        cmd_vel.header.frame_id = pose.header.frame_id;
-        cmd_vel.twist.linear.x = predicted_linear;
-        cmd_vel.twist.angular.z = predicted_angular;
-
-        // TODO: Clamp the output 
-
-        return cmd_vel;
-    }
 
     void ONNXController::setPlan(const nav_msgs::msg::Path &path)
     {
@@ -169,6 +125,78 @@ namespace onnx_controller
             "Receiving Input from Middle man..."
         );
     }
+	geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(
+		const geometry_msgs::msg::PoseStamped &pose,
+		const geometry_msgs::msg::Twist &, 
+		nav2_core::GoalChecker *)
+	{
+	  RCLCPP_INFO(logger_, "REACHING COMPUTE VELOCITY");
+
+	  // 1) Gather your raw data (doubles) from the Float64MultiArray
+	  const auto &latest = latest_onnx_input_.data;  // std::vector<double>, contains data for neural net and obstacle data (20 obstacle data)
+	  
+	  
+
+
+	  // 2) Convert to float32
+	  std::vector<float> input_data_f(latest.size());
+	  for (size_t i = 0; i < (1085); ++i) {
+		input_data_f[i] = static_cast<float>(latest[i]);
+	  }
+
+	  // 3) Define your input shape
+	  std::vector<int64_t> inputShape = {1, static_cast<int64_t>(1085)};
+
+	  std::vector<Obstacle> obstacle_data; 
+	  for (int obstacle_counter = 1086; obstaclce_counter < latest.size(); obstacle_counter+=2) {
+		  Obstacle current_obs;
+		  current_obs.center_x = latest[obstacle_counter];
+		  current_obs.center_y = latest[obstacle_counter + 1 ];
+		  obstacle_data.push_back(current_obs);
+	  }
+	  // 4) Create the Ort tensor<float>
+	  auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
+	  Ort::Value inputTensor = Ort::Value::CreateTensor<float>(
+		  memory_info,
+		  input_data_f.data(),
+		  input_data_f.size(),
+		  inputShape.data(),
+		  inputShape.size()
+	  );
+
+	  // 5) Run inference
+	  const char* const* input_names  = input_name_.data();
+	  const char* const* output_names = output_name_.data();
+	  auto outputTensors = session_->Run(
+		Ort::RunOptions{}, 
+		input_names, &inputTensor, 1, 
+		output_names, 1
+	  );
+
+	  // 6) Read back float outputs, then cast to double for ROS msgs
+	  float* out_f = outputTensors[0].GetTensorMutableData<float>();
+	  double predicted_linear  = static_cast<double>(out_f[0]);
+	  double predicted_angular = static_cast<double>(out_f[1]);
+
+	  RCLCPP_INFO(logger_, "Predicted (lin, ang): %.3f, %.3f",
+				  predicted_linear, predicted_angular);
+
+	  // Now we want to modulate the output of the network
+	  float odom_x, odom_y, input_cmd_v, input_cmd_w; //need to add how we are going to include current odom to this
+      modulation_onnx(odom_x, odom_y,input_cmd_v, input_cmd_w, obstacle_data);
+
+
+	  // 7) Pack into TwistStamped
+	  geometry_msgs::msg::TwistStamped cmd_vel;
+	  cmd_vel.header.frame_id = pose.header.frame_id;
+	  cmd_vel.twist.linear.x  = predicted_linear;
+	  cmd_vel.twist.angular.z = predicted_angular;
+
+	  return cmd_vel;
+	}
+
 
 
 }
+
+
