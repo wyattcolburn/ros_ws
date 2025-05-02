@@ -9,7 +9,7 @@
 
 
 const float RADIUS=.5;
-const int NUM_VALID_OBSTACLES=20;
+const int NUM_VALID_OBSTACLES=10;
 class Obstacle{
     public:	
 		double center_x, center_y, radius;

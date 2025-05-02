@@ -121,9 +121,7 @@ std::pair<float, float> modulation_onnx(float odom_x, float odom_y,
 	*/
 
 	//num of obstacles
-	int num_obstacles;
 	//obstacles
-	const Obstacle* active_obstacles = local_manager.get_active_obstacles(num_obstacles);
     
 		
 	//modulate low angular velocity

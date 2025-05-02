@@ -58,8 +58,8 @@ class obsValid: public rclcpp::Node
 		
 
 	    static constexpr size_t ODOM_FIELD_COUNT = 5;
-	    static constexpr size_t LIDAR_COUNT = 640;
-	    double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + NUM_VALID_OBSTACLES];
+	    static constexpr size_t LIDAR_COUNT = 1080;
+	    double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + NUM_VALID_OBSTACLES * 2]; //should be 1085 + obstacle data
 
 	    double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT];
 	    double odom_x, odom_y, local_goal_x, local_goal_y, yaw, current_cmd_v, current_cmd_w;
@@ -70,7 +70,6 @@ class obsValid: public rclcpp::Node
 		double map_x = 0;
 		double map_y = 0;
 		double map_yaw = 0;
-	    
 	void data_callback(const std_msgs::msg::Float64MultiArray& packetin){
 		
 		processOdomLidar(packetin);	
@@ -154,15 +153,15 @@ class obsValid: public rclcpp::Node
 	packetOut[1] = odom_y;
 	packetOut[2] = current_cmd_v;
 	packetOut[3] = current_cmd_w;
+	packetOut[4] = yaw;
 
 	for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter++){
-		packetOut[4+lidar_counter] = hall_lidar_ranges[lidar_counter];
+		packetOut[5+lidar_counter] = hall_lidar_ranges[lidar_counter];
 	}
 
 	//filled with min lidar data
 	int num_obstacles;
 	const Obstacle* current_obstacles = obstacle_manager_.get_active_obstacles(num_obstacles);
-
 	for (int local_obstacle_counter = 0; local_obstacle_counter < num_obstacles; local_obstacle_counter++) {
 		int index = ODOM_FIELD_COUNT + LIDAR_COUNT + local_obstacle_counter*2;
 		packetOut[index]= current_obstacles[local_obstacle_counter].center_x;

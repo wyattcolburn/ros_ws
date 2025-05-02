@@ -69,7 +69,7 @@ def generate_frames(odom_x, odom_y, local_goals_x, local_goals_y, dx, dy, lidar_
         plt.legend(loc="best")
         # Draw only the current ray
         print(f"odom x {odom_x[i]} odom y {odom_y[i]} i {i}")
-        draw_ray(odom_x[i], odom_y[i], lidar_readings[i])
+        self.draw_ray(odom_x[i], odom_y[i], lidar_readings[i])
         
         # Save the frame
         frame_path = f"{output_folder}/frame_{i:03d}.png"

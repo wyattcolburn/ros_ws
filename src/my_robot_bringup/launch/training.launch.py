@@ -85,7 +85,7 @@ def generate_launch_description():
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
-    #ld.add_action(undock_node)
+    ld.add_action(undock_node)
     #ld.add_action(undock_with_delay)
     #ld.add_action(bag_record)
     return ld
