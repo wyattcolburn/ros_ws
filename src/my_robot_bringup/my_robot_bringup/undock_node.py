@@ -41,8 +41,8 @@ class UndockActionClient(Node):
         
 
         ## Start random_motor node after undocking
-        #self.get_logger().info('Starting random_motor node...')
-        #subprocess.Popen(['ros2', 'run', 'my_robot_bringup', 'random_motor'])
+        self.get_logger().info('Starting random_motor node...')
+        subprocess.Popen(['ros2', 'run', 'my_robot_bringup', 'random_motor'])
 
 def main(args=None):
     rclpy.init(args=args)

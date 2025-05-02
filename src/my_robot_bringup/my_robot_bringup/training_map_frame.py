@@ -6,9 +6,16 @@ want to be able to run, so similar to what we are already doing we create CSV fi
 
 
 Lets say we are odom_rad (x,y), we need to know yaw, and locations of revalent obstacles,  
+
+April 29: Currently, this takes odom_csv, and creates the local goals and obstacles to generate ray traces
+
 """
-
-
+import matplotlib.patches as patches
+import numpy as np
+import rosbag2_py
+from collections import defaultdict
+from rclpy.serialization import deserialize_message
+from rosidl_runtime_py.utilities import get_message
 import rclpy
 from rclpy.node import Node
 from tf2_ros import TransformException
@@ -25,12 +32,15 @@ import os
 from nav_msgs.msg import Odometry 
 from visualization_msgs.msg import MarkerArray
 
+from scipy.spatial.transform import Rotation as R
 from visualization_msgs.msg import Marker
 
 from sensor_msgs.msg import LaserScan
 from tf_transformations import euler_from_quaternion
 from geometry_msgs.msg import Pose
 import pandas as pd
+
+
 class Obstacle():
     def __init__(self, center_x=None, center_y=None, radius=None):
         self.center_x = center_x
@@ -43,12 +53,33 @@ class Obstacle_Manager():
         self.local_goal_manager_ = local_goal_manager
         self.OFFSET = OFFSET    
         self.RADIUS = RADIUS
+        self.prev_dir_x = 0
+        self.prev_dir_y = 0
     def get_active_obstacles(self):
         current_local_goal_count = self.local_goal_manager_.get_local_goal_counter()
-        print("local goal count")      
-        active_list = self.obstacle_array[current_local_goal_count:min(len(self.obstacle_array), current_local_goal_count + 19)]
+        total_goals = len(self.local_goal_manager_.data)
+        print(f"local goal count {current_local_goal_count}") 
+        valid_border_min = max(0, current_local_goal_count - 4)
+        valid_border_max = min(total_goals, current_local_goal_count + 20)
+        active_list = self.obstacle_array[valid_border_min: valid_border_max]
         return active_list
-
+    def get_active_obstacles_claude(self):
+        """Select obstacles based on distance to the current robot position."""
+        # Get current robot position
+        robot_pos = self.local_goal_manager_.current_odom
+        
+        # Calculate distance to each obstacle
+        obstacles_with_distance = []
+        for obs in self.obstacle_array:
+            dist = math.sqrt((obs.center_x - robot_pos[0])**2 + 
+                             (obs.center_y - robot_pos[1])**2)
+            obstacles_with_distance.append((obs, dist))
+        
+        # Sort by distance and take closest N obstacles
+        obstacles_with_distance.sort(key=lambda x: x[1])
+        active_obstacles = [obs for obs, dist in obstacles_with_distance[:20] if dist < 5.0]
+        
+        return active_obstacles
 
     def create_all_obstacle(self):
 
@@ -61,11 +92,12 @@ class Obstacle_Manager():
         print("All obstacles created")
         return
 
-
     def obstacle_creation(self, current_local_goal, next_local_goal):
 
-        dir_x = current_local_goal.pose.position.x - next_local_goal.pose.position.x
-        dir_y = current_local_goal.pose.position.y - next_local_goal.pose.position.y
+        mid_x = (current_local_goal.pose.position.x + next_local_goal.pose.position.x) / 2
+        mid_y = (current_local_goal.pose.position.y + next_local_goal.pose.position.y) / 2
+        dir_x = next_local_goal.pose.position.x - current_local_goal.pose.position.x
+        dir_y = next_local_goal.pose.position.y - current_local_goal.pose.position.y
         # Normalize
         length = math.sqrt(dir_x * dir_x + dir_y * dir_y)
 
@@ -80,13 +112,13 @@ class Obstacle_Manager():
         offset_y = perp_y * self.OFFSET
 
         ob1 = Obstacle()
-        ob1.center_x = current_local_goal.pose.position.x + offset_x
-        ob1.center_y = current_local_goal.pose.position.y + offset_y
+        ob1.center_x = mid_x + offset_x
+        ob1.center_y = mid_y + offset_y
         ob1.radius = self.RADIUS
 
         ob2 = Obstacle()
-        ob2.center_x = current_local_goal.pose.position.x - offset_x
-        ob2.center_y = current_local_goal.pose.position.y - offset_y
+        ob2.center_x = mid_x - offset_x
+        ob2.center_y = mid_y - offset_y
         ob2.radius = self.RADIUS
        
         self.obstacle_array.append(ob1)
@@ -100,13 +132,63 @@ class Local_Goal_Manager():
         self.global_path = global_path
         self.current_lg_counter = 0
         self.current_odom = current_odom
-        self.current_lg = None
-    def generate_local_goals(self):
+    def generate_local_goals_claude(self, global_path):
+        """
+        Modified to create more local goals in areas with high curvature
+        """
+        if self.global_path is None:
+            print("Cannot generate local goals: No global path available")
+            self.global_path = global_path
+            return
+
+        accumulated_distance = 0.0
+        base_threshold = 0.1
+        
+        for i in range(len(self.global_path.poses)-1):
+            current_pose = self.global_path.poses[i]
+            next_pose = self.global_path.poses[i+1]
+            
+            # Calculate direction change if not at beginning
+            curvature_factor = 1.0
+            if i > 0:
+                prev_pose = self.global_path.poses[i-1]
+                prev_dir_x = current_pose.pose.position.x - prev_pose.pose.position.x
+                prev_dir_y = current_pose.pose.position.y - prev_pose.pose.position.y
+                curr_dir_x = next_pose.pose.position.x - current_pose.pose.position.x
+                curr_dir_y = next_pose.pose.position.y - current_pose.pose.position.y
+                
+                # Normalize vectors
+                prev_len = math.sqrt(prev_dir_x**2 + prev_dir_y**2)
+                curr_len = math.sqrt(curr_dir_x**2 + curr_dir_y**2)
+                
+                if prev_len > 0 and curr_len > 0:
+                    prev_dir_x /= prev_len
+                    prev_dir_y /= prev_len
+                    curr_dir_x /= curr_len
+                    curr_dir_y /= curr_len
+                    
+                    # Dot product gives cosine of angle between vectors
+                    dot_product = prev_dir_x * curr_dir_x + prev_dir_y * curr_dir_y
+                    angle = math.acos(max(-1.0, min(1.0, dot_product)))
+                    
+                    # Adjust threshold based on curvature (smaller threshold = more points)
+                    curvature_factor = max(0.3, 1.0 - angle/math.pi)
+            
+            # Calculate distance with adaptive threshold
+            segment_distance = self.distance_between_poses(current_pose, next_pose)
+            adaptive_threshold = base_threshold * curvature_factor
+            
+            accumulated_distance += segment_distance
+            if accumulated_distance >= adaptive_threshold:
+                self.data.append(current_pose)
+                accumulated_distance = 0   
+    def generate_local_goals(self, global_path):
         """
         Generate local goals along the global path based on the current robot position
         """
         if self.global_path is None:
             print("Cannot generate local goals: No global path available")
+            self.global_path = global_path
             return
 
         # Find the closest point on the path to the current robot position
@@ -115,7 +197,7 @@ class Local_Goal_Manager():
 
         
         accumulated_distance = 0.0
-        threshold_distance = .05
+        threshold_distance = .08
 
         for i in range(len(self.global_path.poses)-1):
             current_pose = self.global_path.poses[i]
@@ -134,6 +216,7 @@ class Local_Goal_Manager():
 
         print(f"Generated {len(self.data)} local goals")
         self.current_lg = (self.data[self.current_lg_counter].pose.position.x, self.data[self.current_lg_counter].pose.position.y)
+
     def distance_between_points(self, point1, point2):
         """
         Calculate Euclidean distance between two points (x1, y1) and (x2, y2)
@@ -148,20 +231,79 @@ class Local_Goal_Manager():
             (pose1.pose.position.x, pose1.pose.position.y),
             (pose2.pose.position.x, pose2.pose.position.y)
         )
+    def update_claude(self, current_odom=None):
+        if self.global_path is None or current_odom[0] is None:
+            return
+            
+        self.current_odom = current_odom  # Make sure to update this field
+        self.current_lg = (self.data[self.current_lg_counter].pose.position.x, self.data[self.current_lg_counter].pose.position.y)
+        dist_to_goal = self.distance_between_points(self.current_lg, current_odom)
+        
+        # Look ahead more dynamically
+        look_ahead = 3  # Check several goals ahead
+        best_index = self.current_lg_counter
+        best_dist = dist_to_goal
+        
+        # Check if any of the next few local goals are closer
+        for i in range(1, look_ahead + 1):
+            next_index = self.current_lg_counter + i
+            if next_index < len(self.data):
+                next_lg = (
+                    self.data[next_index].pose.position.x,
+                    self.data[next_index].pose.position.y,
+                )
+                next_dist = self.distance_between_points(next_lg, current_odom)
+                
+                if next_dist < best_dist:
+                    best_dist = next_dist
+                    best_index = next_index
+        
+        # Update to the best local goal found
+        if best_index != self.current_lg_counter:
+            self.current_lg_counter = best_index
+            self.current_lg = (
+                self.data[self.current_lg_counter].pose.position.x,
+                self.data[self.current_lg_counter].pose.position.y,
+            )
+        elif dist_to_goal < 0.05:  # If we're close to the current goal
+            self.current_lg_counter += 1
+            if self.current_lg_counter < len(self.data):
+                self.current_lg = (
+                    self.data[self.current_lg_counter].pose.position.x,
+                    self.data[self.current_lg_counter].pose.position.y,
+                )
+        
+        return self.current_lg_counter
     def update(self, current_odom=None):
         # Comparing poses so might not work
         if self.global_path is None or self.current_lg is None or self.current_odom[0] is None:
             return
-        print(f"current odom {current_odom}")
+        self.current_odom = current_odom # updating every call 
         dist_to_goal = self.distance_between_points(self.current_lg, current_odom)
-        if dist_to_goal < .01:
+        
+        if dist_to_goal < .05:
             self.current_lg_counter += 1
-            if self.data[self.current_lg_counter].pose.position.x:
-                self.current_lg = (self.data[self.current_lg_counter].pose.position.x, self.data[self.current_lg_counter].pose.position.y)
+            if self.current_lg_counter < len(self.data):
+                if self.data[self.current_lg_counter].pose.position.x:
+                    self.current_lg = (self.data[self.current_lg_counter].pose.position.x, self.data[self.current_lg_counter].pose.position.y)
             print("Have updated current local goal:")
         else:
-            print(f"have yet to reach local goal: dist to lg {dist_to_goal}")
-            print(f"currently at local goal : {self.current_lg_counter}") 
+            # Check if the *next* local goal is even closer
+            next_lg_counter = self.current_lg_counter + 1
+            if next_lg_counter < len(self.data):
+                next_lg = (
+                    self.data[next_lg_counter].pose.position.x,
+                    self.data[next_lg_counter].pose.position.y,
+                )
+                dist_to_next = self.distance_between_points(next_lg, current_odom)
+
+                if dist_to_next < dist_to_goal:
+                    print(f"Jumping to closer local goal {next_lg_counter} (dist: {dist_to_next:.4f})")
+                    self.current_lg_counter = next_lg_counter
+                    self.current_lg = next_lg
+            print(f"Have yet to reach local goal: dist to lg = {dist_to_goal:.4f}")
+            print(f"Currently at local goal index: {self.current_lg_counter}")
+            return self.current_lg_counter
     def get_local_goal_counter(self):
         return self.current_lg_counter
     
@@ -174,6 +316,39 @@ class Local_Goal_Manager():
             self.current_lg_counter = 0
             return True
         return False
+
+    def upscale_local_goal(self, start_lg, map_points, output_csv):
+
+        
+        currentLocalGoal = (start_lg[0],start_lg[1])
+        lg_upsampled = [] 
+        lgCounter = 0
+        odomCounter = 0
+        while len(map_points) != len(lg_upsampled):
+            odomPoint = (map_points[odomCounter][0], map_points[odomCounter][1])
+            if odomPoint == currentLocalGoal:
+                # if have reached the local goal, update to next local goal
+                if lgCounter +1 < len(self.data):
+                    lgCounter += 1
+                    currentLocalGoal = (self.data[lgCounter].pose.position.x, self.data[lgCounter].pose.position.y)
+                    print("success, local goal has been reached")
+
+
+
+            lg_upsampled.append(currentLocalGoal)
+            odomCounter += 1
+            print("len of lg_upsampled", len(lg_upsampled), len(map_points), lgCounter, len(self.data))
+        print(len(lg_upsampled) == len(map_points))
+        
+
+
+
+        with open(output_csv, 'w', newline = '') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['local_goals_x', 'local_goals_y'])
+        
+            for i in range(len(lg_upsampled)):
+                writer.writerow([lg_upsampled[i][0], lg_upsampled[i][1]])
 
 def odom_to_map(node, odom_x, odom_y, odom_frame='odom', map_frame='map'):
     """
@@ -216,7 +391,6 @@ class MapTraining(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         # Data setup
-        self.odom_file = "/home/wyattcolburn/model/test1/input_data/odom_data.csv"
         self.odom_x = None
         self.odom_y = None
         self.map_x = []
@@ -226,7 +400,7 @@ class MapTraining(Node):
         
         self.current_odom = (0.0, 0.0)
         
-        self.OFFSET = 2.0
+        self.OFFSET = 1.0
         self.RADIUS = .5
         self.NUM_VALID_OBS = 20
         self.NUM_LIDAR = 1080
@@ -236,16 +410,152 @@ class MapTraining(Node):
         self.dist_between_goals = .2
         # Delay the odom-to-map conversion until TF is ready
         self.odom_timer = self.create_timer(2.0, self.check_tf_and_run)
-        self.local_goal_manager_ = Local_Goal_Manager(self.current_odom)
-        self.obstacle_manager_ = Obstacle_Manager(self.OFFSET, self.RADIUS,self.local_goal_manager_)
 
 
         
         self.distances = [0] * self.NUM_LIDAR
 
 
-   
+        # Files for training data to be stored
+        self.input_bag = "/home/wyattcolburn/ros_ws/rosbag2_2025_04_29-15_46_09/"
+        self.frame_dkr = f"{self.input_bag}/input_data/"
+        os.makedirs(self.frame_dkr, exist_ok=True)
+        self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
+        self.cmd_csv = os.path.join(self.frame_dkr, "cmd_vel.csv")
+        self.lidar_file = os.path.join(self.frame_dkr, "lidar_data.csv")
+        
+        self.local_goals_output = os.path.join(self.frame_dkr, "local_goals.csv")
+        self.cmd_output_csv = os.path.join(self.frame_dkr, "cmd_vel_output.csv")
+        
 
+        training_output = os.path.join(self.frame_dkr, "big_csv.csv")
+        path_output = os.path.join(self.frame_dkr, "odom_path")
+        obstacles_output = os.path.join(self.frame_dkr, "obactles.csv")
+    def validate_obstacles(self):
+        output_folder = "obstacle_validation"
+        os.makedirs(output_folder, exist_ok=True)
+        
+        segment_size = 20  # Number of odom points per segment
+        window_size = 8    # Number of local goals to include in each window
+        
+        # Iterate through the odom path in segments
+        for segment_start in range(0, len(self.map_points), segment_size):
+            segment_end = min(segment_start + segment_size, len(self.map_points))
+            
+            # Create a figure for this segment
+            plt.figure(figsize=(12, 8))
+            
+            # Get the current segment of the path
+            segment_points = self.map_points[segment_start:segment_end]
+            segment_x = [point[0] for point in segment_points]
+            segment_y = [point[1] for point in segment_points]
+            
+            # Plot the entire path (lightly) for context
+            path_x = [point[0] for point in self.map_points]
+            path_y = [point[1] for point in self.map_points]
+            plt.plot(path_x, path_y, 'k-', linewidth=0.5, alpha=0.2, label='Full Path')
+            
+            # Highlight the current segment
+            plt.plot(segment_x, segment_y, 'b-', linewidth=2, label=f'Segment {segment_start//segment_size + 1}')
+            
+            # Find center point of this segment
+            if segment_points:
+                segment_center_x = sum(point[0] for point in segment_points) / len(segment_points)
+                segment_center_y = sum(point[1] for point in segment_points) / len(segment_points)
+                segment_center = (segment_center_x, segment_center_y)
+                
+                # Find the closest local goal to the segment center
+                closest_lg_idx = 0
+                min_dist = float('inf')
+                
+                for i, goal in enumerate(self.local_goal_manager_.data):
+                    goal_pos = (goal.pose.position.x, goal.pose.position.y)
+                    dist = math.sqrt((goal_pos[0] - segment_center[0])**2 + 
+                                     (goal_pos[1] - segment_center[1])**2)
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest_lg_idx = i
+                
+                # Create a window of local goals centered around the closest one
+                window_start = max(0, closest_lg_idx - window_size // 2)
+                window_end = min(len(self.local_goal_manager_.data), window_start + window_size)
+                
+                # If we're at the end, adjust the window start to maintain the window size
+                if window_end - window_start < window_size:
+                    window_start = max(0, window_end - window_size)
+                
+                window_local_goals = self.local_goal_manager_.data[window_start:window_end]
+                
+                # Plot the relevant local goals
+                lg_x = [goal.pose.position.x for goal in window_local_goals]
+                lg_y = [goal.pose.position.y for goal in window_local_goals]
+                plt.scatter(lg_x, lg_y, c='blue', s=50, label='Local Goals')
+                
+                # Plot segments between consecutive local goals
+                for i in range(len(window_local_goals) - 1):
+                    current = window_local_goals[i]
+                    next_goal = window_local_goals[i+1]
+                    plt.plot([current.pose.position.x, next_goal.pose.position.x],
+                             [current.pose.position.y, next_goal.pose.position.y],
+                             'g-', linewidth=2, alpha=0.7)
+                
+                # Find obstacles associated with these local goals
+                relevant_obstacles = []
+                for i in range(window_start, window_end - 1):
+                    # Get the two obstacles associated with this local goal segment
+                    obs_idx_start = i * 2
+                    if obs_idx_start + 1 < len(self.obstacle_manager_.obstacle_array):
+                        relevant_obstacles.append(self.obstacle_manager_.obstacle_array[obs_idx_start])
+                        relevant_obstacles.append(self.obstacle_manager_.obstacle_array[obs_idx_start + 1])
+                
+                # Plot the relevant obstacles
+                for obstacle in relevant_obstacles:
+                    # Draw the obstacle
+                    circle = plt.Circle((obstacle.center_x, obstacle.center_y), 
+                                       radius=obstacle.radius, 
+                                       fill=False, 
+                                       color='red', 
+                                       linewidth=1)
+                    plt.gca().add_patch(circle)
+                
+                # Connect obstacles to their midpoints
+                for i in range(window_start, window_end - 1):
+                    if i * 2 + 1 < len(self.obstacle_manager_.obstacle_array):
+                        current_lg = self.local_goal_manager_.data[i]
+                        next_lg = self.local_goal_manager_.data[i+1]
+                        
+                        # Calculate midpoint of the segment
+                        mid_x = (current_lg.pose.position.x + next_lg.pose.position.x) / 2
+                        mid_y = (current_lg.pose.position.y + next_lg.pose.position.y) / 2
+                        
+                        # Draw the midpoint
+                        plt.scatter(mid_x, mid_y, c='purple', s=30)
+                        
+                        # Draw connecting lines to obstacles
+                        obstacle1 = self.obstacle_manager_.obstacle_array[i * 2]
+                        obstacle2 = self.obstacle_manager_.obstacle_array[i * 2 + 1]
+                        
+                        plt.plot([mid_x, obstacle1.center_x], [mid_y, obstacle1.center_y], 
+                                'm-', linewidth=1, alpha=0.7)
+                        plt.plot([mid_x, obstacle2.center_x], [mid_y, obstacle2.center_y], 
+                                'm-', linewidth=1, alpha=0.7)
+                
+                # Label the first and last points of the segment
+                plt.scatter(segment_points[0][0], segment_points[0][1], c='green', s=100, label='Segment Start')
+                plt.scatter(segment_points[-1][0], segment_points[-1][1], c='red', s=100, label='Segment End')
+            
+            # Add segment range to the title
+            plt.title(f'Obstacle Validation - Odom Points {segment_start} to {segment_end-1}')
+            plt.legend()
+            plt.grid(True)
+            plt.axis('equal')
+            
+            # Save this segment's plot
+            plt.savefig(f"{output_folder}/validation_segment_{segment_start:04d}_{segment_end-1:04d}.png", dpi=300)
+            plt.close()
+        
+        print(f"Saved obstacle validation plots to {output_folder}/")
+   
     def check_tf_and_run(self):
         # Try checking for transform once TF listener has had time to populate
         if self.tf_buffer.can_transform(
@@ -258,7 +568,14 @@ class MapTraining(Node):
             self.get_logger().warn("TF not ready: waiting for map → odom...")
 
     def odom_data(self):
-        df = pd.read_csv(self.odom_file)
+        
+        self.save_to_csv(self.input_bag, self.odom_csv_file, '/odom') # turned bag into csv, this is in the odom frame
+        
+        self.save_to_csv(self.input_bag, self.cmd_csv, '/cmd_vel') # turned bag into csv
+        self.oversample_cmdVel3(self.odom_csv_file, self.cmd_csv, self.cmd_output_csv)
+        
+
+        df = pd.read_csv(self.odom_csv_file)
         self.odom_x = df['odom_x'].tolist()
         self.odom_y = df['odom_y'].tolist()
 
@@ -277,14 +594,79 @@ class MapTraining(Node):
         self.get_logger().info(f"Transformed {len(self.map_x)} points to map frame.")
 
 
+    def visualize_path_with_yaw(self, sample_rate=20):
+        """
+        Create a visualization of the path with yaw arrows every sample_rate positions.
+        
+        Args:
+            sample_rate: Plot yaw arrows every sample_rate positions
+        """
+        output_folder = "path_with_yaw"
+        os.makedirs(output_folder, exist_ok=True)
+        
+        plt.figure(figsize=(12, 8))
+        ax = plt.gca()
+        ax.set_aspect('equal')
+        
+        # Plot the full path
+        path_x = [point[0] for point in self.map_points]
+        path_y = [point[1] for point in self.map_points]
+        plt.plot(path_x, path_y, '-', color='blue', linewidth=1.0, alpha=0.7, label='Path')
+        
+        # Extract and plot yaw arrows
+        yaw_length = 0.3  # Length of the arrow
+        
+        for i in range(0, len(self.global_path.poses), sample_rate):
+            pos = self.global_path.poses[i].pose.position
+            orientation = self.global_path.poses[i].pose.orientation
+            _, _, yaw = euler_from_quaternion([orientation.x, orientation.y, 
+                                               orientation.z, orientation.w])
+            
+            # Plot position point
+            plt.plot(pos.x, pos.y, 'o', color='black', markersize=3)
+            
+            # Plot yaw arrow
+            dx = yaw_length * math.cos(yaw)
+            dy = yaw_length * math.sin(yaw)
+            plt.arrow(pos.x, pos.y, dx, dy, 
+                     head_width=0.08, head_length=0.15, 
+                     fc='red', ec='red')
+            
+            # Optionally add text labels for angles
+            if i % (sample_rate * 5) == 0:  # Add labels less frequently
+                angle_degrees = math.degrees(yaw) % 360
+                plt.text(pos.x + dx + 0.05, pos.y + dy + 0.05, 
+                        f"{angle_degrees:.1f}°", 
+                        fontsize=8, color='darkred')
+        
+        plt.title(f'Path with Yaw Angles (every {sample_rate} positions)')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        
+        # Save the visualization
+        plt.savefig(f"{output_folder}/path_with_yaw.png", dpi=300)
+        plt.close()
+        
+        print(f"Saved path with yaw visualization to {output_folder}/path_with_yaw.png")
     def setup(self):
+        #self.test_obs_700()
         self.map_points = list(zip(self.map_x, self.map_y))
         self.global_path = self.create_path_from_points(self.map_points)
-        self.local_goal_manager_.set_global_path(self.global_path)
-        self.local_goal_manager_.generate_local_goals()
-        self.get_logger().info(f"len of local_goal data within node {len(self.local_goal_manager_.data)}")
-        self.obstacle_manager_.create_all_obstacle()
 
+        self.current_odom = (self.map_points[0][0], self.map_points[0][1])
+        
+        
+        self.local_goal_manager_ = Local_Goal_Manager(self.current_odom)
+        self.local_goal_manager_.global_path = self.global_path
+        self.local_goal_manager_.generate_local_goals_claude(self.global_path)
+        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output) 
+
+        self.obstacle_manager_ = Obstacle_Manager(self.OFFSET, self.RADIUS,self.local_goal_manager_)
+        self.obstacle_manager_.create_all_obstacle()
+        #self.validate_obstacles()
+        print("VALIDATED ****************************")
+        print(f"FIRST POINT IS ********************************8 {self.map_points[0]}")
+        
         print("checking if a local goal exists in map_points")
         # Check if a specific local goal exists in map pointsp
         found, matching_point = self.is_pose_in_map_points(self.local_goal_manager_.data[0], self.map_points)
@@ -292,17 +674,210 @@ class MapTraining(Node):
             print(f"local goal exists within map points at {matching_point}")
         else:
             print("error local goal not in map points list")
+
+        output_folder = "obstacle_and_path_2"
+        os.makedirs(output_folder, exist_ok=True)
+        plt.figure(figsize=(8,6))
+
+        plt.clf()  # Clear previous plot
+        ax = plt.gca()
+        ax.set_aspect('equal')
+        # Replot the base elements
+        #plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
+        active_obstacle = self.obstacle_manager_.get_active_obstacles_claude()
+        for obstacle in self.obstacle_manager_.obstacle_array:
+            circle = patches.Circle(
+            (obstacle.center_x, obstacle.center_y),
+            radius=obstacle.radius,
+            fill=False,
+            color='red',
+            linewidth=1.5,
+            linestyle='-'
+    )
+            ax.add_patch(circle)
+
+        path_x = [point[0] for point in self.map_points]
+        path_y = [point[1] for point in self.map_points]
+
+        # Plot the entire path
+        plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, color='black', label='odom path')
+
+        frame_path = f"{output_folder}/obst_path.png"
+        plt.savefig(frame_path)
+
+        print("Saved png of obstacles and path")
+        self.visualize_path_with_yaw()
         self.main_loop() 
+    def test_obs_700(self):
+
+        output_folder = "test_obs_2"
+        os.makedirs(output_folder, exist_ok=True)
+        self.map_points = list(zip(self.map_x, self.map_y))
+        self.global_path = self.create_path_from_points(self.map_points[3700:4100])
+        self.local_goal_manager_.global_path = self.global_path
+        self.local_goal_manager_.generate_local_goals(self.global_path)
+        print(f"FIRST POINT IS ********************************8 {self.map_points[0]}")
+        self.obstacle_manager_.create_all_obstacle()
+        
+        print("checking if a local goal exists in map_points")
+        # Check if a specific local goal exists in map pointsp
+        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output) 
+
+        output_folder = "obstacle_and_path"
+        os.makedirs(output_folder, exist_ok=True)
+        plt.figure(figsize=(8,6))
+
+        plt.clf()  # Clear previous plot
+        ax = plt.gca()
+        ax.set_aspect('equal')
+        # Replot the base elements
+        #plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
+        active_obstacle = self.obstacle_manager_.get_active_obstacles()
+        for obstacle in self.obstacle_manager_.obstacle_array:
+            circle = patches.Circle(
+            (obstacle.center_x, obstacle.center_y),
+            radius=obstacle.radius,
+            fill=False,
+            color='red',
+            linewidth=1.5,
+            linestyle='-'
+    )
+            ax.add_patch(circle)
+
+        path_x = [point[0] for point in self.map_points[3500:4500]]
+        path_y = [point[1] for point in self.map_points[3500:4500]]
+        local_goal_list = self.local_goal_manager_.data
+        print(f"len of local goal list {len(local_goal_list)}")
+        for local_goal in local_goal_list:
+            plt.scatter(local_goal.pose.position.x, local_goal.pose.position.y, s=100, color='purple')  # s=100 for size equivalent to markersize=10
+
+        # Plot the entire path
+        plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, color='black', label='odom path')
+        frame_path = f"{output_folder}/obst_path.png"
+        plt.savefig(frame_path)
+
+        plt.show()
+        print("Saved png of obstacles and path")
     def main_loop(self):
 
+        output_folder = "test_with_distance_0_index"
+        os.makedirs(output_folder, exist_ok=True)
+        plt.figure(figsize=(8, 6))
         for i, map_point in enumerate(self.map_points):
+
             self.current_odom = (map_point[0], map_point[1])
-            print(f"current odom : {self.current_odom}")
-            self.local_goal_manager_.update(self.current_odom)
-            self.ray_tracing(self.global_path.poses[i].pose) # get ray tracining values, now need to store them correctly with 
-            print(f"calculating ray tracing for position {i} and {self.global_path.poses[i].pose}")
+            update_count_val = self.local_goal_manager_.update_claude(self.current_odom)
+
+
+            closest_local_goal = self.get_closest_local_goal_index(self.local_goal_manager_.data, self.current_odom[0], self.current_odom[1])
+            print(f"frame {i}")
+            print(f"value from update : {update_count_val} closest local goal {closest_local_goal}")
+            local_data = self.ray_tracing(self.global_path.poses[i].pose) # get ray tracining values, now need to store them correctly with 
+            #print(f"calculating ray tracing for position {i} and {self.global_path.poses[i].pose}")
             self.ray_data_append()
 
+            if i % 10 != 0:
+                continue
+            plt.clf()  # Clear previous plot
+            ax = plt.gca()
+            ax.set_aspect('equal')
+            # Replot the base elements
+            plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
+            active_obstacle = self.obstacle_manager_.get_active_obstacles_claude()
+
+
+            current_local_goal_count = self.local_goal_manager_.get_local_goal_counter()
+            total_goals = len(self.local_goal_manager_.data)
+            print("local goal count") 
+            valid_border_min = max(0, current_local_goal_count - 4)
+            valid_border_max = min(total_goals,  current_local_goal_count+ 20)
+            
+            local_goal_list = self.local_goal_manager_.data[valid_border_min: valid_border_max]
+            print(f"len of local goal list {len(local_goal_list)}")
+            for local_goal in local_goal_list:
+                plt.scatter(local_goal.pose.position.x, local_goal.pose.position.y, s=100, color='purple')  # s=100 for size equivalent to markersize=10
+            for obstacle in active_obstacle:
+                circle = patches.Circle(
+                (obstacle.center_x, obstacle.center_y),
+                radius=obstacle.radius,
+                fill=False,
+                color='red',
+                linewidth=1.5,
+                linestyle='-'
+        )
+                ax.add_patch(circle)
+
+            plt.scatter(self.current_odom[0], self.current_odom[1], color='cyan', s=200, label='robot')
+            path_x = [point[0] for point in self.map_points]
+            path_y = [point[1] for point in self.map_points]
+
+            # Plot the entire path
+            plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, color='black', label='odom path')
+            self.draw_rays_claude(self.current_odom[0], self.current_odom[1], local_data)
+            # Save the frame
+            
+            frame_path = f"{output_folder}/frame_{i:03d}.png"
+            plt.savefig(frame_path)
+    
+        plt.close()
+        print("done with main loop")
+
+
+    def get_closest_local_goal_index(self, local_goal_list, odom_x, odom_y):
+        """
+        Finds the index of the closest local goal to the robot's current position.
+
+        Args:
+            local_goal_list (list): List of PoseStamped-like objects with `.pose.position.x` and `.y`.
+            odom_x (float): Robot's current x position.
+            odom_y (float): Robot's current y position.
+
+        Returns:
+            int: Index of the closest local goal.
+        """
+        min_distance = float('inf')
+        closest_index = -1
+
+        for i, goal in enumerate(local_goal_list):
+            goal_x = goal.pose.position.x
+            goal_y = goal.pose.position.y
+            distance = math.hypot(goal_x - odom_x, goal_y - odom_y)
+
+            if distance < min_distance:
+                min_distance = distance
+                closest_index = i
+
+        return closest_index
+    def draw_rays_claude(self, odom_x, odom_y, lidar_readings):
+        #print("drawing rays")
+        # Don't use any for i in range(2) loop - that might be duplicating rays
+        for lidar_counter in range(self.NUM_LIDAR):
+            # Skip some rays for clarity if needed
+            #if lidar_counter % 10 != 0:  # Only draw every 10th ray for clearer visualization
+            #    continue
+                
+            ang = lidar_counter * (2*np.pi / self.NUM_LIDAR)
+            distance = lidar_readings[lidar_counter]
+            
+            # Ensure reasonable distance values
+            if distance <= 0.001 or distance > 50.0:  # Likely invalid value
+                continue
+                
+            # Draw a single line from robot to endpoint
+            projection_x = odom_x + distance * math.cos(ang)
+            projection_y = odom_y + distance * math.sin(ang)
+            
+            # Individual rays should be single lines, not connected
+            if lidar_counter == 0 or lidar_counter == 639 or lidar_counter == 320 or lidar_counter == 160:
+
+                plt.plot([odom_x, projection_x], [odom_y, projection_y], 
+                         linestyle='-', color='blue', linewidth=3.5)
+            else:
+                #plt.plot([odom_x, projection_x], [odom_y, projection_y], 
+                #     linestyle='-', color='green', linewidth=0.5)
+                continue
+        print("Done drawing rays")
+    
     def is_pose_in_map_points(self, pose_stamped, map_points, tolerance=0.01):
         """Check if a PoseStamped exists in map points within tolerance"""
         pose_x = pose_stamped.pose.position.x
@@ -392,20 +967,104 @@ class MapTraining(Node):
 
         plt.show()
 
+    def extract_messages(self, bag_path, topic):
+        """Extract messages from a ROS 2 bag and store them in a dictionary grouped by timestamp."""
+        storage_options = rosbag2_py.StorageOptions(uri=bag_path, storage_id='sqlite3')
+        converter_options = rosbag2_py.ConverterOptions(input_serialization_format='cdr', output_serialization_format='cdr')
+        reader = rosbag2_py.SequentialReader()
+        reader.open(storage_options, converter_options)
+
+        topic_types = reader.get_all_topics_and_types()
+        type_map = {topic.name: topic.type for topic in topic_types}
+
+        allowed_topics = {topic}
+        # Dictionary to group messages by timestamp
+        grouped_data = defaultdict(dict)
+
+        while reader.has_next():
+            topic, msg, timestamp = reader.read_next()
+            
+            if topic not in allowed_topics:
+                continue
+            # Deserialize message
+            msg_type = get_message(type_map[topic])
+            msg_deserialized = deserialize_message(msg, msg_type)
+            if topic == "/odom":
+        # Extract x, y from position
+                x = msg_deserialized.pose.pose.position.x
+                y = msg_deserialized.pose.pose.position.y
+
+                odom_v = msg_deserialized.twist.twist.linear.x
+                odom_w = msg_deserialized.twist.twist.angular.z
+                # Extract orientation quaternion and convert to yaw
+                qx = msg_deserialized.pose.pose.orientation.x
+                qy = msg_deserialized.pose.pose.orientation.y
+                qz = msg_deserialized.pose.pose.orientation.z
+                qw = msg_deserialized.pose.pose.orientation.w
+                yaw = R.from_quat([qx, qy, qz, qw]).as_euler('xyz')[2]
+
+                grouped_data.setdefault(timestamp, {}).update({ ## add getting local velocity and local angular velocity
+                    "odom_x": x,
+                    "odom_y": y,
+                    "odom_yaw": yaw,
+                    "odom_v": odom_v,
+                    "odom_w": odom_w
+                })
+            elif topic == "/scan":
+                # Convert LaserScan ranges to individual columns
+                range_data = list(msg_deserialized.ranges)
+
+                # Store each range as a separate column with an indexed key
+                for i, value in enumerate(range_data):
+                    grouped_data.setdefault(timestamp, {}).update({
+                        f"scan_range_{i}": value
+                    })
+
+                
+            elif topic == "/cmd_vel":
+                v = msg_deserialized.linear.x
+                w = msg_deserialized.angular.z
+                print(f" v value {v}, w {w}")
+
+                grouped_data.setdefault(timestamp, {}).update({
+                    "cmd_v": v, 
+                    "cmd_w": w
+                    })
+        return grouped_data
+
+    def save_to_csv(self, bag_path, output_csv, topic):
+        """Converts extracted messages to CSV format."""
+        
+        messages = self.extract_messages(bag_path, topic) 
+
+        if not messages:
+            print("No messages found in the bag file.")
+            return
+
+        # Convert dictionary to Pandas DataFrame
+        df = pd.DataFrame.from_dict(messages, orient="index")
+
+        # Reset index to turn timestamp into a column
+        df.reset_index(inplace=True)
+        df.rename(columns={'index': 'timestamp'}, inplace=True)
+
+        df.to_csv(output_csv, index=False)
+        print(f"Saved {len(df)} messages to {output_csv}")
     def ray_tracing(self, pose):
         """
         Args: Takes the yaw, and the obstacle data 
         Output: Lidar data with 1080 values
         """
-        active_obstacles = self.obstacle_manager_.get_active_obstacles()
-        print(f" len of active obstacles {len(active_obstacles)}")
+        local_data = [0] * self.NUM_LIDAR
+        active_obstacles = self.obstacle_manager_.get_active_obstacles_claude()
+        #print(f" len of active obstacles {len(active_obstacles)}")
         yaw = self.get_yaw(pose)
         incrementor = (2 * math.pi) / self.NUM_LIDAR
-        start_angle= yaw - math.pi/2 
+        start_angle= 0 
         for index in range(self.NUM_LIDAR):
             # Calculate direction vector for this ray
             theta_prev = start_angle + incrementor * index
-            theta = self.normalize_angle(theta_prev)
+            theta = theta_prev
             
             dx = math.cos(theta)
             dy = math.sin(theta)
@@ -447,24 +1106,19 @@ class MapTraining(Node):
             # If we found an intersection, update the distances array
             if min_distance != float('inf'):
                 self.distances[index] = min_distance
+                local_data[index] = min_distance
         self.get_logger().info("Calculated distances") 
-        
-    def ray_data_append(self, filename="ray_tracining_data.csv"):
+        return local_data 
+    def ray_data_append(self, filename=None):
 
-
+        if filename is None:
+            filename = self.lidar_file
         output_dir = os.path.dirname(filename)
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
         
         with open(filename, 'a', newline='') as csvfile:  # Changed 'w' to 'a' for append mode
             writer = csv.writer(csvfile)
-            
-            # Write header only if the file is new/empty
-            if os.path.getsize(filename) == 0:
-                header = ['point_index']
-                for i in range(len(self.distances)):
-                    header.append(f'ray_{i}_distance')
-                writer.writerow(header)
             
             # Write data row - just the ray distances
             writer.writerow(self.distances)  # Simplified to write the ray_data directly
@@ -479,6 +1133,31 @@ class MapTraining(Node):
             return (value + math.pi) % (2 * math.pi) - math.pi
     
 
+    def oversample_cmdVel3(self, odom_csv, cmd_csv, output_csv):
+        import pandas as pd
+
+        # Read the CSV files for odom and cmd
+        odom_df = pd.read_csv(odom_csv)
+        cmd_df = pd.read_csv(cmd_csv)
+
+        # Convert timestamps to numeric for accurate merging
+        odom_df['timestamp'] = pd.to_numeric(odom_df['timestamp'])
+        cmd_df['timestamp']  = pd.to_numeric(cmd_df['timestamp'])
+        
+        print("have grabbed values")
+        # Merge the command velocities onto odom timestamps using merge_asof.
+        # We only keep the timestamp from odom, and the cmd_v and cmd_w from the cmd DataFrame.
+        merged_df = pd.merge_asof(
+            odom_df[['timestamp']],  # Use only the odom timestamp
+            cmd_df[['timestamp', 'cmd_v', 'cmd_w']],
+            on='timestamp',
+            direction='nearest'
+        )
+
+        print("saving to csv")
+        # Save only the timestamp, cmd_v, and cmd_w columns to the output CSV
+        merged_df.to_csv(output_csv, index=False)
+        return merged_df
 def main(args=None):
     rclpy.init(args=args)
     test_node = MapTraining()
