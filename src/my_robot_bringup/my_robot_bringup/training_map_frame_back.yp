@@ -63,7 +63,7 @@ class Obstacle_Manager():
         valid_border_max = min(total_goals, current_local_goal_count + 20)
         active_list = self.obstacle_array[valid_border_min: valid_border_max]
         return active_list
-    def get_active_obstacles_claude(self, global_path=None, current_index=None):
+    def get_active_obstacles_claude(self):
         """Select obstacles based on distance to the current robot position."""
         # Get current robot position
         robot_pos = self.local_goal_manager_.current_odom
@@ -78,67 +78,8 @@ class Obstacle_Manager():
         # Sort by distance and take closest N obstacles
         obstacles_with_distance.sort(key=lambda x: x[1])
         active_obstacles = [obs for obs, dist in obstacles_with_distance[:20] if dist < 5.0]
-       
-        if global_path is not None:
-            end_index = min(current_index + 200, len(global_path.poses))
-            path_points = [] 
-            for i in range(current_index, end_index):
-                pose = global_path.poses[i]
-                path_points.append((pose.pose.position.x, pose.pose.position.y))
-            
-            valid_obs = []
-            THRESHOLD = .6
-            for obs in active_obstacles:
-                min_dist =  self.calculate_min_distance_to_path(obs.center_x, obs.center_y, path_points)
-                if min_dist > THRESHOLD:
-                    valid_obs.append(obs)
-                    continue
-                else:
-                    continue
-
-                
-            
-            return valid_obs 
-        else:
-            return active_obstacles
-    def calculate_min_distance_to_path(self, x, y, path_points):
-        """Calculate minimum distance from point (x,y) to the path."""
-        min_dist = float('inf')
         
-        for i in range(len(path_points) - 1):
-            # Get points for this path segment
-            x1, y1 = path_points[i]
-            x2, y2 = path_points[i + 1]
-            
-            # Calculate distance to this segment
-            dist = self.point_to_segment_distance(x, y, x1, y1, x2, y2)
-            
-            # Update minimum distance
-            min_dist = min(min_dist, dist)
-        
-        return min_dist
-    def point_to_segment_distance(self, px, py, x1, y1, x2, y2):
-        """Calculate distance from point to line segment."""
-        # Line segment vector
-        dx = x2 - x1
-        dy = y2 - y1
-        
-        # If segment is just a point
-        if dx == 0 and dy == 0:
-            return math.sqrt((px - x1)**2 + (py - y1)**2)
-        
-        # Calculate projection parameter
-        t = ((px - x1) * dx + (py - y1) * dy) / (dx**2 + dy**2)
-        
-        # Constrain t to segment bounds
-        t = max(0, min(1, t))
-        
-        # Calculate closest point on segment
-        closest_x = x1 + t * dx
-        closest_y = y1 + t * dy
-        
-        # Return distance to closest point
-        return math.sqrt((px - closest_x)**2 + (py - closest_y)**2)
+        return active_obstacles
 
     def create_all_obstacle(self):
 
@@ -483,7 +424,7 @@ class MapTraining(Node):
 
 
         # Files for training data to be stored
-        self.input_bag = "/home/wyattcolburn/ros_ws/rosbag2_2025_04_29-15_52_26/"
+        self.input_bag = "/home/wyattcolburn/ros_ws/rosbag2_2025_04_29-15_46_09/"
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
@@ -778,7 +719,7 @@ class MapTraining(Node):
     
     def main_loop(self):
 
-        output_folder = "rosbag_4_29_46"
+        output_folder = "carlos_test_2"
         os.makedirs(output_folder, exist_ok=True)
         plt.figure(figsize=(8, 6))
         for i, map_point in enumerate(self.map_points):
@@ -802,7 +743,7 @@ class MapTraining(Node):
             ax.set_aspect('equal')
             # Replot the base elements
             plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
-            active_obstacle = self.obstacle_manager_.get_active_obstacles_claude(self.global_path, self.current_odom_index)
+            active_obstacle = self.obstacle_manager_.get_active_obstacles_claude()
 
 
             current_local_goal_count = self.local_goal_manager_.get_local_goal_counter()
@@ -1124,7 +1065,7 @@ class MapTraining(Node):
         Output: Lidar data with 1080 values
         """
         local_data = [0] * self.NUM_LIDAR
-        active_obstacles = self.obstacle_manager_.get_active_obstacles_claude(self.global_path, self.current_odom_index)
+        active_obstacles = self.obstacle_manager_.get_active_obstacles_claude()
         #print(f" len of active obstacles {len(active_obstacles)}")
         yaw = self.get_yaw(pose)
         incrementor = (2 * math.pi) / self.NUM_LIDAR

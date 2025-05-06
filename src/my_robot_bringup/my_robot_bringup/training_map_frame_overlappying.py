@@ -55,90 +55,246 @@ class Obstacle_Manager():
         self.RADIUS = RADIUS
         self.prev_dir_x = 0
         self.prev_dir_y = 0
-    def get_active_obstacles(self):
-        current_local_goal_count = self.local_goal_manager_.get_local_goal_counter()
-        total_goals = len(self.local_goal_manager_.data)
-        print(f"local goal count {current_local_goal_count}") 
-        valid_border_min = max(0, current_local_goal_count - 4)
-        valid_border_max = min(total_goals, current_local_goal_count + 20)
-        active_list = self.obstacle_array[valid_border_min: valid_border_max]
-        return active_list
-    def get_active_obstacles_claude(self, global_path=None, current_index=None):
-        """Select obstacles based on distance to the current robot position."""
+    def preprocess_obstacles_with_sampling(self, path, sampling_rate=5):
+        """Preprocess obstacles considering sampled path segments for efficiency."""
+        obstacle_distances = []
+        
+        for obs in self.obstacle_array:
+            # Calculate minimum distance to sampled path segments
+            min_dist_to_any_segment = float('inf')
+            closest_segment_index = -1
+            
+            # Sample segments at regular intervals for efficiency
+            for i in range(0, len(path.poses) - 1, sampling_rate):
+                p1 = (path.poses[i].pose.position.x, path.poses[i].pose.position.y)
+                p2 = (path.poses[i+1].pose.position.x, path.poses[i+1].pose.position.y)
+                
+                dist = self.point_to_line_distance(
+                    obs.center_x, obs.center_y, 
+                    p1[0], p1[1], p2[0], p2[1]
+                ) - obs.radius
+                
+                if dist < min_dist_to_any_segment:
+                    min_dist_to_any_segment = dist
+                    closest_segment_index = i
+            
+            # Store obstacle with its distance data
+            obstacle_distances.append({
+                'obstacle': obs,
+                'min_distance': min_dist_to_any_segment,
+                'segment_index': closest_segment_index
+            })
+        
+        return obstacle_distances
+    def path_has_changed(self, new_path):
+        """Check if the path has changed significantly since last preprocessing."""
+        if not hasattr(self, 'last_processed_path_'):
+            self.last_processed_path_ = new_path
+            return True
+            
+        # Simple check: compare number of poses
+        if len(new_path.poses) != len(self.last_processed_path_.poses):
+            self.last_processed_path_ = new_path
+            return True
+            
+        # Check if end points have changed
+        if len(new_path.poses) > 0 and len(self.last_processed_path_.poses) > 0:
+            new_end = new_path.poses[-1].pose.position
+            old_end = self.last_processed_path_.poses[-1].pose.position
+            dist = math.sqrt((new_end.x - old_end.x)**2 + (new_end.y - old_end.y)**2)
+            if dist > 0.5:  # If end point moved more than 0.5 meters
+                self.last_processed_path_ = new_path
+                return True
+            
+        return False
+    def get_active_obstacles_with_sampling(self, path, yaw, sampling_rate=5):
+        """Get active obstacles based on sampled path segments."""
+        # Preprocess all obstacles if not done yet
+        if not hasattr(self, 'obstacle_distances_') or self.path_has_changed(path):
+            self.obstacle_distances_ = self.preprocess_obstacles_with_sampling(path, sampling_rate)
+        
         # Get current robot position
         robot_pos = self.local_goal_manager_.current_odom
-        print(f"active obstacles reference to where it is {robot_pos}") 
-        # Calculate distance to each obstacle
-        obstacles_with_distance = []
+        
+        # Find current segment index (sampled)
+        current_segment_idx = self.find_current_path_segment_sampled(robot_pos, path, sampling_rate)
+        
+        # Define a window of segments to consider
+        segment_window_start = max(0, current_segment_idx - sampling_rate*2)
+        segment_window_end = min(len(path.poses) - 1, current_segment_idx + sampling_rate*10)
+        
+        # Find obstacles relevant to current window of segments
+        obstacles_with_data = []
+        for obs_data in self.obstacle_distances_:
+            obs = obs_data['obstacle']
+            segment_idx = obs_data['segment_index']
+            
+            # Check if obstacle's segment is within our current window of interest
+            if segment_window_start <= segment_idx <= segment_window_end:
+                # Calculate distance and angle from robot
+                dx = obs.center_x - robot_pos[0]
+                dy = obs.center_y - robot_pos[1]
+                dist = math.sqrt(dx**2 + dy**2)
+                
+                # Skip distant obstacles
+                if dist > 5.0:
+                    continue
+                    
+                # Calculate angle relative to robot heading
+                angle = math.atan2(dy, dx) - yaw
+                # Normalize angle
+                while angle > math.pi:
+                    angle -= 2 * math.pi
+                while angle < -math.pi:
+                    angle += 2 * math.pi
+                    
+                # Only consider obstacles in front
+                if abs(angle) < math.pi/2:
+                    # Include obstacle if it's close enough to path to be relevant
+                    # but not directly on the path (create a corridor)
+                    if 0.2 < obs_data['min_distance'] < 1.5:  # Creates a corridor
+                        obstacles_with_data.append((obs, dist))
+        
+        # Sort by distance and return closest few
+        obstacles_with_data.sort(key=lambda x: x[1])
+        return [obs for obs, _ in obstacles_with_data[:5]]
+
+    def find_current_path_segment_sampled(self, robot_pos, path, sampling_rate=5):
+        """Find which sampled path segment the robot is currently on."""
+        min_dist = float('inf')
+        current_segment = 0
+        
+        # Check sampled segments only
+        for i in range(0, len(path.poses) - 1, sampling_rate):
+            if i+1 >= len(path.poses):
+                break
+                
+            p1 = (path.poses[i].pose.position.x, path.poses[i].pose.position.y)
+            p2 = (path.poses[i+1].pose.position.x, path.poses[i+1].pose.position.y)
+            
+            # Distance from robot to this segment
+            dist = self.point_to_line_distance(
+                robot_pos[0], robot_pos[1],
+                p1[0], p1[1], p2[0], p2[1]
+            )
+            
+            # Check if this is the closest segment
+            if dist < min_dist:
+                min_dist = dist
+                current_segment = i
+        
+        return current_segment
+    def preprocess_obstacles(self, path):
+        """Preprocess obstacles to eliminate those on the path."""
+        valid_obstacles = []
+        
         for obs in self.obstacle_array:
-            dist = math.sqrt((obs.center_x - robot_pos[0])**2 + 
-                             (obs.center_y - robot_pos[1])**2)
-            obstacles_with_distance.append((obs, dist))
+            # Check if obstacle is on the path
+            path_dist = self.distance_to_path(obs, path)
+            
+            # Keep obstacles that are NOT on the path
+            if path_dist > 0.2:  # More than 0.8 meters from path
+                valid_obstacles.append(obs)
+        
+        # Store this preprocessed list for later use
+        self.valid_obstacles_ = valid_obstacles
+        print(f"LEN OF VALID_OBSTACLES {len(self.valid_obstacles_)}")
+
+        return valid_obstacles
+
+    def get_active_obstacles_claude(self, path, yaw):
+        """Select obstacles based on distance and direction relative to robot."""
+        # Get current robot position and orientation
+        robot_pos = self.local_goal_manager_.current_odom
+        robot_heading = yaw
+        
+        # Calculate distance and angle to each obstacle
+        obstacles_with_data = []
+        for obs in self.valid_obstacles_:
+            # Calculate distance
+            dx = obs.center_x - robot_pos[0]
+            dy = obs.center_y - robot_pos[1]
+            dist = math.sqrt(dx**2 + dy**2)
+            
+            # Calculate angle relative to robot heading
+            angle = math.atan2(dy, dx) - robot_heading
+            # Normalize angle to [-pi, pi]
+            while angle > math.pi:
+                angle -= 2 * math.pi
+            while angle < -math.pi:
+                angle += 2 * math.pi
+                
+            # Only consider obstacles in front (within ±90° of heading)
+            if abs(angle) < math.pi/2 and dist < 5.0:
+                # Check if obstacle is close to path
+                path_dist = self.distance_to_path(obs, path)
+                # Add obstacles that are CLOSE to the path (not far from it)
+                if path_dist < 0.8:  # Less than 0.8 meters from path
+                    obstacles_with_data.append((obs, dist))
         
         # Sort by distance and take closest N obstacles
-        obstacles_with_distance.sort(key=lambda x: x[1])
-        active_obstacles = [obs for obs, dist in obstacles_with_distance[:20] if dist < 5.0]
-       
-        if global_path is not None:
-            end_index = min(current_index + 200, len(global_path.poses))
-            path_points = [] 
-            for i in range(current_index, end_index):
-                pose = global_path.poses[i]
-                path_points.append((pose.pose.position.x, pose.pose.position.y))
+        obstacles_with_data.sort(key=lambda x: x[1])
+        return [obs for obs, _ in obstacles_with_data[:10]]  # Limit to 10 closest obstacles
+    def distance_to_path(self, obstacle, path):
+        """Calculate the minimum distance from an obstacle to the planned path.
+        
+        Args:
+            obstacle: The obstacle to check
             
-            valid_obs = []
-            THRESHOLD = .6
-            for obs in active_obstacles:
-                min_dist =  self.calculate_min_distance_to_path(obs.center_x, obs.center_y, path_points)
-                if min_dist > THRESHOLD:
-                    valid_obs.append(obs)
-                    continue
-                else:
-                    continue
-
+        Returns:
+            float: The minimum distance from the obstacle to the path
+        """
+        # Get the planned path points
+        # Assuming self.path contains the planned path points
+        
+        # Calculate obstacle radius to account for its size
+        obstacle_radius = obstacle.radius
+        min_distance = float('inf')
+        
+        for i in range(len(path.poses) - 1):
+            # Get the line segment
+            p1 = (path.poses[i].pose.position.x, path.poses[i].pose.position.y)
+            p2 = (path.poses[i+1].pose.position.x, path.poses[i+1].pose.position.y)
+            
+            # Calculate the distance from the obstacle center to the line segment
+            dist = self.point_to_line_distance(
+                obstacle.center_x, obstacle.center_y, 
+                p1[0], p1[1], p2[0], p2[1]
+            )
+            
+            # Subtract the obstacle radius to get the true edge distance
+            edge_distance = dist - obstacle_radius
+            min_distance = min(min_distance, edge_distance)
                 
-            
-            return valid_obs 
-        else:
-            return active_obstacles
-    def calculate_min_distance_to_path(self, x, y, path_points):
-        """Calculate minimum distance from point (x,y) to the path."""
-        min_dist = float('inf')
+        return min_distance
+
+    def point_to_line_distance(self, px, py, x1, y1, x2, y2):
+        """Calculate the shortest distance from a point to a line segment.
         
-        for i in range(len(path_points) - 1):
-            # Get points for this path segment
-            x1, y1 = path_points[i]
-            x2, y2 = path_points[i + 1]
+        Args:
+            px, py: The point coordinates
+            x1, y1: The first endpoint of the line segment
+            x2, y2: The second endpoint of the line segment
             
-            # Calculate distance to this segment
-            dist = self.point_to_segment_distance(x, y, x1, y1, x2, y2)
-            
-            # Update minimum distance
-            min_dist = min(min_dist, dist)
+        Returns:
+            float: The shortest distance from the point to the line segment
+        """
+        # Calculate the line length squared
+        line_length_sq = (x2 - x1)**2 + (y2 - y1)**2
         
-        return min_dist
-    def point_to_segment_distance(self, px, py, x1, y1, x2, y2):
-        """Calculate distance from point to line segment."""
-        # Line segment vector
-        dx = x2 - x1
-        dy = y2 - y1
-        
-        # If segment is just a point
-        if dx == 0 and dy == 0:
+        # If the line is a point, return the distance to that point
+        if line_length_sq == 0:
             return math.sqrt((px - x1)**2 + (py - y1)**2)
         
-        # Calculate projection parameter
-        t = ((px - x1) * dx + (py - y1) * dy) / (dx**2 + dy**2)
+        # Calculate projection of point onto line
+        t = max(0, min(1, ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / line_length_sq))
         
-        # Constrain t to segment bounds
-        t = max(0, min(1, t))
+        # Calculate the closest point on the line segment
+        proj_x = x1 + t * (x2 - x1)
+        proj_y = y1 + t * (y2 - y1)
         
-        # Calculate closest point on segment
-        closest_x = x1 + t * dx
-        closest_y = y1 + t * dy
-        
-        # Return distance to closest point
-        return math.sqrt((px - closest_x)**2 + (py - closest_y)**2)
+        # Return the distance to the closest point
+        return math.sqrt((px - proj_x)**2 + (py - proj_y)**2)
 
     def create_all_obstacle(self):
 
@@ -483,7 +639,7 @@ class MapTraining(Node):
 
 
         # Files for training data to be stored
-        self.input_bag = "/home/wyattcolburn/ros_ws/rosbag2_2025_04_29-15_52_26/"
+        self.input_bag = "/home/wyattcolburn/ros_ws/rosbag2_2025_05_02-15_39_18/"
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
@@ -660,60 +816,6 @@ class MapTraining(Node):
         self.get_logger().info(f"Transformed {len(self.map_x)} points to map frame.")
 
 
-    def visualize_path_with_yaw(self, sample_rate=20):
-        """
-        Create a visualization of the path with yaw arrows every sample_rate positions.
-        
-        Args:
-            sample_rate: Plot yaw arrows every sample_rate positions
-        """
-        output_folder = "path_with_yaw"
-        os.makedirs(output_folder, exist_ok=True)
-        
-        plt.figure(figsize=(12, 8))
-        ax = plt.gca()
-        ax.set_aspect('equal')
-        
-        # Plot the full path
-        path_x = [point[0] for point in self.map_points]
-        path_y = [point[1] for point in self.map_points]
-        plt.plot(path_x, path_y, '-', color='blue', linewidth=1.0, alpha=0.7, label='Path')
-        
-        # Extract and plot yaw arrows
-        yaw_length = 0.3  # Length of the arrow
-        
-        for i in range(0, len(self.global_path.poses), sample_rate):
-            pos = self.global_path.poses[i].pose.position
-            orientation = self.global_path.poses[i].pose.orientation
-            _, _, yaw = euler_from_quaternion([orientation.x, orientation.y, 
-                                               orientation.z, orientation.w])
-            
-            # Plot position point
-            plt.plot(pos.x, pos.y, 'o', color='black', markersize=3)
-            
-            # Plot yaw arrow
-            dx = yaw_length * math.cos(yaw)
-            dy = yaw_length * math.sin(yaw)
-            plt.arrow(pos.x, pos.y, dx, dy, 
-                     head_width=0.08, head_length=0.15, 
-                     fc='red', ec='red')
-            
-            # Optionally add text labels for angles
-            if i % (sample_rate * 5) == 0:  # Add labels less frequently
-                angle_degrees = math.degrees(yaw) % 360
-                plt.text(pos.x + dx + 0.05, pos.y + dy + 0.05, 
-                        f"{angle_degrees:.1f}°", 
-                        fontsize=8, color='darkred')
-        
-        plt.title(f'Path with Yaw Angles (every {sample_rate} positions)')
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        
-        # Save the visualization
-        plt.savefig(f"{output_folder}/path_with_yaw.png", dpi=300)
-        plt.close()
-        
-        print(f"Saved path with yaw visualization to {output_folder}/path_with_yaw.png")
     def setup(self):
         #self.test_obs_700()
         self.map_points = list(zip(self.map_x, self.map_y))
@@ -725,11 +827,11 @@ class MapTraining(Node):
         self.local_goal_manager_ = Local_Goal_Manager(self.current_odom)
         self.local_goal_manager_.global_path = self.global_path
         self.local_goal_manager_.generate_local_goals_claude(self.global_path)
-        
         self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output) 
 
         self.obstacle_manager_ = Obstacle_Manager(self.OFFSET, self.RADIUS,self.local_goal_manager_)
         self.obstacle_manager_.create_all_obstacle()
+        self.obstacle_manager_.preprocess_obstacles_with_sampling(self.global_path)
         #self.validate_obstacles()
         print("VALIDATED ****************************")
         print(f"FIRST POINT IS ********************************8 {self.map_points[0]}")
@@ -751,7 +853,7 @@ class MapTraining(Node):
         ax.set_aspect('equal')
         # Replot the base elements
         #plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
-        active_obstacle = self.obstacle_manager_.get_active_obstacles_claude()
+        active_obstacle = self.obstacle_manager_.get_active_obstacles_with_sampling(self.global_path, self.get_yaw(self.global_path.poses[0].pose))
         for obstacle in self.obstacle_manager_.obstacle_array:
             circle = patches.Circle(
             (obstacle.center_x, obstacle.center_y),
@@ -773,12 +875,11 @@ class MapTraining(Node):
         plt.savefig(frame_path)
 
         print("Saved png of obstacles and path")
-        self.visualize_path_with_yaw()
         self.main_loop() 
     
     def main_loop(self):
 
-        output_folder = "rosbag_4_29_46"
+        output_folder = "may_2"
         os.makedirs(output_folder, exist_ok=True)
         plt.figure(figsize=(8, 6))
         for i, map_point in enumerate(self.map_points):
@@ -802,7 +903,7 @@ class MapTraining(Node):
             ax.set_aspect('equal')
             # Replot the base elements
             plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
-            active_obstacle = self.obstacle_manager_.get_active_obstacles_claude(self.global_path, self.current_odom_index)
+            active_obstacle = self.obstacle_manager_.get_active_obstacles_with_sampling(self.global_path, self.get_yaw(self.global_path.poses[i].pose))
 
 
             current_local_goal_count = self.local_goal_manager_.get_local_goal_counter()
@@ -841,32 +942,6 @@ class MapTraining(Node):
         plt.close()
         print("done with main loop")
 
-
-    def get_closest_local_goal_index(self, local_goal_list, odom_x, odom_y):
-        """
-        Finds the index of the closest local goal to the robot's current position.
-
-        Args:
-            local_goal_list (list): List of PoseStamped-like objects with `.pose.position.x` and `.y`.
-            odom_x (float): Robot's current x position.
-            odom_y (float): Robot's current y position.
-
-        Returns:
-            int: Index of the closest local goal.
-        """
-        min_distance = float('inf')
-        closest_index = -1
-
-        for i, goal in enumerate(local_goal_list):
-            goal_x = goal.pose.position.x
-            goal_y = goal.pose.position.y
-            distance = math.hypot(goal_x - odom_x, goal_y - odom_y)
-
-            if distance < min_distance:
-                min_distance = distance
-                closest_index = i
-
-        return closest_index
 
     def draw_rays_claude_2(self, odom_x, odom_y, lidar_readings):
         # Get robot's yaw from the current pose (you need to pass this as a parameter)
@@ -914,37 +989,6 @@ class MapTraining(Node):
                  head_width=0.1, head_length=0.15, fc='black', ec='black', label='Lidar Direction')
         
         print("Done drawing rays")
-        def draw_rays_claude(self, odom_x, odom_y, lidar_readings):
-            #print("drawing rays")
-            # Don't use any for i in range(2) loop - that might be duplicating rays
-            for lidar_counter in range(self.NUM_LIDAR):
-                # Skip some rays for clarity if needed
-                #if lidar_counter % 10 != 0:  # Only draw every 10th ray for clearer visualization
-                #    continue
-                    
-                ang = lidar_counter * (2*np.pi / self.NUM_LIDAR)
-                distance = lidar_readings[lidar_counter]
-                
-                # Ensure reasonable distance values
-                if distance <= 0.001 or distance > 50.0:  # Likely invalid value
-                    continue
-                    
-                # Draw a single line from robot to endpoint
-                projection_x = odom_x + distance * math.cos(ang)
-                projection_y = odom_y + distance * math.sin(ang)
-                
-                # Individual rays should be single lines, not connected
-                if lidar_counter == 0:
-                    print(f"LIDAR VALUE AT 0 is {distance}")
-                    if distance == 0:
-                        projection_x = odom_x + .5 * math.cos(ang)
-                        projection_y = odom_y + .5 * math.sin(ang)
-                    plt.plot([odom_x, projection_x], [odom_y, projection_y], 
-                             linestyle='-', color='blue', linewidth=3.5)
-                else:
-                    plt.plot([odom_x, projection_x], [odom_y, projection_y], 
-                         linestyle='-', color='green', linewidth=0.5)
-            print("Done drawing rays")
     
     def is_pose_in_map_points(self, pose_stamped, map_points, tolerance=0.01):
         """Check if a PoseStamped exists in map points within tolerance"""
@@ -1124,10 +1168,10 @@ class MapTraining(Node):
         Output: Lidar data with 1080 values
         """
         local_data = [0] * self.NUM_LIDAR
-        active_obstacles = self.obstacle_manager_.get_active_obstacles_claude(self.global_path, self.current_odom_index)
         #print(f" len of active obstacles {len(active_obstacles)}")
         yaw = self.get_yaw(pose)
         incrementor = (2 * math.pi) / self.NUM_LIDAR
+        active_obstacles = self.obstacle_manager_.get_active_obstacles_with_sampling(self.global_path, yaw )
         lidar_offset = -math.pi/2 
         for index in range(self.NUM_LIDAR):
             # Calculate direction vector for this ray
@@ -1226,6 +1270,8 @@ class MapTraining(Node):
         # Save only the timestamp, cmd_v, and cmd_w columns to the output CSV
         merged_df.to_csv(output_csv, index=False)
         return merged_df
+
+
 def main(args=None):
     rclpy.init(args=args)
     test_node = MapTraining()
