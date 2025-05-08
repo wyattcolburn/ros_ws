@@ -164,11 +164,14 @@ class obsValid: public rclcpp::Node
 		packetOut[5+lidar_counter] = hall_lidar_ranges[lidar_counter];
 	}
 
+	packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT +LIDAR_COUNT] = odom_x;
+	packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + 1] = odom_y;
+
 	//filled with min lidar data
 	int num_obstacles;
 	const Obstacle* current_obstacles = obstacle_manager_.get_active_obstacles(num_obstacles);
 	for (int local_obstacle_counter = 0; local_obstacle_counter < num_obstacles; local_obstacle_counter++) {
-		int index = ODOM_FIELD_COUNT + LIDAR_COUNT + local_obstacle_counter*2;
+		int index = ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + 2 + local_obstacle_counter*2;
 		packetOut[index]= current_obstacles[local_obstacle_counter].center_x;
 		packetOut[index+1]= current_obstacles[local_obstacle_counter].center_y;
 	}

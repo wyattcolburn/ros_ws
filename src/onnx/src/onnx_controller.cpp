@@ -138,6 +138,7 @@ namespace onnx_controller
 	  
 
 
+	  
 	  // 2) Convert to float32
 	  std::vector<float> input_data_f(latest.size());
 	  for (size_t i = 0; i < (1085); ++i) {
@@ -147,8 +148,12 @@ namespace onnx_controller
 	  // 3) Define your input shape
 	  std::vector<int64_t> inputShape = {1, static_cast<int64_t>(1085)};
 
+	  float odom_x = latest[1086];
+	  float odom_y = latest[1087];
+
+
 	  std::vector<Obstacle> obstacle_data; 
-	  for (int obstacle_counter = 1086; obstaclce_counter < latest.size(); obstacle_counter+=2) {
+	  for (int obstacle_counter = 1088; obstaclce_counter < latest.size(); obstacle_counter+=2) {
 		  Obstacle current_obs;
 		  current_obs.center_x = latest[obstacle_counter];
 		  current_obs.center_y = latest[obstacle_counter + 1 ];
@@ -183,14 +188,16 @@ namespace onnx_controller
 
 	  // Now we want to modulate the output of the network
 	  float odom_x, odom_y, input_cmd_v, input_cmd_w; //need to add how we are going to include current odom to this
-      modulation_onnx(odom_x, odom_y,input_cmd_v, input_cmd_w, obstacle_data);
+      float output_cmd_v, output_cmd_w;
 
+	  std::pair<float, float> cmds =modulation_onnx(odom_x, odom_y,predicted_linear, predicted_angular, obstacle_data);
+	  
 
 	  // 7) Pack into TwistStamped
 	  geometry_msgs::msg::TwistStamped cmd_vel;
 	  cmd_vel.header.frame_id = pose.header.frame_id;
-	  cmd_vel.twist.linear.x  = predicted_linear;
-	  cmd_vel.twist.angular.z = predicted_angular;
+	  cmd_vel.twist.linear.x  = cmds.first;
+	  cmd_vel.twist.angular.z = cmds.second;
 
 	  return cmd_vel;
 	}
@@ -198,5 +205,4 @@ namespace onnx_controller
 
 
 }
-
 

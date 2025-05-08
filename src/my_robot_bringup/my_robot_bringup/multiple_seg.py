@@ -501,7 +501,7 @@ class MapTraining(Node):
         self.current_odom = (0.0, 0.0)
         
         self.OFFSET = 1.0
-        self.RADIUS = .5
+        self.RADIUS = .4
         self.NUM_VALID_OBS = 20
         self.NUM_LIDAR = 1080
         self.Obstacle_list = []
@@ -517,7 +517,7 @@ class MapTraining(Node):
 
 
         # Files for training data to be stored
-        self.input_bag = "/home/wyattcolburn/ros_ws/rosbag2_2025_05_02-15_39_18/"
+        self.input_bag = "/home/wyattcolburn/ros_ws/may2_rosbag/"
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
@@ -753,6 +753,13 @@ class MapTraining(Node):
 
         self.map_points = list(zip(self.map_x, self.map_y))
 
+        self.global_path = self.create_path_from_points(self.map_points)
+        self.local_goal_manager_ = Local_Goal_Manager(self.current_odom)
+        self.local_goal_manager_.global_path = self.global_path
+        self.local_goal_manager_.generate_local_goals_claude(self.global_path)
+        
+        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output) 
+
         self.current_odom = (self.map_points[0][0], self.map_points[0][1])
         self.segments = self.create_segments(self.map_points)
 
@@ -845,24 +852,24 @@ class MapTraining(Node):
     
     def main_loop(self):
     
-        output_folder = "rosbag_5_02_segments_3"
+        output_folder = "long_training_may_8"
         os.makedirs(output_folder, exist_ok=True)
         plt.figure(figsize=(8, 6))
         counter = 0
 
         path_x = [point[0] for point in self.map_points]
         path_y = [point[1] for point in self.map_points]
-        self.current_odom_index = 0
         for segment in self.segment_objects:
+            self.current_odom_index = 0
             for i, map_point in enumerate(segment.map_points):
                 self.current_odom = (map_point[0], map_point[1])
 
                 segment.local_goal_manager_.current_odom = self.current_odom
-                
-                local_data = self.ray_tracing(segment.global_path.poses[i].pose,segment) # get ray tracining values, now need to store them correctly with 
+                active_obstacle = segment.get_obstacles(i)
+                local_data = self.ray_tracing(segment.global_path.poses[i].pose,segment, active_obstacle) # get ray tracining values, now need to store them correctly with 
 
                 self.ray_data_append()
-                if i % 10 != 0:
+                if i % 50 != 0:
                     counter +=1
                     self.current_odom_index +=1
                     continue
@@ -872,7 +879,6 @@ class MapTraining(Node):
                 ax.set_aspect('equal')
                 # replot the base elements
                 plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="odometry path")
-                active_obstacle = segment.get_obstacles(self.current_odom_index)
 
 
                 print("local goal count") 
@@ -1238,14 +1244,13 @@ class MapTraining(Node):
 
         df.to_csv(output_csv, index=False)
         print(f"Saved {len(df)} messages to {output_csv}")
-    def ray_tracing(self, pose, segment):
+    def ray_tracing(self, pose, segment, active_obstacles):
         """
         Args: Takes the yaw, and the obstacle data 
         Output: Lidar data with 1080 values
         """
         local_data = [0] * self.NUM_LIDAR
         #active_obstacles = self.test_seg.obstacle_manager_.get_active_obstacles_claude(self.global_path, self.current_odom_index)
-        active_obstacles = segment.get_obstacles(self.current_odom_index)
 
         print(f"I am located at {(pose.position.x, pose.position.y)}")
         #print(f" len of active obstacles {len(active_obstacles)}")

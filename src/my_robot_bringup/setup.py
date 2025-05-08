@@ -33,6 +33,7 @@ setup(
             'training_node= my_robot_bringup.training_node:main',
             'validation_training=my_robot_bringup.validation_training:main',
             'map_traing=my_robot_bringup.map_train:main',
-            'map_frame=my_robot_bringup.training_map_frame:main']
+            'map_frame=my_robot_bringup.training_map_frame:main',
+            'multiple=my_robot_bringup.multiple_seg:main']
     },
 )
