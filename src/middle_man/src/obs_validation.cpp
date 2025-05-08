@@ -57,11 +57,14 @@ class obsValid: public rclcpp::Node
 		std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 		
 
-	    static constexpr size_t ODOM_FIELD_COUNT = 5;
+	    static constexpr size_t ODOM_FIELD_COUNT = 2; //odom current v, w
+		static constexpr size_t LOCAL_GOAL_COUNT = 3; //local goal x, y, yaw
 	    static constexpr size_t LIDAR_COUNT = 1080;
-	    double packetOut[ODOM_FIELD_COUNT + LIDAR_COUNT + NUM_VALID_OBSTACLES * 2]; //should be 1085 + obstacle data
+		static constexpr size_t CURRENT_ODOM = 3; //x, y, yaw:wq
+												  //
+	    double packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + CURRENT_ODOM + NUM_VALID_OBSTACLES * 2]; //should be 1085 + obstacle data
 
-	    double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT];
+	    double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT]; //pos_x, pos_y, cmd_v, cmd_w, yaw
 	    double odom_x, odom_y, local_goal_x, local_goal_y, yaw, current_cmd_v, current_cmd_w;
 
 	    double real_lidar_ranges[LIDAR_COUNT];
@@ -149,11 +152,13 @@ class obsValid: public rclcpp::Node
 
 	  void processPacketOut()
   {
-	packetOut[0] = odom_x;
-	packetOut[1] = odom_y;
-	packetOut[2] = current_cmd_v;
-	packetOut[3] = current_cmd_w;
-	packetOut[4] = yaw;
+	packetOut[0] = current_cmd_v;
+	packetOut[1] = current_cmd_w;
+
+	Local_Goal currentLG = local_goal_manager_.data_vector[current_local_goal_counter];
+	packetOut[2] = currentLG.x_point;
+	packetOut[3] = currentLG.y_point;
+	packetOut[4] = currentLG.yaw;
 
 	for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter++){
 		packetOut[5+lidar_counter] = hall_lidar_ranges[lidar_counter];
