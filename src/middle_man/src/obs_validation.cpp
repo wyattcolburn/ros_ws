@@ -61,7 +61,9 @@ class obsValid: public rclcpp::Node
 		static constexpr size_t LOCAL_GOAL_COUNT = 3; //local goal x, y, yaw
 	    static constexpr size_t LIDAR_COUNT = 1080;
 		static constexpr size_t CURRENT_ODOM = 3; //x, y, yaw:wq
-												  //
+							
+
+		bool path_flag = false;
 	    double packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + CURRENT_ODOM + NUM_VALID_OBSTACLES * 2]; //should be 1085 + obstacle data
 
 	    double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT]; //pos_x, pos_y, cmd_v, cmd_w, yaw
@@ -74,7 +76,13 @@ class obsValid: public rclcpp::Node
 		double map_y = 0;
 		double map_yaw = 0;
 	void data_callback(const std_msgs::msg::Float64MultiArray& packetin){
-		
+	
+
+		if (path_flag == false)
+		{	
+			std::cout << "Have yet to receive a path yet" << std::endl;
+			return;
+		}
 		processOdomLidar(packetin);	
 		std::cout << "**************** yaw value : " << yaw << std::endl;
 		 
@@ -151,30 +159,30 @@ class obsValid: public rclcpp::Node
 	}
 
 	  void processPacketOut()
-  {
-	packetOut[0] = current_cmd_v;
-	packetOut[1] = current_cmd_w;
+	  {
+		packetOut[0] = current_cmd_v;
+		packetOut[1] = current_cmd_w;
 
-	Local_Goal currentLG = local_goal_manager_.data_vector[local_goal_manager_.current_local_goal_counter];
-	packetOut[2] = currentLG.x_point;
-	packetOut[3] = currentLG.y_point;
-	packetOut[4] = currentLG.yaw;
+		Local_Goal currentLG = local_goal_manager_.data_vector[local_goal_manager_.current_local_goal_counter];
+		packetOut[2] = currentLG.x_point;
+		packetOut[3] = currentLG.y_point;
+		packetOut[4] = currentLG.yaw;
 
-	for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter++){
-		packetOut[5+lidar_counter] = hall_lidar_ranges[lidar_counter];
-	}
+		for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter++){
+			packetOut[5+lidar_counter] = hall_lidar_ranges[lidar_counter];
+		}
 
-	packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT +LIDAR_COUNT] = odom_x;
-	packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + 1] = odom_y;
+		packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT +LIDAR_COUNT] = odom_x;
+		packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + 1] = odom_y;
 
-	//filled with min lidar data
-	int num_obstacles;
-	const Obstacle* current_obstacles = obstacle_manager_.get_active_obstacles(num_obstacles);
-	for (int local_obstacle_counter = 0; local_obstacle_counter < num_obstacles; local_obstacle_counter++) {
-		int index = ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + 2 + local_obstacle_counter*2;
-		packetOut[index]= current_obstacles[local_obstacle_counter].center_x;
-		packetOut[index+1]= current_obstacles[local_obstacle_counter].center_y;
-	}
+		//filled with min lidar data
+		int num_obstacles;
+		const Obstacle* current_obstacles = obstacle_manager_.get_active_obstacles(num_obstacles);
+		for (int local_obstacle_counter = 0; local_obstacle_counter < num_obstacles; local_obstacle_counter++) {
+			int index = ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + 2 + local_obstacle_counter*2;
+			packetOut[index]= current_obstacles[local_obstacle_counter].center_x;
+			packetOut[index+1]= current_obstacles[local_obstacle_counter].center_y;
+		}
 
   }
 
@@ -242,6 +250,7 @@ class obsValid: public rclcpp::Node
 			
 			obstacle_manager_.local_goals_to_obs(local_goal_manager_); 
 			local_goal_manager_.set_distance_vector(odom_x, odom_y);
+			path_flag = true;
 		} else {
 			RCLCPP_WARN(this->get_logger(), "No local goals were added after transformation");
 		}
