@@ -12,3 +12,6 @@ ros_ws/utils/ray_frames*/
 ros_ws/utils/frame_test
 rosbag2_*
 *.db3
+good_training/
+may_2/
+long_training_may_8/
