@@ -3,7 +3,14 @@ project(onnx)
 # Install ONNX Runtime headers
 # Install ONNX Runtime library
 # Correct include and library paths
+install(DIRECTORY ${ONNXRUNTIME_INCLUDE_PATH}/
+  DESTINATION include/onnxruntime
+)
 
+# Install header files
+install(DIRECTORY include/
+  DESTINATION include/
+)
 
 # Enable C++17 for ONNX Runtime
 set(CMAKE_CXX_STANDARD 17)
@@ -46,11 +53,8 @@ set(dependencies
   std_msgs  # Added for Float64MultiArray
 )
 
-#include_directories(/home/mobrob/Downloads/onnxruntime-linux-x64-1.21.0/include)
-include_directories(/usr/local/include)
-
-#link_directories(/home/mobrob/Downloads/onnxruntime-linux-x64-1.21.0/lib)
-link_directories(/usr/local/lib)
+include_directories(/home/mobrob/Downloads/onnxruntime-linux-x64-1.21.0/include)
+link_directories(/home/mobrob/Downloads/onnxruntime-linux-x64-1.21.0/lib)
 # Create ONNX Plugin
 add_library(onnx_controller SHARED src/onnx_controller.cpp src/mpc.cpp)
 
@@ -73,6 +77,14 @@ install(TARGETS onnx_controller
 )
 
 # Install ONNX headers - updated to use correct path
+install(DIRECTORY ${ONNXRUNTIME_PATH}/include/
+  DESTINATION include/onnxruntime
+)
+
+# Install header files
+install(DIRECTORY include/
+  DESTINATION include/
+)
 
 
 # This macro ensures pluginlib can find the XML

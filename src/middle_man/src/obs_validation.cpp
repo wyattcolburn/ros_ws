@@ -155,7 +155,7 @@ class obsValid: public rclcpp::Node
 	packetOut[0] = current_cmd_v;
 	packetOut[1] = current_cmd_w;
 
-	Local_Goal currentLG = local_goal_manager_.data_vector[current_local_goal_counter];
+	Local_Goal currentLG = local_goal_manager_.data_vector[local_goal_manager_.current_local_goal_counter];
 	packetOut[2] = currentLG.x_point;
 	packetOut[3] = currentLG.y_point;
 	packetOut[4] = currentLG.yaw;
@@ -175,7 +175,6 @@ class obsValid: public rclcpp::Node
 		packetOut[index]= current_obstacles[local_obstacle_counter].center_x;
 		packetOut[index+1]= current_obstacles[local_obstacle_counter].center_y;
 	}
-	return;
 
   }
 

@@ -153,7 +153,7 @@ namespace onnx_controller
 
 
 	  std::vector<Obstacle> obstacle_data; 
-	  for (int obstacle_counter = 1088; obstaclce_counter < latest.size(); obstacle_counter+=2) {
+	  for (size_t obstacle_counter = 1088; obstacle_counter < latest.size(); obstacle_counter+=2) {
 		  Obstacle current_obs;
 		  current_obs.center_x = latest[obstacle_counter];
 		  current_obs.center_y = latest[obstacle_counter + 1 ];
@@ -187,8 +187,6 @@ namespace onnx_controller
 				  predicted_linear, predicted_angular);
 
 	  // Now we want to modulate the output of the network
-	  float odom_x, odom_y, input_cmd_v, input_cmd_w; //need to add how we are going to include current odom to this
-      float output_cmd_v, output_cmd_w;
 
 	  std::pair<float, float> cmds =modulation_onnx(odom_x, odom_y,predicted_linear, predicted_angular, obstacle_data);
 	  
