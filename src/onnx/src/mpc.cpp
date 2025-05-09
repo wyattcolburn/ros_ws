@@ -72,8 +72,8 @@ std::pair<float, float> modulation_onnx(float odom_x, float odom_y,
 		noisy_cmd_v = gaussian(input_cmd_v, 0, .1);
 		noisy_cmd_w = gaussian(input_cmd_w, 0, .1);
 		
-		x_future = odom_x + noisy_cmd_v* cos(noisy_cmd_w) * TIMESTEP*1000;
-		y_future = odom_y + noisy_cmd_v* sin(noisy_cmd_w) * TIMESTEP*1000;
+		x_future = odom_x + noisy_cmd_v* cos(noisy_cmd_w) * TIMESTEP*10;
+		y_future = odom_y + noisy_cmd_v* sin(noisy_cmd_w) * TIMESTEP*10;
 
 		T_BOT.center_x = x_future;
 		T_BOT.center_y = y_future;
@@ -82,11 +82,7 @@ std::pair<float, float> modulation_onnx(float odom_x, float odom_y,
 		for (int obs_counter = 0; obs_counter < 20 ; obs_counter++){
 			if (circles_intersect(T_BOT, obstacle_data[obs_counter])){
 				p_safety_counter++;
-				std::cout << "collision" << std::endl;
 				break;
-			}
-			else {
-				std::cout << "no collision, next obstacles" << std::endl;
 			}
 		}
 	}

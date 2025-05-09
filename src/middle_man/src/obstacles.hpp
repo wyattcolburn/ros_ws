@@ -8,7 +8,7 @@
 #include <algorithm>
 
 
-const float RADIUS=.5;
+const float RADIUS=.4;
 const int NUM_VALID_OBSTACLES=10;
 class Obstacle{
     public:	
@@ -18,7 +18,7 @@ class Obstacle{
 std::pair<Obstacle,Obstacle> create_obstacle(double current_lg_x, double current_lg_y, double next_lg_x, double next_lg_y);
 const int MAX_OBSTACLES = 100;
 
-const float OFFSET = 2.0;
+const float OFFSET = 1.0;
 struct ObstacleManager{
 
 	Obstacle obstacle_array[MAX_OBSTACLES];

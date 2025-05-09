@@ -1,9 +1,0 @@
-" Press ? for help
-
-.. (up a dir)
-</config/
-  localization.yaml
-  nav2.yaml
-  nav2_copy.yaml
-  onnx_nav2_params.yaml
-  slam.yaml

@@ -68,8 +68,14 @@ class ONNXController : public nav2_core::Controller
 		std_msgs::msg::Float64MultiArray latest_onnx_input_;
 
         void onnxInputCallback(const std_msgs::msg::Float64MultiArray::SharedPtr msg);
-};
 
+	private:
+		std::vector<float> feature_mins_;
+		std::vector<float> feature_maxs_;
+		// Add this helper function
+		bool loadScalerParameters(const std::string& min_file, const std::string& max_file);
+
+		};
 }   // namespace onnx_controller
 
 #endif  // ONNX_CONTROLLER__ONNX_CONTROLLER_HPP_
