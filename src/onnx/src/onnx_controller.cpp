@@ -69,7 +69,7 @@ namespace onnx_controller
 			RCLCPP_WARN(logger_, "Failed to load scaler parameters, using default normalization");
 			// Initialize with default values
 			feature_mins_.resize(1085, 0.0f);
-			feature_maxs_.resize(1085, 1.0f);
+			feature_scales_.resize(1085, 1.0f);
 		}
         // Load ONNX Model
         Ort::Env env;
@@ -174,13 +174,13 @@ namespace onnx_controller
 
 	    std::vector<float> input_data_f(1085);  // Only allocate what's needed for the model
 		// 2) Normalize the data from training values
-		for (size_t i = 0; i < 1085; ++i) {
-			// Apply MinMaxScaler normalization
-			if (feature_maxs_[i] > feature_mins_[i]) {  // Avoid division by zero
-				input_data_f[i] = static_cast<float>((latest[i] - feature_mins_[i]) / 
-												   (feature_maxs_[i] - feature_mins_[i]));
+
+		// Normalize input using min_ and scale_
+		for (size_t i = 0; i < feature_mins_.size(); ++i) {
+			if (feature_scales_[i] > 0) {  // Avoid division by zero
+				input_data_f[i] = static_cast<float>((latest[i] - feature_mins_[i]) / feature_scales_[i]);
 			} else {
-				input_data_f[i] = 0.0f;  // Handle case where min == max
+				input_data_f[i] = 0.5f;  // Handle case where scale is zero (constant feature)
 			}
 		}
 
@@ -247,21 +247,19 @@ namespace onnx_controller
 	    return cmd_vel;
 	  }
 
-
-
-	bool ONNXController::loadScalerParameters(const std::string& min_file, const std::string& max_file) {
+	bool ONNXController::loadScalerParameters(const std::string& min_file, const std::string& scale_file) {
 		std::ifstream min_stream(min_file);
-		std::ifstream max_stream(max_file);
+		std::ifstream scale_stream(scale_file);
 		
-		if (!min_stream.is_open() || !max_stream.is_open()) {
+		if (!min_stream.is_open() || !scale_stream.is_open()) {
 			RCLCPP_ERROR(logger_, "Failed to open scaler parameter files: %s or %s", 
-						min_file.c_str(), max_file.c_str());
+						min_file.c_str(), scale_file.c_str());
 			return false;
 		}
 		
 		// Clear existing data
 		feature_mins_.clear();
-		feature_maxs_.clear();
+		feature_scales_.clear();
 		
 		// Read min values
 		float value;
@@ -269,19 +267,19 @@ namespace onnx_controller
 			feature_mins_.push_back(value);
 		}
 		
-		// Read max values
-		while (max_stream >> value) {
-			feature_maxs_.push_back(value);
+		// Read scale values
+		while (scale_stream >> value) {
+			feature_scales_.push_back(value);
 		}
 		
 		// Verify we have the right number of parameters
-		if (feature_mins_.size() != 1085 || feature_maxs_.size() != 1085) {
-			RCLCPP_ERROR(logger_, "Incorrect number of scaler parameters: mins: %zu, maxs: %zu (expected 1085)",
-						feature_mins_.size(), feature_maxs_.size());
+		if (feature_mins_.size() != feature_scales_.size()) {
+			RCLCPP_ERROR(logger_, "Mismatched number of scaler parameters: mins: %zu, scales: %zu",
+						feature_mins_.size(), feature_scales_.size());
 			return false;
 		}
 		
-		RCLCPP_INFO(logger_, "Successfully loaded scaler parameters");
+		RCLCPP_INFO(logger_, "Successfully loaded scaler parameters: %zu features", feature_mins_.size());
 		return true;
 	}
 }

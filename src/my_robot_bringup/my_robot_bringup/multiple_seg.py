@@ -42,12 +42,14 @@ import pandas as pd
 
 class Segment():
 
-    def __init__(self, map_points, node, RADIUS, OFFSET):
+    def __init__(self, map_points, node, RADIUS, OFFSET, start_index=None,end_index=None):
 
         self.map_points = map_points
         self.node = node
         self.RADIUS = RADIUS
         self.OFFSET = OFFSET
+        self.start_index =  start_index
+        self.end_index = end_index
     def init(self):
         print("ininting")
         print(f"len of map points {len(self.map_points)}")
@@ -268,7 +270,7 @@ class Local_Goal_Manager():
             # Calculate distance with adaptive threshold
             segment_distance = self.distance_between_poses(current_pose, next_pose)
             adaptive_threshold = base_threshold * curvature_factor
-            print(f"accumulated_distance is {accumulated_distance}") 
+            #print(f"accumulated_distance is {accumulated_distance}") 
             accumulated_distance += segment_distance
             if accumulated_distance >= adaptive_threshold:
                 self.data.append(current_pose)
@@ -515,9 +517,9 @@ class MapTraining(Node):
         
         self.distances = [0] * self.NUM_LIDAR
 
-
+        self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/wyattcolburn/ros_ws/may2_rosbag/"
+        self.input_bag = "/home/wyattcolburn/ros_ws/rosbag2_2025_05_15-12_56_52/"
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
@@ -763,30 +765,11 @@ class MapTraining(Node):
         self.current_odom = (self.map_points[0][0], self.map_points[0][1])
         self.segments = self.create_segments(self.map_points)
 
-        self.segment_objects = []
-        for i, segment in enumerate(self.segments):
-            current_seg = Segment(self.segments[i], self, self.RADIUS, self.OFFSET)
-            current_seg.init()
-            self.segment_objects.append(current_seg)
 
-        #self.test_seg = Segment(self.segments[1], self, self.RADIUS, self.OFFSET)
-
-        #self.test_seg.init()
-        # create a global path
-        #self.global_path = self.create_path_from_points(self.segments[1])
-        #print(f"len of global path {len(self.global_path.poses)}")
-
-        # Create local goals from segment[0]
-        #self.local_goal_manager_ = Local_Goal_Manager(self.current_odom)
-        #self.local_goal_manager_.global_path = self.global_path
-        #self.local_goal_manager_.generate_local_goals_claude(self.global_path)
-   
-        #self.obstacle_manager_ = Obstacle_Manager(self.OFFSET, self.RADIUS, self.local_goal_manager_)
-    
-        # create the obstacles 
-        #self.obstacle_manager_.create_all_obstacle()
-        
-        self.main_loop() 
+        for seg in self.segments:
+            print(f"checking start and end index : {seg.start_index} and {seg.end_index}")
+        self.per_seg_loop(self.segments) 
+        #self.main_loop() 
     def setup(self):
         #self.test_obs_700()
         self.map_points = list(zip(self.map_x, self.map_y))
@@ -848,18 +831,111 @@ class MapTraining(Node):
         print("Saved png of obstacles and path")
         self.visualize_path_with_yaw()
         #self.segments = self.create_segments(self.map_points, self.global_path)
-        self.main_loop() 
+        self.per_seg_loop(self.segments)
+        #self.main_loop() 
     
+
+    def per_seg_loop(self, segments):
+
+        """
+        Args: Segment
+        Output: Nothing, data just written to CSV
+        Make a dkr
+        First, make odom_data.csv, cmd_vel_output.csv, local_goals.csv just for that section, 
+        ray_trace
+        """
+        for j, seg in enumerate(segments):
+            output_folder = f"{self.input_bag}/seg_{j}/input_data"
+            os.makedirs(output_folder, exist_ok=True)
+
+            odom_all = pd.read_csv(self.odom_csv_file)
+            odom_curr = odom_all[seg.start_index:seg.end_index]
+            odom_curr.to_csv(f"{output_folder}/odom_data.csv")
+            
+            cmd_all = pd.read_csv(self.cmd_output_csv)
+            cmd_curr = cmd_all[seg.start_index:seg.end_index]
+            cmd_curr.to_csv(f"{output_folder}/cmd_vel_output.csv")
+
+            local_goal_all = pd.read_csv(self.local_goals_output)
+            local_goal_curr = local_goal_all[seg.start_index:seg.end_index]
+            local_goal_curr.to_csv(f"{output_folder}/local_goals.csv")
+            
+            print(f"Segment {j}: start_index={seg.start_index}, end_index={seg.end_index}")
+            print(f"odom_all length: {len(odom_all)}")
+            print(f"cmd_all length: {len(cmd_all)}")
+            print(f"local_goal_all length: {len(local_goal_all)}")
+            
+
+            self.current_odom_index = 0
+            counter = 0
+
+            path_x = [point[0] for point in self.map_points]
+            path_y = [point[1] for point in self.map_points]
+
+            frames_folder = f"{output_folder}/frames"
+            os.makedirs(frames_folder, exist_ok=True)
+        
+            for i, map_point in enumerate(seg.map_points):
+
+                self.current_odom = (map_point[0], map_point[1])
+                seg.local_goal_manager_.current_odom = self.current_odom
+                active_obstacles = seg.get_obstacles(i)
+                ray_data = self.ray_tracing(seg.global_path.poses[i].pose,seg,active_obstacles)
+                self.ray_data_append(filename=f"{output_folder}/lidar_data.csv")
+
+                if i % 50 != 0:
+                    counter +=1
+                    self.current_odom_index +=1
+                    continue
+
+                plt.clf()  # clear previous plot
+                ax = plt.gca()
+                ax.set_aspect('equal')
+                # replot the base elements
+                plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="odometry path")
+
+
+                print("local goal count") 
+                for obstacle in active_obstacles:
+                    circle = patches.Circle(
+                    (obstacle.center_x, obstacle.center_y),
+                    radius=obstacle.radius,
+                    fill=False,
+                    color='red',
+                    linewidth=1.5,
+                    linestyle='-'
+                )
+                    ax.add_patch(circle)
+
+                plt.scatter(self.current_odom[0], self.current_odom[1], color='cyan', s=200, label='robot')
+
+                # plot the entire path
+                plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, color='black', label='odom path')
+                self.draw_rays_claude_2(self.current_odom[0], self.current_odom[1], ray_data, seg)
+                # save the frame
+                
+                frame_path = f"{frames_folder}/frame_{counter:03d}.png"
+                counter+=1
+                self.current_odom_index +=1
+                plt.savefig(frame_path)
+        
+            plt.close()
+            print("done with main loop")
+                
+
     def main_loop(self):
-    
-        output_folder = "long_training_may_8"
+   
+        """
+        I want to take in a list of segments, I want to create data sets for each of them
+        """
+        output_folder = "may14_test"
         os.makedirs(output_folder, exist_ok=True)
         plt.figure(figsize=(8, 6))
         counter = 0
 
         path_x = [point[0] for point in self.map_points]
         path_y = [point[1] for point in self.map_points]
-        for segment in self.segment_objects:
+        for j, segment in enumerate(self.segments):
             self.current_odom_index = 0
             for i, map_point in enumerate(segment.map_points):
                 self.current_odom = (map_point[0], map_point[1])
@@ -908,95 +984,43 @@ class MapTraining(Node):
             plt.close()
             print("done with main loop")
 
-        """
-        for i, map_point in enumerate(self.test_seg.map_points):
-
-            self.current_odom = (map_point[0], map_point[1])
-            #update_count_val = self.local_goal_manager_.update_claude(self.current_odom)
-
-            self.current_odom_index = i
-            self.test_seg.local_goal_manager_.current_odom = self.current_odom
-            #closest_local_goal = self.get_closest_local_goal_index(self.local_goal_manager_.data, self.current_odom[0], self.current_odom[1])
-            print(f"frame {i}")
-            #print(f"value from update : {update_count_val} closest local goal {closest_local_goal}")
-            local_data = self.ray_tracing(self.test_seg.global_path.poses[i].pose) # get ray tracining values, now need to store them correctly with 
-            #print(f"calculating ray tracing for position {i} and {self.global_path.poses[i].pose}")
-            self.ray_data_append()
-
-            if i % 10 != 0:
-                continue
-            plt.clf()  # clear previous plot
-            ax = plt.gca()
-            ax.set_aspect('equal')
-            # replot the base elements
-            plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="odometry path")
-            active_obstacle = self.test_seg.obstacle_manager_.get_active_obstacles_claude(self.test_seg.global_path, self.current_odom_index)
-
-
-            #current_local_goal_count = self.local_goal_manager_.get_local_goal_counter()
-            #total_goals = len(self.local_goal_manager_.data)
-            print("local goal count") 
-            #valid_border_min = max(0, current_local_goal_count - 4)
-            #valid_border_max = min(total_goals,  current_local_goal_count+ 20)
-            
-            #local_goal_list = self.test_seg.local_goal_manager_.data[valid_border_min: valid_border_max]
-            #
-            #print(f"len of local goal list {len(local_goal_list)}")
-            #for local_goal in local_goal_list:
-            #    plt.scatter(local_goal.pose.position.x, local_goal.pose.position.y, s=100, color='purple')  # s=100 for size equivalent to markersize=10
-            for obstacle in active_obstacle:
-                circle = patches.circle(
-                (obstacle.center_x, obstacle.center_y),
-                radius=obstacle.radius,
-                fill=false,
-                color='red',
-                linewidth=1.5,
-                linestyle='-'
-            )
-            #    ax.add_patch(circle)
-
-            plt.scatter(self.current_odom[0], self.current_odom[1], color='cyan', s=200, label='robot')
-            #path_x = [point[0] for point in self.map_points]
-            #path_y = [point[1] for point in self.map_points]
-            path_x = [point[0] for point in self.segments[1]]
-            path_y = [point[1] for point in self.segments[1]]
-
-            # plot the entire path
-            plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, color='black', label='odom path')
-            self.draw_rays_claude_2(self.current_odom[0], self.current_odom[1], local_data)
-            # save the frame
-            
-            frame_path = f"{output_folder}/frame_{i:03d}.png"
-            plt.savefig(frame_path)
-    
-        plt.close()
-        print("done with main loop")
-
-        """
 
     def create_segments(self, map_points):
         """
         Create segments which act like little global paths, so need to create obstacles for just that segment
 
         """
+        print("starting create_segments")
         segments = []
         current_segment = [map_points[0]]
+        start_index = 0
+        end_index = 0
         threshold = .15
         for i in range(1, len(map_points)):
 
             current_segment.append(map_points[i])
+            start_index 
 
             for j in range(len(current_segment) - 200):
                 if self.distance_between_points(current_segment[j], map_points[i]) < threshold:
-
-                    segments.append(current_segment)
+                    end_index = i
+                    curr_seg_ = Segment(current_segment, self, self.RADIUS, self.OFFSET, start_index, end_index)
+                    curr_seg_.init()
+                    start_index = i
+                    segments.append(curr_seg_)
                     current_segment = [map_points[i]]
-
+                    
                     break
         if current_segment:
-            segments.append(current_segment)
+
+            print(f"last segment : start index {start_index} and end {len(map_points)-1}")
+            print("*************************************")
+            curr_seg_ = Segment(current_segment, self, self.RADIUS, self.OFFSET, start_index, (len(map_points)-1))
+            curr_seg_.init()
+            segments.append(curr_seg_)
 
         self.plot_segments(segments)
+
 
         return segments
     def plot_segments(self, segments):
@@ -1006,8 +1030,8 @@ class MapTraining(Node):
         colors = plt.cm.jet(np.linspace(0, 1, len(segments)))
         
         for i, segment in enumerate(segments):
-            path_x = [point[0] for point in segment]
-            path_y = [point[1] for point in segment]
+            path_x = [point[0] for point in segment.map_points]
+            path_y = [point[1] for point in segment.map_points]
             
             # Plot each segment with a different color and add to legend
             plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, 
@@ -1137,29 +1161,6 @@ class MapTraining(Node):
             (pose2.pose.position.x, pose2.pose.position.y)
         )
 
-    def visual_path_goals(self):
-
-        """Takes self.global_path and self.local_goals and plots them
-        """
-        
-        if self.global_path == None:
-            return
-        plt.figure(figsize=(8,6))
-        active_obstacles = self.obstacle_manager_.get_active_obstacles()
-
-        for val in self.global_path.poses:
-            plt.plot(val.pose.position.x, val.pose.position.y, marker='o', linestyle='-',markersize=3,color='blue')
-
-        for goal in self.local_goal_manager_.data:
-            plt.plot(goal.pose.position.x, goal.pose.position.y, marker='o', linestyle='-',markersize=5,color='red')
-        if active_obstacles:
-            for obstacle in active_obstacles:
-                plt.plot(obstacle.center_x, obstacle.center_y, marker='o', linestyle='-',markersize=5,color='green')
-        else:
-            for obstacle in self.obstacle_manager_.obstacle_array:
-                plt.plot(obstacle.center_x, obstacle.center_y, marker='o', linestyle='-',markersize=5,color='green')
-
-        plt.show()
 
     def extract_messages(self, bag_path, topic):
         """Extract messages from a ROS 2 bag and store them in a dictionary grouped by timestamp."""
@@ -1244,6 +1245,7 @@ class MapTraining(Node):
 
         df.to_csv(output_csv, index=False)
         print(f"Saved {len(df)} messages to {output_csv}")
+
     def ray_tracing(self, pose, segment, active_obstacles):
         """
         Args: Takes the yaw, and the obstacle data 
@@ -1305,6 +1307,8 @@ class MapTraining(Node):
                 local_data[index] = min_distance
         self.get_logger().info("Calculated distances") 
         return local_data 
+
+
     def ray_data_append(self, filename=None):
 
         if filename is None:
@@ -1315,9 +1319,14 @@ class MapTraining(Node):
         
         with open(filename, 'a', newline='') as csvfile:  # Changed 'w' to 'a' for append mode
             writer = csv.writer(csvfile)
+            if self.lidar_header_flag:
+                headers = [f'lidar_{i}' for i in range(len(self.distances))]
+                writer.writerow(headers)
+                self.lidar_header_flag = False
             
             # Write data row - just the ray distances
-            writer.writerow(self.distances)  # Simplified to write the ray_data directly
+            writer.writerow(self.distances)   
+
     def get_yaw(self, pose: Pose) -> float:
         quat = (pose.orientation.x, pose.orientation.y,pose.orientation.z,
                 pose.orientation.w)
@@ -1354,6 +1363,8 @@ class MapTraining(Node):
         # Save only the timestamp, cmd_v, and cmd_w columns to the output CSV
         merged_df.to_csv(output_csv, index=False)
         return merged_df
+
+
 def main(args=None):
     rclpy.init(args=args)
     test_node = MapTraining()

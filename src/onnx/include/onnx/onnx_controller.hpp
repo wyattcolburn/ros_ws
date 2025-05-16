@@ -71,9 +71,9 @@ class ONNXController : public nav2_core::Controller
 
 	private:
 		std::vector<float> feature_mins_;
-		std::vector<float> feature_maxs_;
+		std::vector<float> feature_scales_;
 		// Add this helper function
-		bool loadScalerParameters(const std::string& min_file, const std::string& max_file);
+		bool loadScalerParameters(const std::string& min_file, const std::string& scale_file);
 
 		};
 }   // namespace onnx_controller
