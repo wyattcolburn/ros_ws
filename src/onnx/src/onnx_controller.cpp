@@ -18,6 +18,74 @@ PLUGINLIB_EXPORT_CLASS(onnx_controller::ONNXController, nav2_core::Controller)
 using nav2_util::declare_parameter_if_not_declared;
 using nav2_util::geometry_utils::euclidean_distance;
 
+std::vector<float> readCSVToFloats(const std::string& filename, char delimiter = ',', bool skipHeader = false) {
+    std::vector<float> data;
+    std::ifstream file(filename);
+    
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open file " << filename << std::endl;
+        return data;
+    }
+    
+    std::string line;
+    
+    // Skip the header row if skipHeader is true
+    if (skipHeader && std::getline(file, line)) {
+        // Optional: print header for debugging
+        // std::cout << "Skipped header: " << line << std::endl;
+    }
+    
+    // Read file contents into a string first
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string fileContents = buffer.str();
+    
+    // Make sure the last character is a newline for consistent parsing
+    if (!fileContents.empty() && fileContents.back() != '\n') {
+        fileContents.push_back('\n');
+    }
+    
+    // Parse each line
+    std::istringstream iss(fileContents);
+    int lineCount = 0;
+    
+    while (std::getline(iss, line)) {
+        lineCount++;
+        // Skip empty lines
+        if (line.empty()) continue;
+        
+        // For non-CSV files with one value per line (like your scaler files)
+        if (line.find(delimiter) == std::string::npos) {
+            try {
+                data.push_back(std::stof(line));
+            } catch (const std::exception& e) {
+                std::cerr << "Warning: Could not convert '" << line << "' to float. Using 0.0 instead." << std::endl;
+                data.push_back(0.0f);
+            }
+        } 
+        // For CSV files with delimiter-separated values
+        else {
+            std::stringstream ss(line);
+            std::string cell;
+            
+            while (std::getline(ss, cell, delimiter)) {
+                if (!cell.empty()) {
+                    try {
+                        data.push_back(std::stof(cell));
+                    } catch (const std::exception& e) {
+                        std::cerr << "Warning: Could not convert '" << cell << "' to float. Using 0.0 instead." << std::endl;
+                        data.push_back(0.0f);
+                    }
+                }
+            }
+        }
+    }
+    
+    std::cout << "Read " << lineCount << " lines and parsed " << data.size() << " values from " << filename << std::endl;
+    
+    file.close();
+    return data;
+}
 namespace onnx_controller
 {
     void ONNXController::configure(
@@ -61,16 +129,10 @@ namespace onnx_controller
 		
 
 		std::string scaler_min_path, scaler_max_path;
-		node->get_parameter(plugin_name_ + ".scaler_min_path", scaler_min_path);
-		node->get_parameter(plugin_name_ + ".scaler_max_path", scaler_max_path);
-    
-		// Load scaler parameters
-		if (!loadScalerParameters(scaler_min_path, scaler_max_path)) {
-			RCLCPP_WARN(logger_, "Failed to load scaler parameters, using default normalization");
-			// Initialize with default values
-			feature_mins_.resize(1085, 0.0f);
-			feature_maxs_.resize(1085, 1.0f);
-		}
+
+		feature_mins_= readCSVToFloats("/home/wyattcolburn/ros_ws/onnx/src/scaler_mins.txt");
+		feature_maxs_ = readCSVToFloats("/home/wyattcolburn/ros_ws/onnx/src/scaler_max.txt");
+
         // Load ONNX Model
         Ort::Env env;
         Ort::SessionOptions session_options;
@@ -174,13 +236,28 @@ namespace onnx_controller
 
 	    std::vector<float> input_data_f(1085);  // Only allocate what's needed for the model
 		// 2) Normalize the data from training values
-		for (size_t i = 0; i < 1085; ++i) {
-			// Apply MinMaxScaler normalization
-			if (feature_maxs_[i] > feature_mins_[i]) {  // Avoid division by zero
-				input_data_f[i] = static_cast<float>((latest[i] - feature_mins_[i]) / 
-												   (feature_maxs_[i] - feature_mins_[i]));
-			} else {
-				input_data_f[i] = 0.0f;  // Handle case where min == max
+
+		if (feature_mins_.size() != input_data_f.size() || feature_maxs_.size() != input_data_f.size()) {
+			std::cerr << "Error: Scaler min/max dimensions don't match input data dimensions!" << std::endl;
+			std::cerr << "feature_min size: " << feature_mins_.size() << ", features_max size: " << feature_maxs_.size() 
+					  << ", input_data size: " << input_data_f.size() << std::endl;
+			// Handle this error appropriately
+		} else {
+			// Apply MinMaxScaler normalization to each element
+			for (size_t i = 0; i < input_data_f.size(); i++) {
+				// Apply the same transformation that MinMaxScaler would do
+				// X_scaled = (X - X_min) / (X_max - X_min)
+				float range = feature_maxs_[i] - feature_mins_[i];
+				
+				// Avoid division by zero
+				if (range > 1e-10) {
+					input_data_f[i] = (input_data_f[i] - feature_mins_[i]) / range;
+				} else {
+					input_data_f[i] = 0; // Or any other default for constant features
+				}
+				
+				// Clip values to [0,1] range in case of out-of-bound inputs
+				input_data_f[i] = std::max(0.0f, std::min(input_data_f[i], 1.0f));
 			}
 		}
 
@@ -248,40 +325,4 @@ namespace onnx_controller
 	  }
 
 
-
-	bool ONNXController::loadScalerParameters(const std::string& min_file, const std::string& max_file) {
-		std::ifstream min_stream(min_file);
-		std::ifstream max_stream(max_file);
-		
-		if (!min_stream.is_open() || !max_stream.is_open()) {
-			RCLCPP_ERROR(logger_, "Failed to open scaler parameter files: %s or %s", 
-						min_file.c_str(), max_file.c_str());
-			return false;
-		}
-		
-		// Clear existing data
-		feature_mins_.clear();
-		feature_maxs_.clear();
-		
-		// Read min values
-		float value;
-		while (min_stream >> value) {
-			feature_mins_.push_back(value);
-		}
-		
-		// Read max values
-		while (max_stream >> value) {
-			feature_maxs_.push_back(value);
-		}
-		
-		// Verify we have the right number of parameters
-		if (feature_mins_.size() != 1085 || feature_maxs_.size() != 1085) {
-			RCLCPP_ERROR(logger_, "Incorrect number of scaler parameters: mins: %zu, maxs: %zu (expected 1085)",
-						feature_mins_.size(), feature_maxs_.size());
-			return false;
-		}
-		
-		RCLCPP_INFO(logger_, "Successfully loaded scaler parameters");
-		return true;
-	}
 }
