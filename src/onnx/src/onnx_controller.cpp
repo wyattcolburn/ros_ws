@@ -127,11 +127,15 @@ namespace onnx_controller
         node->get_parameter(plugin_name_ + ".max_linear_vel", max_linear_vel_);
         node->get_parameter(plugin_name_ + ".max_angular_vel", max_angular_vel_);
 		
-
+		node->get_parameter(plugin_name_ + ".scaler_min_path", scaler_min_path);
+		node->get_parameter(plugin_name_ + ".scaler_max_path", scaler_max_path);
+		feature_mins_ = readCSVToFloats(scaler_min_path);
+		feature_maxs_ = readCSVToFloats(scaler_max_path);
+		
 		std::string scaler_min_path, scaler_max_path;
 
-		feature_mins_= readCSVToFloats("/home/wyattcolburn/ros_ws/onnx/src/scaler_mins.txt");
-		feature_maxs_ = readCSVToFloats("/home/wyattcolburn/ros_ws/onnx/src/scaler_max.txt");
+        //feature_mins_= readCSVToFloats("/home/wyattcolburn/ros_ws/onnx/src/scaler_mins.txt");
+		//feature_maxs_ = readCSVToFloats("/home/wyattcolburn/ros_ws/onnx/src/scaler_max.txt");
 
         // Load ONNX Model
         Ort::Env env;
@@ -236,7 +240,6 @@ namespace onnx_controller
 
 	    std::vector<float> input_data_f(1085);  // Only allocate what's needed for the model
 		// 2) Normalize the data from training values
-
 		if (feature_mins_.size() != input_data_f.size() || feature_maxs_.size() != input_data_f.size()) {
 			std::cerr << "Error: Scaler min/max dimensions don't match input data dimensions!" << std::endl;
 			std::cerr << "feature_min size: " << feature_mins_.size() << ", features_max size: " << feature_maxs_.size() 
@@ -260,7 +263,6 @@ namespace onnx_controller
 				input_data_f[i] = std::max(0.0f, std::min(input_data_f[i], 1.0f));
 			}
 		}
-
 	  // 3) Define your input shape
 	    std::vector<int64_t> inputShape = {1, static_cast<int64_t>(1085)};
 

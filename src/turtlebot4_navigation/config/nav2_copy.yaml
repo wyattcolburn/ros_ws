@@ -100,7 +100,7 @@ controller_server:
     # DWB parameters
     FollowPath:
       plugin: "onnx_controller::ONNXController"
-      model_path: "/home/wyattcolburn/ros_ws/src/onnx/may_15_norm.onnx"
+      model_path: "/home/wyattcolburn/ros_ws/src/onnx/may15_min_max.onnx"
 
 
 local_costmap:
