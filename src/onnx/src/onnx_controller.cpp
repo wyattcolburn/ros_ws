@@ -129,8 +129,8 @@ namespace onnx_controller
 		
 		node->get_parameter(plugin_name_ + ".scaler_min_path", scaler_min_path);
 		node->get_parameter(plugin_name_ + ".scaler_max_path", scaler_max_path);
-		feature_mins_ = readCSVToFloats(scaler_min_path);
-		feature_maxs_ = readCSVToFloats(scaler_max_path);
+		//feature_mins_ = readCSVToFloats(scaler_min_path);
+		//feature_maxs_ = readCSVToFloats(scaler_max_path);
 		
 		std::string scaler_min_path, scaler_max_path;
 

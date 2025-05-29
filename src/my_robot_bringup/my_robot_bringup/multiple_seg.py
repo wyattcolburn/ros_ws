@@ -101,7 +101,11 @@ class Obstacle_Manager():
     def get_active_obstacles_claude(self, global_path=None, current_index=None):
         """Select obstacles based on distance to the current robot position."""
         # Get current robot position
-        robot_pos = self.local_goal_manager_.current_odom
+        if current_index is not None:
+            robot_pos = (self.local_goal_manager_.global_path.poses[current_index].pose.position.x, self.local_goal_manager_.global_path.poses[current_index].pose.position.y)
+        else:
+            robot_pos = self.local_goal_manager_.current_odom
+        #robot_pos = self.local_goal_manager_.current_odom
         print(f"active obstacles reference to where it is {robot_pos}") 
         # Calculate distance to each obstacle
         obstacles_with_distance = []
@@ -693,6 +697,7 @@ class MapTraining(Node):
                 self.map_x.append(None)
                 self.map_y.append(None)
 
+    
         self.segment_setup()
         #self.setup()
         self.get_logger().info(f"Transformed {len(self.map_x)} points to map frame.")
@@ -756,76 +761,72 @@ class MapTraining(Node):
 
         self.map_points = list(zip(self.map_x, self.map_y))
 
+        # Global stuff for training data
+
+        self.global_path = self.create_path_from_points(self.map_points)
+
+        self.local_goal_manager_ = Local_Goal_Manager((self.map_points[0][0], self.map_points[0][1]))
+
+        self.local_goal_manager_.global_path = self.global_path
+        self.local_goal_manager_.generate_local_goals_claude(self.global_path)
+
+        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output)
+
         self.current_odom = (self.map_points[0][0], self.map_points[0][1])
         self.segments = self.create_segments(self.map_points)
 
-        #self.process_segment(self.segments[3], 3)
-        for i, seg in enumerate(self.segments):
-            print(f"checking start and end index : {seg.start_index} and {seg.end_index}")
-            self.process_segment(seg, i)
-        #self.main_loop() 
-    def setup(self):
-        #self.test_obs_700()
-        self.map_points = list(zip(self.map_x, self.map_y))
-        self.global_path = self.create_path_from_points(self.map_points)
+        for seg in self.segments:
+            print(f"segment index {seg.start_index} and {seg.end_index}")
+            print(f"len of seg.map_points : {len(seg.map_points)}")
+        self.debug_segment_obstacles()
+        print("done")
+        self.process_segment(self.segments[0], 0)
 
-        self.current_odom = (self.map_points[0][0], self.map_points[0][1])
+
+    def debug_segment_obstacles(self, seg_index=0):  # Use a small segment
+        seg = self.segments[seg_index]
         
+        plt.figure(figsize=(12, 8))
         
-        self.local_goal_manager_ = Local_Goal_Manager(self.current_odom)
-        self.local_goal_manager_.global_path = self.global_path
-        self.local_goal_manager_.generate_local_goals_claude(self.global_path)
+        # Plot segment path
+        path_x = [p[0] for p in seg.map_points]
+        path_y = [p[1] for p in seg.map_points]
+        plt.plot(path_x, path_y, 'b-', linewidth=2, label='Segment Path')
         
-        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output) 
-
-        self.obstacle_manager_ = Obstacle_Manager(self.OFFSET, self.RADIUS,self.local_goal_manager_)
-        self.obstacle_manager_.create_all_obstacle()
-        #self.validate_obstacles()
-        print("VALIDATED ****************************")
-        print(f"FIRST POINT IS ********************************8 {self.map_points[0]}")
+        # Plot local goals for this segment
+        lg_x = [lg.pose.position.x for lg in seg.local_goal_manager_.data]
+        lg_y = [lg.pose.position.y for lg in seg.local_goal_manager_.data]
+        plt.scatter(lg_x, lg_y, c='green', s=50, label='Local Goals')
         
-        print("checking if a local goal exists in map_points")
-        # Check if a specific local goal exists in map pointsp
-        found, matching_point = self.is_pose_in_map_points(self.local_goal_manager_.data[0], self.map_points)
-        if found:
-            print(f"local goal exists within map points at {matching_point}")
-        else:
-            print("error local goal not in map points list")
-
-        output_folder = "obstacle_and_path_2"
-        os.makedirs(output_folder, exist_ok=True)
-        plt.figure(figsize=(8,6))
-
-        plt.clf()  # Clear previous plot
-        ax = plt.gca()
-        ax.set_aspect('equal')
-        # Replot the base elements
-        #plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
-        active_obstacle = self.obstacle_manager_.get_active_obstacles_claude()
-        for obstacle in self.obstacle_manager_.obstacle_array:
-            circle = patches.Circle(
-            (obstacle.center_x, obstacle.center_y),
-            radius=obstacle.radius,
-            fill=False,
-            color='red',
-            linewidth=1.5,
-            linestyle='-'
-    )
-            ax.add_patch(circle)
-
-        path_x = [point[0] for point in self.map_points]
-        path_y = [point[1] for point in self.map_points]
-
-        # Plot the entire path
-        plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, color='black', label='odom path')
-
-        frame_path = f"{output_folder}/obst_path.png"
-        plt.savefig(frame_path)
-
-        print("Saved png of obstacles and path")
-        self.visualize_path_with_yaw()
-        #self.segments = self.create_segments(self.map_points, self.global_path)
-        self.process_segment(self.segments[1])
+        # Plot ALL obstacles for this segment
+        for obs in seg.obstacle_manager_.obstacle_array:
+            circle = plt.Circle((obs.center_x, obs.center_y), obs.radius, 
+                               fill=False, color='red', linewidth=1)
+            plt.gca().add_patch(circle)
+        
+        # Test obstacle filtering at middle of segment
+        mid_index = len(seg.map_points) // 2
+        active_obs = seg.get_obstacles(mid_index)
+        
+        # Highlight active obstacles
+        for obs in active_obs:
+            circle = plt.Circle((obs.center_x, obs.center_y), obs.radius, 
+                               fill=False, color='orange', linewidth=3)
+            plt.gca().add_patch(circle)
+        
+        plt.title(f'Segment {seg_index} - Red=All Obstacles, Orange=Active')
+        plt.legend()
+        plt.axis('equal')
+        plt.grid(True)
+        plt.show()
+        
+        print(f"Total obstacles: {len(seg.obstacle_manager_.obstacle_array)}")
+        print(f"Active obstacles: {len(active_obs)}")
+        #self.process_segment(self.segments[0], 0)
+        
+        #for i, seg in enumerate(self.segments):
+        #    print(f"checking start and end index : {seg.start_index} and {seg.end_index}")
+        #    self.process_segment(seg, i)
         #self.main_loop() 
 
     def process_all_segments(self, segments):
@@ -867,18 +868,36 @@ class MapTraining(Node):
         print(f"cmd_all length: {len(cmd_all)}")
         print(f"local_goal_all length: {len(local_goal_all)}")
         
+        print(f"Reading odom from: {self.odom_csv_file}")
+        print(f"Reading cmd from: {self.cmd_output_csv}")  
+        print(f"Reading local_goals from: {self.local_goals_output}")
 
+        # Add these debug prints in process_segment:
+        odom_all = pd.read_csv(self.odom_csv_file)
+        odom_curr = odom_all[seg.start_index:seg.end_index]
+        print(f"Original odom shape: {odom_all.shape}")
+        print(f"Sliced odom shape: {odom_curr.shape}")
+        print(f"First few rows of sliced odom:")
+        print(odom_curr.head())
+
+        # Same for local_goals
+        local_goal_all = pd.read_csv(self.local_goals_output)
+        local_goal_curr = local_goal_all[seg.start_index:seg.end_index]
+        print(f"Original local_goals shape: {local_goal_all.shape}")
+        print(f"Sliced local_goals shape: {local_goal_curr.shape}")
+        print(f"First few rows of sliced local_goals:")
+        print(local_goal_curr.head())
         self.current_odom_index = 0
         counter = 0
 
-        path_x = [point[0] for point in self.map_points]
-        path_y = [point[1] for point in self.map_points]
+        path_x = [point[0] for point in seg.map_points]
+        path_y = [point[1] for point in seg.map_points]
 
         frames_folder = f"{output_folder}/frames"
         os.makedirs(frames_folder, exist_ok=True)
     
         for i, map_point in enumerate(seg.map_points[:len(cmd_curr)]):
-
+            
             self.current_odom = (map_point[0], map_point[1])
             seg.local_goal_manager_.current_odom = self.current_odom
             active_obstacles = seg.get_obstacles(i)
