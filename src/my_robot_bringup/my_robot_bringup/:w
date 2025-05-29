@@ -520,7 +520,7 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/wyattcolburn/ros_ws/may15_test"
+        self.input_bag = "/home/wyattcolburn/ros_ws/may19_rb/"
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
@@ -756,10 +756,17 @@ class MapTraining(Node):
 
         self.map_points = list(zip(self.map_x, self.map_y))
 
+        self.global_path = self.create_path_from_points(self.map_points)
+        self.local_goal_manager_ = Local_Goal_Manager(self.current_odom)
+        self.local_goal_manager_.global_path = self.global_path
+        self.local_goal_manager_.generate_local_goals_claude(self.global_path)
+        
+        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output) 
+
         self.current_odom = (self.map_points[0][0], self.map_points[0][1])
         self.segments = self.create_segments(self.map_points)
 
-        #self.process_segment(self.segments[3], 3)
+
         for i, seg in enumerate(self.segments):
             print(f"checking start and end index : {seg.start_index} and {seg.end_index}")
             self.process_segment(seg, i)
@@ -845,7 +852,7 @@ class MapTraining(Node):
         """
         
         self.lidar_header_flag = True
-        output_folder = f"{self.input_bag}/seg_{seg_index}_test_ind/input_data"
+        output_folder = f"{self.input_bag}/seg_{seg_index}_test/input_data"
         os.makedirs(output_folder, exist_ok=True)
 
         odom_all = pd.read_csv(self.odom_csv_file)
