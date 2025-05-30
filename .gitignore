@@ -16,3 +16,6 @@ good_training/
 may_2/
 long_training_may_8/
 may*
+*.csv
+input_data/
+**/input_data/
