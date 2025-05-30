@@ -519,7 +519,7 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/wyattcolburn/ros_ws/may19_large"
+        self.input_bag = "/home/wyattcolburn/ros_ws/may15_medium/"
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
@@ -766,9 +766,11 @@ class MapTraining(Node):
         self.segments = self.create_segments(self.map_points)
 
 
-        for seg in self.segments:
-            print(f"checking start and end index : {seg.start_index} and {seg.end_index}")
-        self.per_seg_loop(self.segments) 
+        self.per_seg_loop_once(self.segments[0], 0)
+        # Does not work, must do one by one ??, need to fix
+        #for i, seg in enumerate(self.segments):
+        #    print(f"checking start and end index : {seg.start_index} and {seg.end_index}")
+        #    self.per_seg_loop_once(seg, i) 
         #self.main_loop() 
     def setup(self):
         #self.test_obs_700()
@@ -835,6 +837,92 @@ class MapTraining(Node):
         #self.main_loop() 
     
 
+    def per_seg_loop_once(self, seg, seg_index):
+
+        """
+        Args: Segment
+        Output: Nothing, data just written to CSV
+        Make a dkr
+        First, make odom_data.csv, cmd_vel_output.csv, local_goals.csv just for that section, 
+        ray_trace
+        """
+        output_folder = f"{self.input_bag}/seg_{seg_index}/input_data"
+        os.makedirs(output_folder, exist_ok=True)
+
+        odom_all = pd.read_csv(self.odom_csv_file)
+        odom_curr = odom_all[seg.start_index:seg.end_index]
+        odom_curr.to_csv(f"{output_folder}/odom_data.csv")
+        
+        cmd_all = pd.read_csv(self.cmd_output_csv)
+        cmd_curr = cmd_all[seg.start_index:seg.end_index]
+        cmd_curr.to_csv(f"{output_folder}/cmd_vel_output.csv")
+
+        local_goal_all = pd.read_csv(self.local_goals_output)
+        local_goal_curr = local_goal_all[seg.start_index:seg.end_index]
+        local_goal_curr.to_csv(f"{output_folder}/local_goals.csv")
+        
+        print(f"Segment: start_index={seg.start_index}, end_index={seg.end_index}")
+        print(f"odom_all length: {len(odom_all)}")
+        print(f"cmd_all length: {len(cmd_all)}")
+        print(f"local_goal_all length: {len(local_goal_all)}")
+        
+
+        self.current_odom_index = 0
+        counter = 0
+
+        path_x = [point[0] for point in seg.map_points]
+        path_y = [point[1] for point in seg.map_points]
+
+        frames_folder = f"{output_folder}/frames"
+        os.makedirs(frames_folder, exist_ok=True)
+    
+        for i, map_point in enumerate(seg.map_points):
+
+            self.current_odom = (map_point[0], map_point[1])
+            seg.local_goal_manager_.current_odom = self.current_odom
+            active_obstacles = seg.get_obstacles(i)
+            ray_data = self.ray_tracing(seg.global_path.poses[i].pose,seg,active_obstacles)
+            self.ray_data_append(filename=f"{output_folder}/lidar_data.csv")
+
+            if i % 500 != 0:
+                counter +=1
+                self.current_odom_index +=1
+                continue
+
+            plt.clf()  # clear previous plot
+            ax = plt.gca()
+            ax.set_aspect('equal')
+            # replot the base elements
+            plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="odometry path")
+
+
+            print("local goal count") 
+            for obstacle in active_obstacles:
+                circle = patches.Circle(
+                (obstacle.center_x, obstacle.center_y),
+                radius=obstacle.radius,
+                fill=False,
+                color='red',
+                linewidth=1.5,
+                linestyle='-'
+            )
+                ax.add_patch(circle)
+
+            plt.scatter(self.current_odom[0], self.current_odom[1], color='cyan', s=200, label='robot')
+
+            # plot the entire path
+            plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, color='black', label='odom path')
+            self.draw_rays_claude_2(self.current_odom[0], self.current_odom[1], ray_data, seg)
+            # save the frame
+            
+            frame_path = f"{frames_folder}/frame_{counter:03d}.png"
+            counter+=1
+            self.current_odom_index +=1
+            plt.savefig(frame_path)
+    
+        plt.close()
+        print("done with main loop")
+                
     def per_seg_loop(self, segments):
 
         """
