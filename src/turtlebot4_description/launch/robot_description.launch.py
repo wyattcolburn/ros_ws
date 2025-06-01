@@ -46,7 +46,7 @@ def generate_launch_description():
     print("*********************************************************")
     print("\n\n\n\n")
 
-    pkg_turtlebot4_description = "/home/wyattcolburn/ros_ws/src/turtlebot4_description"
+    pkg_turtlebot4_description = "/home/wyatt/ros_ws/src/turtlebot4_description"
 
     print(pkg_turtlebot4_description)
     #get_package_share_directory('turtlebot4_description')

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10...3.18)
-project(middle_man)
+project(prep)
 
 # Find ament and ROS2 dependencies
 find_package(ament_cmake REQUIRED)

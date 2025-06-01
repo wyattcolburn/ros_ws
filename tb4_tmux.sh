@@ -17,7 +17,7 @@ tmux new-session -d -s $SESSION_NAME -n sim "ros2 launch turtlebot4_ignition_bri
 sleep 5
 
 # New window for localization
-tmux new-window -t $SESSION_NAME:1 -n localization "ros2 launch turtlebot4_navigation localization.launch.py map:=/home/wyattcolburn/ros_ws/big_map_april_4.yaml use_sim_time:=true"
+tmux new-window -t $SESSION_NAME:1 -n localization "ros2 launch turtlebot4_navigation localization.launch.py map:=/home/wyatt/ros_ws/big_map_april_4.yaml use_sim_time:=true"
 
 # Give localization time to start
 sleep 3
