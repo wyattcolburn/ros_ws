@@ -15,6 +15,7 @@
 # @author Roni Kreinin (rkreinin@clearpathrobotics.com)
 
 import os
+from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
@@ -45,8 +46,18 @@ def generate_launch_description():
     print("ENTERING CUSTOM ROBOT DESCRIPTION LAUNCH")
     print("*********************************************************")
     print("\n\n\n\n")
-
-    pkg_turtlebot4_description = "/home/wyatt/ros_ws/src/turtlebot4_description"
+    current_file = Path(__file__).resolve()
+    workspace_root = None
+    
+    for parent in current_file.parents:
+        if (parent / 'src').exists():
+            workspace_root = parent
+            break
+    
+    if workspace_root:
+        pkg_turtlebot4_description = str(workspace_root / 'src' / 'turtlebot4_description')
+    else:
+        raise RuntimeError("Could not find ROS workspace root")
 
     print(pkg_turtlebot4_description)
     #get_package_share_directory('turtlebot4_description')

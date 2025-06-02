@@ -519,7 +519,7 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/wyatt/ros_ws/may19_large/"
+        self.input_bag = "/home/wyatt/ros_ws/may15_medium/"
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
@@ -825,8 +825,8 @@ class MapTraining(Node):
             self.current_odom = (map_point[0], map_point[1])
             seg.local_goal_manager_.current_odom = self.current_odom
             active_obstacles = seg.get_obstacles(i)
-            ray_data = self.ray_tracing(seg.global_path.poses[i].pose,seg,active_obstacles)
-            self.ray_data_append(filename=f"{output_folder}/lidar_data.csv")
+            ray_data = self.ray_tracing(seg.global_path.poses[i].pose,active_obstacles)
+            self.ray_data_append(ray_data, filename=f"{output_folder}/lidar_data.csv")
 
             if i % 500 != 0:
                 counter +=1
@@ -1157,12 +1157,12 @@ class MapTraining(Node):
         df.to_csv(output_csv, index=False)
         print(f"Saved {len(df)} messages to {output_csv}")
 
-    def ray_tracing(self, pose, segment, active_obstacles):
+    def ray_tracing(self, pose, active_obstacles):
         """
         Args: Takes the yaw, and the obstacle data 
         Output: Lidar data with 1080 values
         """
-        local_data = [0] * self.NUM_LIDAR
+        local_data = [12] * self.NUM_LIDAR
         #active_obstacles = self.test_seg.obstacle_manager_.get_active_obstacles_claude(self.global_path, self.current_odom_index)
 
         print(f"I am located at {(pose.position.x, pose.position.y)}")
@@ -1220,7 +1220,7 @@ class MapTraining(Node):
         return local_data 
 
 
-    def ray_data_append(self, filename=None):
+    def ray_data_append(self, ray_data, filename=None):
 
         if filename is None:
             filename = self.lidar_file
@@ -1236,7 +1236,7 @@ class MapTraining(Node):
                 self.lidar_header_flag = False
             
             # Write data row - just the ray distances
-            writer.writerow(self.distances)   
+            writer.writerow(ray_data)   
 
     def get_yaw(self, pose: Pose) -> float:
         quat = (pose.orientation.x, pose.orientation.y,pose.orientation.z,

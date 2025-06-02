@@ -116,25 +116,25 @@ namespace onnx_controller
             node, plugin_name_ + ".max_angular_vel", rclcpp::ParameterValue(
                 1.0));
 
-		declare_parameter_if_not_declared(
-			node, plugin_name_ + ".scaler_min_path", rclcpp::ParameterValue(
-            "/home/wyattcolburn/ros_ws/src/onnx/src/scaler_mins.txt"));
-		declare_parameter_if_not_declared(
-			node, plugin_name_ + ".scaler_max_path", rclcpp::ParameterValue( "/home/wyattcolburn/ros_ws/src/onnx/src/scaler_max.txt"));
+		//declare_parameter_if_not_declared(
+		//	node, plugin_name_ + ".scaler_min_path", rclcpp::ParameterValue(
+            //"/home/wyatt/ros_ws/src/onnx/src/scaler_mins.txt"));
+		//declare_parameter_if_not_declared(
+	//		node, plugin_name_ + ".scaler_max_path", rclcpp::ParameterValue( "/home/wyatt/ros_ws/src/onnx/src/scaler_max.txt"));
 
 
         node->get_parameter(plugin_name_ + ".model_path", model_path_);
         node->get_parameter(plugin_name_ + ".max_linear_vel", max_linear_vel_);
         node->get_parameter(plugin_name_ + ".max_angular_vel", max_angular_vel_);
 		
-		node->get_parameter(plugin_name_ + ".scaler_min_path", scaler_min_path);
-		node->get_parameter(plugin_name_ + ".scaler_max_path", scaler_max_path);
-		//feature_mins_ = readCSVToFloats(scaler_min_path);
-		//feature_maxs_ = readCSVToFloats(scaler_max_path);
+	//	node->get_parameter(plugin_name_ + ".scaler_min_path", scaler_min_path);
+	//	node->get_parameter(plugin_name_ + ".scaler_max_path", scaler_max_path);
+		feature_mins_ = readCSVToFloats("/home/wyatt/ros_ws/src/onnx/src/combine_scaler_min.txt");
+		feature_maxs_ = readCSVToFloats("/home/wyatt/ros_ws/src/onnx/src/combine_scaler_max.txt");
 		
-
-        feature_mins_= readCSVToFloats("/home/wyatt/ros_ws/onnx/src/combined_scaler_mins.txt");
-	feature_maxs_ = readCSVToFloats("/home/wyatt/ros_ws/onnx/src/combined_scaler_max.txt");
+        RCLCPP_INFO(logger_, "Not loading in csv, do you see this?????????");
+        //feature_mins_= readCSVToFloats("/home/wyatt/ros_ws/onnx/src/combined_scaler_mins.txt");
+	//feature_maxs_ = readCSVToFloats("/home/wyatt/ros_ws/onnx/src/combined_scaler_max.txt");
 
         // Load ONNX Model
         Ort::Env env;
@@ -242,7 +242,11 @@ namespace onnx_controller
             for (size_t i = 0; i < 1085; i++){
                 input_data_f[i] = latest[i];
             }
-
+            RCLCPP_INFO(logger_, "Pre normalize");
+                    
+            for (size_t i = 0; i < 20; i++){
+                 RCLCPP_INFO(logger_, "input_data_f[%zu]: %f", i, input_data_f[i]);
+             }
 		// 2) Normalize the data from training values
             if (feature_mins_.size() != input_data_f.size() || feature_maxs_.size() != input_data_f.size()) {
                     std::cerr << "Error: Scaler min/max dimensions don't match input data dimensions!" << std::endl;
@@ -266,6 +270,11 @@ namespace onnx_controller
                             // Clip values to [0,1] range in case of out-of-bound inputs
                             input_data_f[i] = std::max(0.0f, std::min(input_data_f[i], 1.0f));
                     }
+                RCLCPP_INFO(logger_, "Normalization worked");
+            }
+                        
+            for (size_t i = 0; i < 20; i++){
+                RCLCPP_INFO(logger_, "input_data_f[%zu]: %f", i, input_data_f[i]);
             }
             // 3) Define your input shape
 	    std::vector<int64_t> inputShape = {1, static_cast<int64_t>(1085)};
