@@ -73,8 +73,8 @@ class ONNXController : public nav2_core::Controller
 		std::vector<float> feature_mins_;
 		std::vector<float> feature_maxs_;
 		// Add this helper function
-		std::string scaler_min_path = "/src/scaler_mins.txt";
-		std::string scaler_max_path = "/src/scaner_max.txt";
+		std::string scaler_min_path; 
+                std::string scaler_max_path;
 		};
 }   // namespace onnx_controller
 

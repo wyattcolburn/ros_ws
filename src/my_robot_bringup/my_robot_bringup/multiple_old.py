@@ -764,81 +764,14 @@ class MapTraining(Node):
 
         self.current_odom = (self.map_points[0][0], self.map_points[0][1])
         self.segments = self.create_segments(self.map_points)
-        
-        # self.create_excels(self.segments), only do this if not cached
+       
 
-        # Does not work, must do one by one ??, need to fix
-        #self.per_seg_loop_once(self.segments[2], 2)
         for i, seg in enumerate(self.segments):
             print(f"checking start and end index : {seg.start_index} and {seg.end_index}")
             self.per_seg_loop_once(seg, i) 
             print(f"done with seg : {i}")
-        #self.main_loop() 
-    def setup(self):
-        #self.test_obs_700()
-        self.map_points = list(zip(self.map_x, self.map_y))
-        self.global_path = self.create_path_from_points(self.map_points)
 
-        self.current_odom = (self.map_points[0][0], self.map_points[0][1])
-        
-        
-        self.local_goal_manager_ = Local_Goal_Manager(self.current_odom)
-        self.local_goal_manager_.global_path = self.global_path
-        self.local_goal_manager_.generate_local_goals_claude(self.global_path)
-        
-        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output) 
-
-        self.obstacle_manager_ = Obstacle_Manager(self.OFFSET, self.RADIUS,self.local_goal_manager_)
-        self.obstacle_manager_.create_all_obstacle()
-        #self.validate_obstacles()
-        print("VALIDATED ****************************")
-        print(f"FIRST POINT IS ********************************8 {self.map_points[0]}")
-        
-        print("checking if a local goal exists in map_points")
-        # Check if a specific local goal exists in map pointsp
-        found, matching_point = self.is_pose_in_map_points(self.local_goal_manager_.data[0], self.map_points)
-        if found:
-            print(f"local goal exists within map points at {matching_point}")
-        else:
-            print("error local goal not in map points list")
-
-        output_folder = "obstacle_and_path_2"
-        os.makedirs(output_folder, exist_ok=True)
-        plt.figure(figsize=(8,6))
-
-        plt.clf()  # Clear previous plot
-        ax = plt.gca()
-        ax.set_aspect('equal')
-        # Replot the base elements
-        #plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
-        active_obstacle = self.obstacle_manager_.get_active_obstacles_claude()
-        for obstacle in self.obstacle_manager_.obstacle_array:
-            circle = patches.Circle(
-            (obstacle.center_x, obstacle.center_y),
-            radius=obstacle.radius,
-            fill=False,
-            color='red',
-            linewidth=1.5,
-            linestyle='-'
-    )
-            ax.add_patch(circle)
-
-        path_x = [point[0] for point in self.map_points]
-        path_y = [point[1] for point in self.map_points]
-
-        # Plot the entire path
-        plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, color='black', label='odom path')
-
-        frame_path = f"{output_folder}/obst_path.png"
-        plt.savefig(frame_path)
-
-        print("Saved png of obstacles and path")
-        self.visualize_path_with_yaw()
-        #self.segments = self.create_segments(self.map_points, self.global_path)
-        self.per_seg_loop(self.segments)
-        #self.main_loop() 
-    
-
+ 
     def create_excels(self, segments):
 
         for i, seg in enumerate(segments):
@@ -1026,6 +959,7 @@ class MapTraining(Node):
         plt.tight_layout()
         plt.show()
         return plt.gcf()  # Return the figure if you want to save it later
+
     def draw_rays_claude_2(self, odom_x, odom_y, lidar_readings, segment):
         # Get robot's yaw from the current pose (you need to pass this as a parameter)
         robot_yaw = self.get_yaw(segment.global_path.poses[self.current_odom_index].pose)

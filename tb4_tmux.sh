@@ -11,21 +11,21 @@ if [ $? -eq 0 ]; then
 fi
 
 # Start new tmux session
-tmux new-session -d -s $SESSION_NAME -n sim "ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py"
+tmux new-session -d -s $SESSION_NAME:1 -n sim "ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py"
 
 # Give simulator time to start
 sleep 5
 
 # New window for localization
-tmux new-window -t $SESSION_NAME:1 -n localization "ros2 launch turtlebot4_navigation localization.launch.py map:=/home/wyatt/ros_ws/big_map_april_4.yaml use_sim_time:=true"
+tmux new-window -t $SESSION_NAME:2 -n localization "ros2 launch turtlebot4_navigation localization.launch.py map:=/home/wyatt/ros_ws/big_map_april_4.yaml use_sim_time:=true"
 
 # Give localization time to start
 sleep 3
 
 # New window for nav2
-tmux new-window -t $SESSION_NAME:2 -n nav2 "ros2 launch turtlebot4_navigation nav2.launch.py use_sim_time:=true"
+tmux new-window -t $SESSION_NAME:3 -n nav2 "ros2 launch turtlebot4_navigation nav2.launch.py use_sim_time:=true"
 
-tmux new-winow -t $SESSION_NAME:3 -n rviz "rviz2"
+tmux new-window -t $SESSION_NAME:4 -n rviz "rviz2"
 # Attach to session
 tmux attach-session -t $SESSION_NAME
 

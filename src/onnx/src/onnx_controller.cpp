@@ -132,10 +132,9 @@ namespace onnx_controller
 		//feature_mins_ = readCSVToFloats(scaler_min_path);
 		//feature_maxs_ = readCSVToFloats(scaler_max_path);
 		
-		std::string scaler_min_path, scaler_max_path;
 
-        //feature_mins_= readCSVToFloats("/home/wyattcolburn/ros_ws/onnx/src/scaler_mins.txt");
-		//feature_maxs_ = readCSVToFloats("/home/wyattcolburn/ros_ws/onnx/src/scaler_max.txt");
+        feature_mins_= readCSVToFloats("/home/wyatt/ros_ws/onnx/src/combined_scaler_mins.txt");
+	feature_maxs_ = readCSVToFloats("/home/wyatt/ros_ws/onnx/src/combined_scaler_max.txt");
 
         // Load ONNX Model
         Ort::Env env;
@@ -237,33 +236,38 @@ namespace onnx_controller
 		  return cmd_vel;
 	    }
 
-
+            // 1) Populate Data:
+            
 	    std::vector<float> input_data_f(1085);  // Only allocate what's needed for the model
+            for (size_t i = 0; i < 1085; i++){
+                input_data_f[i] = latest[i];
+            }
+
 		// 2) Normalize the data from training values
-		if (feature_mins_.size() != input_data_f.size() || feature_maxs_.size() != input_data_f.size()) {
-			std::cerr << "Error: Scaler min/max dimensions don't match input data dimensions!" << std::endl;
-			std::cerr << "feature_min size: " << feature_mins_.size() << ", features_max size: " << feature_maxs_.size() 
-					  << ", input_data size: " << input_data_f.size() << std::endl;
-			// Handle this error appropriately
-		} else {
-			// Apply MinMaxScaler normalization to each element
-			for (size_t i = 0; i < input_data_f.size(); i++) {
-				// Apply the same transformation that MinMaxScaler would do
-				// X_scaled = (X - X_min) / (X_max - X_min)
-				float range = feature_maxs_[i] - feature_mins_[i];
-				
-				// Avoid division by zero
-				if (range > 1e-10) {
-					input_data_f[i] = (input_data_f[i] - feature_mins_[i]) / range;
-				} else {
-					input_data_f[i] = 0; // Or any other default for constant features
-				}
-				
-				// Clip values to [0,1] range in case of out-of-bound inputs
-				input_data_f[i] = std::max(0.0f, std::min(input_data_f[i], 1.0f));
-			}
-		}
-	  // 3) Define your input shape
+            if (feature_mins_.size() != input_data_f.size() || feature_maxs_.size() != input_data_f.size()) {
+                    std::cerr << "Error: Scaler min/max dimensions don't match input data dimensions!" << std::endl;
+                    std::cerr << "feature_min size: " << feature_mins_.size() << ", features_max size: " << feature_maxs_.size() 
+                                      << ", input_data size: " << input_data_f.size() << std::endl;
+                    // Handle this error appropriately
+            } else {
+                    // Apply MinMaxScaler normalization to each element
+                    for (size_t i = 0; i < input_data_f.size(); i++) {
+                            // Apply the same transformation that MinMaxScaler would do
+                            // X_scaled = (X - X_min) / (X_max - X_min)
+                            float range = feature_maxs_[i] - feature_mins_[i];
+                            
+                            // Avoid division by zero
+                            if (range > 1e-10) {
+                                    input_data_f[i] = (input_data_f[i] - feature_mins_[i]) / range;
+                            } else {
+                                    input_data_f[i] = 0; // Or any other default for constant features
+                            }
+                            
+                            // Clip values to [0,1] range in case of out-of-bound inputs
+                            input_data_f[i] = std::max(0.0f, std::min(input_data_f[i], 1.0f));
+                    }
+            }
+            // 3) Define your input shape
 	    std::vector<int64_t> inputShape = {1, static_cast<int64_t>(1085)};
 
 	    float odom_x = latest[1086];
@@ -277,7 +281,7 @@ namespace onnx_controller
 		    current_obs.center_y = latest[obstacle_counter + 1 ];
 		    obstacle_data.push_back(current_obs);
 	    }
-	  // 4) Create the Ort tensor<float>
+	    // 4) Create the Ort tensor<float>
 	    auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
 	    Ort::Value inputTensor = Ort::Value::CreateTensor<float>(
 		    memory_info,
@@ -287,7 +291,7 @@ namespace onnx_controller
 		    inputShape.size()
 	    );
 
-	  // 5) Run inference
+	    // 5) Run inference
 	    const char* const* input_names  = input_name_.data();
 	    const char* const* output_names = output_name_.data();
 	    auto outputTensors = session_->Run(
