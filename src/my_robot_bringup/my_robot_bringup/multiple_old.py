@@ -519,7 +519,7 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/wyattcolburn/ros_ws/may15_medium/"
+        self.input_bag = "/home/wyatt/ros_ws/may19_large/"
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
@@ -764,13 +764,15 @@ class MapTraining(Node):
 
         self.current_odom = (self.map_points[0][0], self.map_points[0][1])
         self.segments = self.create_segments(self.map_points)
+        
+        # self.create_excels(self.segments), only do this if not cached
 
-
-        self.per_seg_loop_once(self.segments[0], 0)
         # Does not work, must do one by one ??, need to fix
-        #for i, seg in enumerate(self.segments):
-        #    print(f"checking start and end index : {seg.start_index} and {seg.end_index}")
-        #    self.per_seg_loop_once(seg, i) 
+        #self.per_seg_loop_once(self.segments[2], 2)
+        for i, seg in enumerate(self.segments):
+            print(f"checking start and end index : {seg.start_index} and {seg.end_index}")
+            self.per_seg_loop_once(seg, i) 
+            print(f"done with seg : {i}")
         #self.main_loop() 
     def setup(self):
         #self.test_obs_700()
@@ -837,41 +839,50 @@ class MapTraining(Node):
         #self.main_loop() 
     
 
+    def create_excels(self, segments):
+
+        for i, seg in enumerate(segments):
+            output_folder = f"{self.input_bag}/seg_{i}/input_data"
+
+            os.makedirs(output_folder, exist_ok=True)
+
+            odom_all = pd.read_csv(self.odom_csv_file)
+            odom_curr = odom_all[seg.start_index:seg.end_index]
+            odom_curr.to_csv(f"{output_folder}/odom_data.csv")
+            
+            cmd_all = pd.read_csv(self.cmd_output_csv)
+            cmd_curr = cmd_all[seg.start_index:seg.end_index]
+            cmd_curr.to_csv(f"{output_folder}/cmd_vel_output.csv")
+
+            local_goal_all = pd.read_csv(self.local_goals_output)
+            local_goal_curr = local_goal_all[seg.start_index:seg.end_index]
+            local_goal_curr.to_csv(f"{output_folder}/local_goals.csv")
+        
+            print(f"Segment: start_index={seg.start_index}, end_index={seg.end_index}")
+
+        print("created input csvs")
     def per_seg_loop_once(self, seg, seg_index):
 
         """
         Args: Segment
         Output: Nothing, data just written to CSV
-        Make a dkr
-        First, make odom_data.csv, cmd_vel_output.csv, local_goals.csv just for that section, 
-        ray_trace
+        Only creates lidar data
         """
         output_folder = f"{self.input_bag}/seg_{seg_index}/input_data"
         os.makedirs(output_folder, exist_ok=True)
 
-        odom_all = pd.read_csv(self.odom_csv_file)
-        odom_curr = odom_all[seg.start_index:seg.end_index]
-        odom_curr.to_csv(f"{output_folder}/odom_data.csv")
-        
-        cmd_all = pd.read_csv(self.cmd_output_csv)
-        cmd_curr = cmd_all[seg.start_index:seg.end_index]
-        cmd_curr.to_csv(f"{output_folder}/cmd_vel_output.csv")
-
-        local_goal_all = pd.read_csv(self.local_goals_output)
-        local_goal_curr = local_goal_all[seg.start_index:seg.end_index]
-        local_goal_curr.to_csv(f"{output_folder}/local_goals.csv")
-        
-        print(f"Segment: start_index={seg.start_index}, end_index={seg.end_index}")
-        print(f"odom_all length: {len(odom_all)}")
-        print(f"cmd_all length: {len(cmd_all)}")
-        print(f"local_goal_all length: {len(local_goal_all)}")
-        
 
         self.current_odom_index = 0
         counter = 0
+        
+        self.lidar_header_flag = True
 
-        path_x = [point[0] for point in seg.map_points]
-        path_y = [point[1] for point in seg.map_points]
+        lidar_file = f"{output_folder}/lidar_data.csv"
+        if os.path.exists(lidar_file):
+            os.remove(lidar_file)
+            print("lidar file")
+        #path_x = [point[0] for point in seg.map_points]
+        #path_y = [point[1] for point in seg.map_points]
 
         frames_folder = f"{output_folder}/frames"
         os.makedirs(frames_folder, exist_ok=True)
@@ -888,7 +899,7 @@ class MapTraining(Node):
                 counter +=1
                 self.current_odom_index +=1
                 continue
-
+            """
             plt.clf()  # clear previous plot
             ax = plt.gca()
             ax.set_aspect('equal')
@@ -917,10 +928,11 @@ class MapTraining(Node):
             
             frame_path = f"{frames_folder}/frame_{counter:03d}.png"
             counter+=1
-            self.current_odom_index +=1
             plt.savefig(frame_path)
     
         plt.close()
+            """
+            self.current_odom_index +=1
         print("done with main loop")
                 
 
@@ -935,29 +947,55 @@ class MapTraining(Node):
         start_index = 0
         end_index = 0
         threshold = .15
-        for i in range(1, len(map_points)):
+        cache_filename = f"{self.input_bag}/segments_cache.csv"
+        if os.path.exists(cache_filename):
+            with open(cache_filename, 'r') as file:
+                csv_reader = csv.reader(file)
 
-            current_segment.append(map_points[i])
-            start_index 
+                header = next(csv_reader)
+                print(f"header: {header}")
 
-            for j in range(len(current_segment) - 200):
-                if self.distance_between_points(current_segment[j], map_points[i]) < threshold:
-                    end_index = i
-                    curr_seg_ = Segment(current_segment, self, self.RADIUS, self.OFFSET, start_index, end_index)
-                    curr_seg_.init()
-                    start_index = i
-                    segments.append(curr_seg_)
-                    current_segment = [map_points[i]]
+                for row in csv_reader:
                     
-                    break
-        if current_segment:
+                    start_index = int(row[1])
+                    end_index = int(row[2])
+                    curr_seg = Segment(self.map_points[start_index:end_index+1], self, self.RADIUS, self.OFFSET, start_index, end_index)
+                    curr_seg.init()
+                    segments.append(curr_seg)
 
-            print(f"last segment : start index {start_index} and end {len(map_points)-1}")
-            print("*************************************")
-            curr_seg_ = Segment(current_segment, self, self.RADIUS, self.OFFSET, start_index, (len(map_points)-1))
-            curr_seg_.init()
-            segments.append(curr_seg_)
+        else:
+            print("values not cached yet")
+            for i in range(1, len(map_points)):
 
+                current_segment.append(map_points[i])
+
+                for j in range(len(current_segment) - 200):
+                    if self.distance_between_points(current_segment[j], map_points[i]) < threshold:
+                        end_index = i
+                        curr_seg_ = Segment(current_segment, self, self.RADIUS, self.OFFSET, start_index, end_index)
+                        curr_seg_.init()
+                        start_index = i
+                        segments.append(curr_seg_)
+                        current_segment = [map_points[i]]
+                        
+                        break
+            if current_segment:
+
+                print(f"last segment : start index {start_index} and end {len(map_points)-1}")
+                print("*************************************")
+                curr_seg_ = Segment(current_segment, self, self.RADIUS, self.OFFSET, start_index, (len(map_points)-1))
+                curr_seg_.init()
+                segments.append(curr_seg_)
+            
+            with open(cache_filename, 'w') as file:
+                csv_writer = csv.writer(file)
+
+                csv_writer.writerow(["seg_id", "start_index", "end_index"])
+                for i, seg in enumerate(segments):
+                    csv_writer.writerow([f"seg_{i}",seg.start_index, seg.end_index])
+
+                print(f"finish caching results at {cache_filename}")
+                self.create_excels(segments)
         self.plot_segments(segments)
 
 
