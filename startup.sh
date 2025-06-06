@@ -25,7 +25,7 @@ sleep 5
 
 # Launch localization in a new terminal
 echo "Starting localization with custom map..."
-launch_terminal "ros2 launch turtlebot4_navigation localization.launch.py map:=/home/wyattcolburn/ros_ws/big_map_april_4.yaml use_sim_time:=true" "TB4 Localization"
+launch_terminal "ros2 launch turtlebot4_navigation localization.launch.py map:=/home/wyatt/ros_ws/big_map_april_4.yaml use_sim_time:=true" "TB4 Localization"
 
 # Wait for localization to initialize
 sleep 3

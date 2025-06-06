@@ -14,8 +14,10 @@ if [ $? -eq 0 ]; then
     tmux kill-session -t $SESSION_NAME
 fi
 
+tmux new-session -d -s $SESSION_NAME -n rviz "rviz2 -d validation.rviz"
+sleep 3
 # Start new tmux session
-tmux new-session -d -s $SESSION_NAME -n sim "ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py"
+tmux new-window -t $SESSION_NAME -n sim "ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py"
 
 # Give simulator time to start
 sleep 5
@@ -29,7 +31,6 @@ sleep 3
 # New window for nav2
 tmux new-window -t $SESSION_NAME -n nav2 "ros2 launch turtlebot4_navigation nav2.launch.py use_sim_time:=true"
 
-tmux new-window -t $SESSION_NAME -n rviz "rviz2 -d validation.rviz"
 sleep 10
 tmux new-window -t $SESSION_NAME -n publish_features "colcon build --packages-select publish_features && source install/setup.bash && ros2 run publish_features publish_features_node"
 

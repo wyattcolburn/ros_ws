@@ -132,7 +132,6 @@ namespace onnx_controller
 		feature_mins_ = readCSVToFloats("/home/wyatt/ros_ws/src/onnx/src/combine_scaler_min.txt");
 		feature_maxs_ = readCSVToFloats("/home/wyatt/ros_ws/src/onnx/src/combine_scaler_max.txt");
 		
-        RCLCPP_INFO(logger_, "Not loading in csv, do you see this?????????");
         //feature_mins_= readCSVToFloats("/home/wyatt/ros_ws/onnx/src/combined_scaler_mins.txt");
 	//feature_maxs_ = readCSVToFloats("/home/wyatt/ros_ws/onnx/src/combined_scaler_max.txt");
 
