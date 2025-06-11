@@ -337,6 +337,10 @@ class obsValid : public rclcpp::Node {
             }
         }
     }
+
+    // int reached_goal(const double odom_x, const double odom_y, const goal_pose?) {
+    //     return 0;
+    // }
 };
 
 int main(int argc, char *argv[]) {
