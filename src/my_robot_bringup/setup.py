@@ -10,7 +10,7 @@ setup(
         # Install launch files
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/turtlebot4_ignition.launch.py', 'launch/ros_ign_bridge.launch.py', 'launch/sample_world.launch.py', 'launch/turtlebot4_nodes.launch.py', 'launch/basic_world.launch.py','launch/test_dependecies.launch.py', 'launch/turtlebot4_spawn.launch.py', 'launch/bag_poc.launch.py', 'launch/training.launch.py', 'launch/undock.launch.py', 'launch/testing.launch.py', 'launch/validation_training.launch.py']),
+        ('share/' + package_name + '/launch', ['launch/turtlebot4_ignition.launch.py', 'launch/ros_ign_bridge.launch.py', 'launch/sample_world.launch.py', 'launch/turtlebot4_nodes.launch.py', 'launch/basic_world.launch.py','launch/test_dependecies.launch.py', 'launch/turtlebot4_spawn.launch.py', 'launch/bag_poc.launch.py', 'launch/training.launch.py', 'launch/undock.launch.py', 'launch/testing.launch.py', 'launch/validation_training.launch.py', 'launch/simple_bringup.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

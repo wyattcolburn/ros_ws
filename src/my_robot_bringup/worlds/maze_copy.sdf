@@ -256,8 +256,7 @@
                 <collision name='wall4_collision'>
                     <geometry>
                         <box>
-                            <size>1 2 1</size>
-                        </box>
+                            <size>1 2 1</size> </box>
                     </geometry>
                 </collision>
                 <visual name='wall4_visual'>
