@@ -156,11 +156,12 @@ class Local_Goal_Manager {
         double smallest_distance = 10;
         for (size_t i = 0; i < data_vector.size(); i++) {
 
-            double dx = odom_x - data_vector[current_local_goal_counter].x_point;
-            double dy = odom_y - data_vector[current_local_goal_counter].y_point;
+            double dx = odom_x - data_vector[i].x_point;
+            double dy = odom_y - data_vector[i].y_point;
             double distance = std::sqrt(dx * dx + dy * dy);
             if (distance < smallest_distance) {
                 std::cout << "New local goal" << std::endl;
+                smallest_distance = distance;
                 current_local_goal_counter = i;
             }
         }

@@ -59,6 +59,7 @@ class obsValid : public rclcpp::Node {
     static constexpr size_t CURRENT_ODOM = 3; // x, y, yaw:wq
 
     bool path_flag = false;
+    bool goal_flag = false;
     double packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + CURRENT_ODOM +
                      NUM_VALID_OBSTACLES * 2]; // should be 1085 + obstacle data
 
@@ -71,10 +72,27 @@ class obsValid : public rclcpp::Node {
     double map_x = 0;
     double map_y = 0;
     double map_yaw = 0;
+
+    Local_Goal GOAL;
+
+    static constexpr double GOAL_THRESHOLD = .5;
     void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
 
         if (path_flag == false) {
             std::cout << "Have yet to receive a path yet" << std::endl;
+            return;
+        }
+
+        if (goal_flag == true) {
+            std::cout << "We have reached the goal" << std::endl;
+            int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
+            std_msgs::msg::Float64MultiArray msg;
+            msg.data.resize(packetOut_size);
+            for (size_t i = 0; i < packetOut_size; ++i) {
+                msg.data[i] = static_cast<double>(packetOut[i]);
+            }
+            msg.data[0] = 99.999;
+
             return;
         }
         processOdomLidar(packetin);
@@ -147,6 +165,7 @@ class obsValid : public rclcpp::Node {
         RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
         packetOut_publisher_->publish(msg);
         RCLCPP_INFO(this->get_logger(), "PUBLISHING NEURAL NET INPUT MESSAGE");
+        reached_goal(odom_x, odom_y);
         return;
     }
 
@@ -230,10 +249,15 @@ class obsValid : public rclcpp::Node {
             obstacle_manager_.local_goals_to_obs(local_goal_manager_);
             local_goal_manager_.set_distance_vector(odom_x, odom_y);
             path_flag = true;
+
+            GOAL.x_point = local_goal_manager_.data_vector.back().x_point;
+            GOAL.y_point = local_goal_manager_.data_vector.back().y_point;
+            GOAL.yaw = local_goal_manager_.data_vector.back().yaw;
+
+            std::cout << "GOAL after setting: (" << GOAL.x_point << ", " << GOAL.y_point << ")" << std::endl;
         } else {
             RCLCPP_WARN(this->get_logger(), "No local goals were added after transformation");
         }
-
         return;
     }
     void processOdomLidar(const std_msgs::msg::Float64MultiArray &packetIn) {
@@ -319,16 +343,13 @@ class obsValid : public rclcpp::Node {
             marker.color.a = 0.8;
 
             marker.lifetime = rclcpp::Duration::from_seconds(0.5);
-
             marker_array.markers.push_back(marker);
         }
-
         return marker_array;
     }
-
     void min_hall_lidar(const double *real_lidar, double *hall_lidar, size_t array_size) {
-        // Takes the real_lidar from /scan and compares to hall_lidar, want to have lowest possible values incase close
-        // to obstacle
+        // Takes the real_lidar from /scan and compares to hall_lidar, want to have lowest possible values incase
+        // close to obstacle
         for (size_t lidar_counter = 0; lidar_counter < array_size; lidar_counter++) {
             if ((hall_lidar[lidar_counter] > 0) && (real_lidar[lidar_counter] > 0)) {
                 if (real_lidar[lidar_counter] < hall_lidar[lidar_counter]) {
@@ -337,10 +358,24 @@ class obsValid : public rclcpp::Node {
             }
         }
     }
+    int reached_goal(const double odom_x, const double odom_y) {
+        double dx = odom_x - GOAL.x_point;
+        double dy = odom_y - GOAL.y_point;
+        double distance = std::sqrt(dx * dx + dy * dy);
 
-    // int reached_goal(const double odom_x, const double odom_y, const goal_pose?) {
-    //     return 0;
-    // }
+        std::cout << "Robot odom pos: (" << odom_x << ", " << odom_y << ")" << std::endl;
+        std::cout << "GOAL values: (" << GOAL.x_point << ", " << GOAL.y_point << ")" << std::endl;
+        std::cout << "dx: " << dx << ", dy: " << dy << std::endl;
+
+        if (distance < GOAL_THRESHOLD) {
+            std::cout << "REACH GOAL POSE" << std::endl;
+            goal_flag = true;
+            return 1;
+        } else {
+            std::cout << "dist to goal is : " << distance << std::endl;
+            return 0;
+        }
+    }
 };
 
 int main(int argc, char *argv[]) {
