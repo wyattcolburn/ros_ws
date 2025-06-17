@@ -143,8 +143,6 @@ class obsValid : public rclcpp::Node {
 
         map_compute_lidar_distances(map_x, map_y, map_yaw, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges,
                                     *tf_buffer_);
-        // size_t hall_array_length = sizeof(hall_lidar_ranges) / sizeof(hall_lidar_ranges[0]);
-        // min_hall_lidar(real_lidar_ranges, hall_lidar_ranges, hall_array_length);
         processPacketOut();
 
         int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
@@ -213,7 +211,7 @@ class obsValid : public rclcpp::Node {
             RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
             return;
         }
-
+        // translate local goals into odom points
         for (size_t i = 0; i < pathMsg->poses.size(); i += 8) {
             // Transform position from map to odom frame
             geometry_msgs::msg::PoseStamped pose_in_map;
@@ -240,7 +238,7 @@ class obsValid : public rclcpp::Node {
         }
 
         RCLCPP_INFO(this->get_logger(), "Our current Odom position is %f %f", odom_x, odom_y);
-
+        // add to local goal manager to create obstacles
         if (local_goal_manager_.get_num_lg() > 0) {
             RCLCPP_INFO(this->get_logger(), "FIRST GOAL VALUES ARE %f and %f",
                         local_goal_manager_.data_vector[0].x_point, local_goal_manager_.data_vector[0].y_point);
