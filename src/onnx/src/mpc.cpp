@@ -48,10 +48,9 @@ std::pair<float, float> modulation_onnx(float odom_x, float odom_y, float input_
      *
      *
      */
-
-    // num of obstacles
-    // obstacles
-
+    if (obstacle_data.empty()) {
+        return {input_cmd_v, input_cmd_w};
+    }
     // modulate low angular velocity
     if (std::abs(input_cmd_w) < .04) {
         input_cmd_w = 0;
@@ -78,18 +77,22 @@ std::pair<float, float> modulation_onnx(float odom_x, float odom_y, float input_
         T_BOT.center_y = y_future;
 
         std::cout << "x future, y future" << x_future << "  " << y_future << std::endl;
-        for (int obs_counter = 0; obs_counter < 20; obs_counter++) {
+
+        for (size_t obs_counter = 0; obs_counter < obstacle_data.size(); obs_counter++) {
             if (circles_intersect(T_BOT, obstacle_data[obs_counter])) {
                 p_safety_counter++;
                 break;
             }
         }
     }
-
+    // Equation in the paper is e^(w1-w2(1-P(safety)), where no collisions equals 150 speed up
+    // versus 50 percent slow down
     std::cout << "num of collisions" << p_safety_counter << std::endl;
     float p_safety = float(p_safety_counter) / float(attempt_lim);
-    float exponent = (W1 - W2 * (1 - p_safety));
+    float exponent = (W1 - W2 * (p_safety));
     float mod_factor = std::exp(exponent);
+
+    std::cout << "mod factor is " << mod_factor << std::endl;
 
     float mod_cmd_v = input_cmd_v * mod_factor;
     float mod_cmd_w = input_cmd_w * mod_factor;

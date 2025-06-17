@@ -53,7 +53,6 @@ std::vector<float> readCSVToFloats(const std::string &filename, char delimiter =
         // Skip empty lines
         if (line.empty())
             continue;
-
         // For non-CSV files with one value per line (like your scaler files)
         if (line.find(delimiter) == std::string::npos) {
             try {
@@ -186,10 +185,10 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
                                                                          const geometry_msgs::msg::Twist &,
                                                                          nav2_core::GoalChecker *) {
 
-    const float min_linear_vel = 0;
-    const float max_linear_vel = .3;
-    const float min_angular_vel = -1.4;
-    const float max_angular_vel = 1.4;
+    static const float min_linear_vel = 0;
+    static const float max_linear_vel = .3;
+    static const float min_angular_vel = -1.4;
+    static const float max_angular_vel = 1.4;
 
     RCLCPP_INFO(logger_, "REACHING COMPUTE VELOCITY");
 

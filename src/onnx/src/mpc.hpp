@@ -8,7 +8,7 @@
 const float W1 = .4;
 const float W2 = 1.0;
 const float TIMESTEP = .05;
-const float TURTLEBOT_RADIUS = 10; // 342 x 339 mm
+const float TURTLEBOT_RADIUS = .24f; // 342 x 339 mm
 float gaussian(float input_val, float mean, float std_dev);
 
 bool circles_intersect(const Obstacle &c1, const Obstacle &c2);
