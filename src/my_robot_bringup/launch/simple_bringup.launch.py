@@ -63,10 +63,33 @@ def generate_launch_description():
         cmd=['ros2', 'action', 'send_goal', '/undock', 'irobot_create_msgs/action/Undock', '{}'],
         output='screen'
     )
+    initial_pose_command = ExecuteProcess(
+    cmd=[
+        'ros2', 'topic', 'pub', '--once', '/initialpose', 'geometry_msgs/msg/PoseWithCovarianceStamped',
+        '{'
+        '"header": {"frame_id": "map"}, '
+        '"pose": {'
+        '"pose": {'
+        '"position": {"x": 0.0, "y": 0.0, "z": 0}, '
+        '"orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}'
+        '}'
+        '}'
+        '}'
+    ],
+    output='screen'
+    )
     undock_with_delay = TimerAction(
         period=15.0,  # Delay in seconds
         actions=[undock_command]
     )
+
+
+    init_command = TimerAction(
+            period=10.0,
+            actions=[initial_pose_command])
+    #
+    # ign service -s /world/maze/set_pose --reqtype ignition.msgs.Pose --reptype ignition.msgs.Boolean --timeout 1000 --req 'name: "turtlebot4", position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}'
+    # data: true
 
     #bag_record = ExecuteProcess(
     #cmd=['ros2', 'bag', 'record', '/scan', '/scan_spoofed','/tf', '/tf_static', '/odom', '/cmd_vel'],
@@ -77,6 +100,8 @@ def generate_launch_description():
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
+    ld.add_action(init_command)
+    ld.add_action(undock_with_delay)
     return ld
 
 
