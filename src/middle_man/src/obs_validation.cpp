@@ -82,19 +82,19 @@ class obsValid : public rclcpp::Node {
             std::cout << "Have yet to receive a path yet" << std::endl;
             return;
         }
-
-        if (goal_flag == true) {
-            std::cout << "We have reached the goal" << std::endl;
-            int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
-            std_msgs::msg::Float64MultiArray msg;
-            msg.data.resize(packetOut_size);
-            for (size_t i = 0; i < packetOut_size; ++i) {
-                msg.data[i] = static_cast<double>(packetOut[i]);
-            }
-            msg.data[0] = 99.999;
-
-            return;
-        }
+        //
+        // if (goal_flag == true) {
+        //     std::cout << "We have reached the goal" << std::endl;
+        //     int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
+        //     std_msgs::msg::Float64MultiArray msg;
+        //     msg.data.resize(packetOut_size);
+        //     for (size_t i = 0; i < packetOut_size; ++i) {
+        //         msg.data[i] = static_cast<double>(packetOut[i]);
+        //     }
+        //     msg.data[0] = 99.999;
+        //
+        //     return;
+        // }
         processOdomLidar(packetin);
         std::cout << "**************** yaw value : " << yaw << std::endl;
 
@@ -194,10 +194,6 @@ class obsValid : public rclcpp::Node {
     }
 
     void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
-        if (local_goal_manager_.get_num_lg() > 0) {
-            RCLCPP_INFO(this->get_logger(), "ALREADY HAVE LOCAL GOALS");
-            return;
-        }
 
         RCLCPP_INFO(this->get_logger(), "Received %zu poses in frame %s", pathMsg->poses.size(),
                     pathMsg->header.frame_id.c_str());
@@ -211,6 +207,8 @@ class obsValid : public rclcpp::Node {
             RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
             return;
         }
+
+        local_goal_manager_.clean_data();
         // translate local goals into odom points
         for (size_t i = 0; i < pathMsg->poses.size(); i += 8) {
             // Transform position from map to odom frame
@@ -228,7 +226,6 @@ class obsValid : public rclcpp::Node {
                                   pose_in_odom.pose.orientation.z, pose_in_odom.pose.orientation.w);
                 double roll, pitch, yaw;
                 tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-
                 // Add transformed goal to manager
                 local_goal_manager_.add_local_goal(pose_in_odom.pose.position.x, pose_in_odom.pose.position.y, yaw);
             } catch (tf2::TransformException &ex) {
@@ -243,7 +240,7 @@ class obsValid : public rclcpp::Node {
             RCLCPP_INFO(this->get_logger(), "FIRST GOAL VALUES ARE %f and %f",
                         local_goal_manager_.data_vector[0].x_point, local_goal_manager_.data_vector[0].y_point);
             RCLCPP_INFO(this->get_logger(), "SIZE OF LOCAL_GOAL_VECTOR %d", local_goal_manager_.get_num_lg());
-
+            obstacle_manager_.clean_data(); // reset the obstacles array
             obstacle_manager_.local_goals_to_obs(local_goal_manager_);
             local_goal_manager_.set_distance_vector(odom_x, odom_y);
             path_flag = true;

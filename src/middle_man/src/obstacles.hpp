@@ -3,10 +3,10 @@
 #include "local_goal.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 #include <utility>
 #include <vector>
-
 const float RADIUS = .4;
 const int NUM_VALID_OBSTACLES = 20;
 class Obstacle {
@@ -14,9 +14,7 @@ class Obstacle {
     double center_x, center_y, radius;
 };
 // function prototypes
-std::pair<Obstacle, Obstacle> create_obstacle(double current_lg_x,
-                                              double current_lg_y,
-                                              double next_lg_x,
+std::pair<Obstacle, Obstacle> create_obstacle(double current_lg_x, double current_lg_y, double next_lg_x,
                                               double next_lg_y);
 const int MAX_OBSTACLES = 100;
 
@@ -55,9 +53,7 @@ struct ObstacleManager {
         std::vector<Local_Goal> local_goal_vec;
         local_goal_vec = local_manager_.getLocalGoalVector();
 
-        for (int lg_counter = 0;
-             lg_counter < static_cast<int>(local_goal_vec.size() - 1);
-             lg_counter++) {
+        for (int lg_counter = 0; lg_counter < static_cast<int>(local_goal_vec.size() - 1); lg_counter++) {
 
             if (lg_counter + 1 > local_goal_vec.size()) {
                 return;
@@ -66,13 +62,11 @@ struct ObstacleManager {
             Local_Goal next_lg = local_goal_vec[lg_counter + 1];
 
             std::pair<Obstacle, Obstacle> obs_pair =
-                create_obstacle(current_lg.x_point, current_lg.y_point,
-                                next_lg.x_point, next_lg.y_point);
+                create_obstacle(current_lg.x_point, current_lg.y_point, next_lg.x_point, next_lg.y_point);
             add_obstacle(obs_pair.first);
             add_obstacle(obs_pair.second);
 
-            std::cout << "Obstacle at " << obs_pair.first.center_x << "  "
-                      << obs_pair.first.center_y << std::endl;
+            std::cout << "Obstacle at " << obs_pair.first.center_x << "  " << obs_pair.first.center_y << std::endl;
         }
         return;
     }
@@ -81,24 +75,17 @@ struct ObstacleManager {
         // current goal is local_goal_counter,
         //  sliding window is, local_goal_counter ------------ +10
 
-        int local_goal_counter =
-            local_manager_
-                .get_local_goal_counter(); // returns which local goal we are
-                                           // on, if we are on local goal 0, we
-                                           // are on obstacle 0,1
+        int local_goal_counter = local_manager_.get_local_goal_counter(); // returns which local goal we are
+                                                                          // on, if we are on local goal 0, we
+                                                                          // are on obstacle 0,1
         std::cout << "local goal counter" << local_goal_counter << std::endl;
-        std::cout << "sliding window bounds are: " << local_goal_counter
-                  << "   to   "
-                  << std::min(NUM_VALID_OBSTACLES - 1 + local_goal_counter,
-                              obstacle_count)
-                  << std::endl;
+        std::cout << "sliding window bounds are: " << local_goal_counter << "   to   "
+                  << std::min(NUM_VALID_OBSTACLES - 1 + local_goal_counter, obstacle_count) << std::endl;
 
         for (int counter = 0; counter < obstacle_count; counter++) {
             // std::cout << "counter for loop" << counter << std::endl;
             if ((counter >= local_goal_counter) &&
-                (counter <=
-                 std::min(local_goal_counter + NUM_VALID_OBSTACLES - 1,
-                          obstacle_count))) {
+                (counter <= std::min(local_goal_counter + NUM_VALID_OBSTACLES - 1, obstacle_count))) {
                 is_active[counter] = true;
             }
 
@@ -106,8 +93,7 @@ struct ObstacleManager {
                 is_active[counter] = false;
             }
         }
-        std::cout << "have arrived to the end of update obstacle function"
-                  << std::endl;
+        std::cout << "have arrived to the end of update obstacle function" << std::endl;
         return;
     }
 
@@ -123,6 +109,16 @@ struct ObstacleManager {
         }
 
         return active_obs;
+    }
+
+    void clean_data() {
+        // new path so need to make new obstacles
+        for (int i = 0; i < MAX_OBSTACLES; i++) {
+            is_active[i] = false;
+        }
+        obstacle_count = 0;
+        memset(obstacle_array, 0, sizeof(obstacle_array));
+        return;
     }
 };
 

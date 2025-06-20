@@ -168,6 +168,15 @@ class Local_Goal_Manager {
 
         return 0;
     }
+
+    void clean_data() {
+        if (!data_vector.empty()) {
+
+            data_vector.clear();
+            std::cout << "data vector has been cleared" << std::endl;
+        }
+        return;
+    }
 };
 
 #endif
