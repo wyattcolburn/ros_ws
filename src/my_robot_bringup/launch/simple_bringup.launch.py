@@ -78,15 +78,36 @@ def generate_launch_description():
     ],
     output='screen'
     )
+
+    # Add after your existing timer actions
+    navigation_goal_command = ExecuteProcess(
+        cmd=[
+            'ros2', 'action', 'send_goal', '/navigate_to_pose', 'nav2_msgs/action/NavigateToPose',
+            '{'
+            '"pose": {'
+            '"header": {"frame_id": "map"}, '
+            '"pose": {'
+            '"position": {"x": -8.0, "y": 0.0, "z": 0.0}, '  # Set your target coordinates
+            '"orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}'
+            '}'
+            '}'
+            '}'
+        ],
+        output='screen'
+    )
+
     undock_with_delay = TimerAction(
-        period=15.0,  # Delay in seconds
+        period=25.0,  # Delay in seconds
         actions=[undock_command]
     )
 
 
     init_command = TimerAction(
-            period=10.0,
+            period=20.0,
             actions=[initial_pose_command])
+    goal_command = TimerAction(
+            period=40.0,
+            actions=[navigation_goal_command])
     #
     # ign service -s /world/maze/set_pose --reqtype ignition.msgs.Pose --reptype ignition.msgs.Boolean --timeout 1000 --req 'name: "turtlebot4", position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}'
     # data: true
@@ -102,6 +123,7 @@ def generate_launch_description():
     ld.add_action(robot_spawn)
     ld.add_action(init_command)
     ld.add_action(undock_with_delay)
+    #ld.add_action(goal_command)
     return ld
 
 
