@@ -21,20 +21,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'lidar_subscriber = my_robot_bringup.lidar_subscriber:main',
-            'lidar_test_world= my_robot_bringup.lidar_test:main',
             'random_motor= my_robot_bringup.random_motor:main',
-            'Hallucination= my_robot_bringup.Hallucination:main',
             'undock_node= my_robot_bringup.undock_node:main',
-            'test_undock_node= my_robot_bringup.test_undock_node:main',
-            'local_goal= my_robot_bringup.local_goal:main',
-            'Hall_prev= my_robot_bringup.Hallucination_prev_work:main',
-            'Test_cmd= my_robot_bringup.test_node:main',
-            'training_node= my_robot_bringup.training_node:main',
-            'validation_training=my_robot_bringup.validation_training:main',
-            'map_traing=my_robot_bringup.map_train:main',
-            'map_frame=my_robot_bringup.training_map_frame:main',
             'multiple=my_robot_bringup.multiple_seg:main',
-            'old_multiple=my_robot_bringup.multiple_old:main']
     },
 )

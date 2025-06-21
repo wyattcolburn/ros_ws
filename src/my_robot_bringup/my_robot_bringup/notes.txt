@@ -1,0 +1,8 @@
+There exists three .py files which are incredibly useful. The entire project is built upon.
+
+multiple_seg: takes a rosbag, generates all the training data for ~/model
+
+undock_node: is called by training.launch.py, it undocks the robot and starts the random motor
+walk and rosbag
+
+random_motor: is called by undock node
