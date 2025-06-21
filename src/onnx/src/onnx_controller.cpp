@@ -207,15 +207,9 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
         return cmd_vel;
     }
 
-    if (std::abs(latest[0] - 99.999) < .001) {
+    const double *lidar_pointer = latest.data() + 5;
+    static const size_t num_lidar = 1080;
 
-        geometry_msgs::msg::TwistStamped cmd_vel;
-        cmd_vel.header.frame_id = pose.header.frame_id;
-        cmd_vel.twist.linear.x = 0.0;
-        cmd_vel.twist.angular.z = 0.0;
-        std::cout << "REACHED GOAL" << std::endl;
-        return cmd_vel;
-    }
     // 1) Populate Data:
 
     std::vector<float> input_data_f(1085); // Only allocate what's needed for the model
@@ -288,7 +282,8 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
 
     // Now we want to modulate the output of the network
 
-    std::pair<float, float> cmds = modulation_onnx(odom_x, odom_y, predicted_linear, predicted_angular, obstacle_data);
+    std::pair<float, float> cmds =
+        modulation_onnx_lidar(odom_x, odom_y, predicted_linear, predicted_angular, lidar_pointer, num_lidar);
 
     RCLCPP_INFO(logger_, "Final commands after modulation (lin, ang): %.3f, %.3f", cmds.first, cmds.second);
 

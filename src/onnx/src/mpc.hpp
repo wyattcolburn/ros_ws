@@ -18,5 +18,7 @@ std::pair<float, float> modulation(float odom_x, float odom_y, float input_cmd_v
 
 std::pair<float, float> modulation_onnx(float odom_x, float odom_y, float input_cmd_v, float input_cmd_w,
                                         std::vector<Obstacle> obstacle_data);
+std::pair<float, float> modulation_onnx_lidar(float odom_x, float odom_y, float input_cmd_v, float input_cmd_w,
+                                              const double *lidar_ranges, const size_t num_lidar);
 
 #endif
