@@ -507,7 +507,7 @@ class MapTraining(Node):
         
         self.current_odom = (0.0, 0.0)
         
-        self.OFFSET = 1.0
+        self.OFFSET = 0.5
         self.RADIUS = .4
         self.NUM_VALID_OBS = 20
         self.NUM_LIDAR = 1080
@@ -524,7 +524,7 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/wyattcolburn/ros_ws/rosbag2_2025_05_19-18_26_30/"
+        self.input_bag = "/home/wyatt/ros_ws/may15_medium/"
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
