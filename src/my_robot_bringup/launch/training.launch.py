@@ -62,24 +62,6 @@ def generate_launch_description():
         output='screen')]
 
     )
-    #undock_and_record = Node(
-    #    package='my_robot_bringup',  # Replace with your package name
-    #    executable='undock_and_record.py',  # Name of the Python script
-    #    output='screen'
-    #)
-    #undock_command = ExecuteProcess(
-    #    cmd=['ros2', 'action', 'send_goal', '/undock', 'irobot_create_msgs/action/Undock', '{}'],
-    #    output='screen'
-    #)
-    #undock_with_delay = TimerAction(
-    #    period=15.0,  # Delay in seconds
-    #    actions=[undock_command]
-    #)
-
-    #bag_record = ExecuteProcess(
-    #cmd=['ros2', 'bag', 'record', '/scan', '/scan_spoofed','/tf', '/tf_static', '/odom', '/cmd_vel'],
-    #output='screen'
-    #)
 
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)

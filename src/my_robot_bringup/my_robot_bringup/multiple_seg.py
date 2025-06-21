@@ -9,6 +9,7 @@ Lets say we are odom_rad (x,y), we need to know yaw, and locations of revalent o
 
 April 29: Currently, this takes odom_csv, and creates the local goals and obstacles to generate ray traces
 
+June 21: This works! Investigating different offsets, reducing offset from 1.0
 """
 import pickle
 import matplotlib.patches as patches

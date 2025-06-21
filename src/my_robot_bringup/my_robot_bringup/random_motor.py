@@ -1,3 +1,10 @@
+"""
+This is the node which is used to create the random walks that facilites training
+There are things to investigate here: how random is created, what kind of random?
+                                                   
+"""
+
+
 import rclpy 
 from rclpy.node import Node
 from geometry_msgs.msg import Twist

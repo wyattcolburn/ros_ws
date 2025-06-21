@@ -286,7 +286,7 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        hallucinated_obstacles: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -349,7 +349,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 22.30272102355957
+      Scale: 26.399560928344727
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz_default_plugins)
       X: 1.017902135848999

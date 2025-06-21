@@ -4,6 +4,8 @@
 **/install/
 **/log/
 
+may15_medium/
+may19_large/
 # Ignore ROS 2 bag files
 *.db3
 rosbag2_*

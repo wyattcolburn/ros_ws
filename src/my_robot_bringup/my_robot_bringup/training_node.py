@@ -1,3 +1,8 @@
+"""
+Super helpful utility to do a bag during random walk
+"""
+
+
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
