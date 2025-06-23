@@ -20,11 +20,12 @@ from enum import Enum
 class SequenceState(Enum):
     IDLE = 0
     UNDOCKING = 1
-    WAITING_AFTER_UNDOCK = 2
-    INITIALIZING_POSE = 3
-    NAVIGATING = 4
-    COMPLETED = 5
-    FAILED = 6
+    UNDOCKING_IN_PROGRESS = 2  # ← Add this new state
+    WAITING_AFTER_UNDOCK = 3
+    INITIALIZING_POSE = 4
+    NAVIGATING = 5
+    COMPLETED = 6
+    FAILED = 7
 
 
 class ReliableNavigationSequence(Node):
@@ -66,7 +67,7 @@ class ReliableNavigationSequence(Node):
         
         # Timer for state machine
         self.state_timer = self.create_timer(
-            0.1, self.state_machine_callback,
+            0.5, self.state_machine_callback,
             callback_group=self.callback_group
         )
         
@@ -81,44 +82,52 @@ class ReliableNavigationSequence(Node):
         self.current_state = SequenceState.UNDOCKING
         self.retry_count = 0
 
+
     def state_machine_callback(self):
-        """Main state machine callback"""
+        """Main state machine callback with debug logging"""
+        # Add debug logging to see what's happening
+        self.get_logger().info(f"State machine tick: current_state = {self.current_state}")
+        
         if self.current_state == SequenceState.UNDOCKING:
+            self.get_logger().info("Calling handle_undocking()")
             self.handle_undocking()
-        # elif self.current_state == SequenceState.WAITING_AFTER_UNDOCK:
-        #     self.handle_waiting_after_undock()
-        # elif self.current_state == SequenceState.INITIALIZING_POSE:
-        #     self.handle_pose_initialization()
-        # elif self.current_state == SequenceState.NAVIGATING:
-        #     self.handle_navigation()
-        # elif self.current_state == SequenceState.COMPLETED:
-        #     self.get_logger().info('Navigation sequence completed successfully!')
-        #     self.state_timer.cancel()
-        # elif self.current_state == SequenceState.FAILED:
-        #     self.get_logger().error('Navigation sequence failed!')
-        #     self.state_timer.cancel()
+        elif self.current_state == SequenceState.UNDOCKING_IN_PROGRESS:
+            self.get_logger().info("In UNDOCKING_IN_PROGRESS state")
+            self.handle_undocking_in_progress()
+        elif self.current_state == SequenceState.WAITING_AFTER_UNDOCK:
+            self.get_logger().info("Undocking sequence completed successfully!")
+            self.current_state = SequenceState.COMPLETED
+        elif self.current_state == SequenceState.COMPLETED:
+            # Only log this once
+            if not hasattr(self, '_completed_logged'):
+                self.get_logger().info("Node completed - staying alive")
+                self._completed_logged = True
+        elif self.current_state == SequenceState.FAILED:
+            # Only log this once  
+            if not hasattr(self, '_failed_logged'):
+                self.get_logger().info("Node failed - staying alive")
+                self._failed_logged = True
 
     def handle_undocking(self):
-        """Handle undocking phase"""
-        if hasattr(self, '_waiting_for_undock_result') and self._waiting_for_undock_result:
-            return  # Don't send another command while waiting for result
+        """Handle undocking phase - only sends command once"""
+        if not self.undock_client.wait_for_server(timeout_sec=5.0):
+            self.get_logger().error('Undock action server not available')
+            self.retry_or_fail()
+            return
+        
+        self.get_logger().info('Sending undock command...')
+        goal_msg = Undock.Goal()
+        self._undock_future = self.undock_client.send_goal_async(goal_msg)
+        self._undock_future.add_done_callback(self.undock_goal_response_callback)
+        
+        # Immediately transition to "in progress" state
+        self.current_state = SequenceState.UNDOCKING_IN_PROGRESS
+        self.get_logger().info('Moving to new state, waiting for response of undock goal')
+        self._undock_start_time = time.time()
 
-        if not hasattr(self, '_undock_sent') or not self._undock_sent:
-            if not self.undock_client.wait_for_server(timeout_sec=5.0):
-                self.get_logger().error('Undock action server not available')
-                self.retry_or_fail()
-                return
-            
-            self.get_logger().info('Sending undock command...')
-            goal_msg = Undock.Goal()
-            self._undock_future = self.undock_client.send_goal_async(goal_msg)
-            self._undock_future.add_done_callback(self.undock_goal_response_callback)
-            self._undock_sent = True
-            self._waiting_for_undock_result = True
-            self._undock_start_time = time.time()
-
-        # Check for timeout
-        elif time.time() - self._undock_start_time > 30.0:  # 30 second timeout
+    def handle_undocking_in_progress(self):
+        """Handle timeout while undocking is in progress"""
+        if time.time() - self._undock_start_time > 60.0:  # 30 second timeout
             self.get_logger().warn('Undock action timed out')
             self.retry_or_fail()
 
@@ -130,7 +139,7 @@ class ReliableNavigationSequence(Node):
             self.retry_or_fail()
             return
 
-        self.get_logger().info('Undock goal accepted')
+        self.get_logger().info('Undock goal accepted, waiting for completion...')
         self._get_result_future = goal_handle.get_result_async()
         self._get_result_future.add_done_callback(self.undock_result_callback)
 
@@ -142,8 +151,17 @@ class ReliableNavigationSequence(Node):
         # Move to next state
         self.current_state = SequenceState.WAITING_AFTER_UNDOCK
         self._wait_start_time = time.time()
-        self._undock_sent = False  # Reset for potential retry
 
+    def retry_or_fail(self):
+        """Handle retries or failure"""
+        self.retry_count += 1
+        if self.retry_count < self.max_retries:
+            self.get_logger().warn(f'Retrying... Attempt {self.retry_count + 1}/{self.max_retries}')
+            # Reset to initial undocking state
+            self.current_state = SequenceState.UNDOCKING
+        else:
+            self.get_logger().error(f'Max retries ({self.max_retries}) exceeded')
+            self.current_state = SequenceState.FAILED
     # def handle_waiting_after_undock(self):
     #     """Wait a bit after undocking before initializing pose"""
     #     wait_time = self.get_parameter('wait_after_undock').value
@@ -243,21 +261,6 @@ class ReliableNavigationSequence(Node):
     #     self.current_state = SequenceState.COMPLETED
     #     self._nav_sent = False  # Reset for potential retry
     #
-    def retry_or_fail(self):
-        """Handle retries or failure"""
-        self.retry_count += 1
-        if self.retry_count < self.max_retries:
-            self.get_logger().warn(f'Retrying... Attempt {self.retry_count + 1}/{self.max_retries}')
-            # Reset state and try again
-            self.current_state = SequenceState.UNDOCKING
-            # Reset any sent flags
-            self._undock_sent = False
-            self._pose_sent = False
-            self._nav_sent = False
-        else:
-            self.get_logger().error(f'Max retries ({self.max_retries}) exceeded')
-            self.current_state = SequenceState.FAILED
-
 
 def main(args=None):
     rclpy.init(args=args)
