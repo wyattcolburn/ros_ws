@@ -10,7 +10,7 @@ setup(
         # Install launch files
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/turtlebot4_ignition.launch.py', 'launch/ros_ign_bridge.launch.py', 'launch/turtlebot4_nodes.launch.py', 'launch/turtlebot4_spawn.launch.py', 'launch/training.launch.py', 'launch/undock.launch.py', 'launch/testing.launch.py', 'launch/simple_bringup.launch.py']),
+        ('share/' + package_name + '/launch', ['launch/turtlebot4_ignition.launch.py', 'launch/ros_ign_bridge.launch.py', 'launch/turtlebot4_nodes.launch.py', 'launch/turtlebot4_spawn.launch.py', 'launch/training.launch.py', 'launch/undock.launch.py', 'launch/testing.launch.py', 'launch/simple_bringup.launch.py', 'launch/exp_validation.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -24,5 +24,7 @@ setup(
             'random_motor= my_robot_bringup.random_motor:main',
             'undock_node= my_robot_bringup.undock_node:main',
             'multiple=my_robot_bringup.multiple_seg:main',
+            'validate=my_robot_bringup.experiment_validation_node:main',
+        ]
     },
 )
