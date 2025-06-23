@@ -76,7 +76,7 @@ def generate_launch_description():
     # Reliable navigation sequence node
     reliable_nav_node = Node(
         package='my_robot_bringup',  # Replace with your actual package name
-        executable='reliable_navigation_sequence.py',
+        executable='validate',
         name='reliable_navigation_sequence',
         output='screen',
         parameters=[{
