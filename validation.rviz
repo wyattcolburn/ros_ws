@@ -29,7 +29,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Hall
+    SyncSource: ""
 Visualization Manager:
   Class: ""
   Displays:
@@ -286,7 +286,7 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        hallucinated_obstacles: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
