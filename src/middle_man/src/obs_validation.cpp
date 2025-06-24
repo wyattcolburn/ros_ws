@@ -60,8 +60,8 @@ class obsValid : public rclcpp::Node {
 
     bool path_flag = false;
     bool goal_flag = false;
-    double packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + CURRENT_ODOM +
-                     NUM_VALID_OBSTACLES * 2]; // should be 1085 + obstacle data
+    double
+        packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + CURRENT_ODOM]; // should be 1085 + obstacle data
 
     double packetIn[ODOM_FIELD_COUNT + LIDAR_COUNT]; // pos_x, pos_y, cmd_v, cmd_w, yaw
     double odom_x, odom_y, local_goal_x, local_goal_y, yaw, current_cmd_v, current_cmd_w;
@@ -82,19 +82,6 @@ class obsValid : public rclcpp::Node {
             std::cout << "Have yet to receive a path yet" << std::endl;
             return;
         }
-        //
-        // if (goal_flag == true) {
-        //     std::cout << "We have reached the goal" << std::endl;
-        //     int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
-        //     std_msgs::msg::Float64MultiArray msg;
-        //     msg.data.resize(packetOut_size);
-        //     for (size_t i = 0; i < packetOut_size; ++i) {
-        //         msg.data[i] = static_cast<double>(packetOut[i]);
-        //     }
-        //     msg.data[0] = 99.999;
-        //
-        //     return;
-        // }
         processOdomLidar(packetin);
         std::cout << "**************** yaw value : " << yaw << std::endl;
 
@@ -182,15 +169,17 @@ class obsValid : public rclcpp::Node {
 
         packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT] = odom_x;
         packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + 1] = odom_y;
+        packetOut[ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + 2] = yaw;
 
-        // filled with min lidar data
-        int num_obstacles;
-        const Obstacle *current_obstacles = obstacle_manager_.get_active_obstacles(num_obstacles);
-        for (int local_obstacle_counter = 0; local_obstacle_counter < num_obstacles; local_obstacle_counter++) {
-            int index = ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + 2 + local_obstacle_counter * 2;
-            packetOut[index] = current_obstacles[local_obstacle_counter].center_x;
-            packetOut[index + 1] = current_obstacles[local_obstacle_counter].center_y;
-        }
+        // just sending lidar data no obstacles
+        //  filled with min lidar data
+        //  int num_obstacles;
+        //  const Obstacle *current_obstacles = obstacle_manager_.get_active_obstacles(num_obstacles);
+        //  for (int local_obstacle_counter = 0; local_obstacle_counter < num_obstacles; local_obstacle_counter++) {
+        //      int index = ODOM_FIELD_COUNT + LOCAL_GOAL_COUNT + LIDAR_COUNT + 2 + local_obstacle_counter * 2;
+        //      packetOut[index] = current_obstacles[local_obstacle_counter].center_x;
+        //      packetOut[index + 1] = current_obstacles[local_obstacle_counter].center_y;
+        //  }
     }
 
     void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {

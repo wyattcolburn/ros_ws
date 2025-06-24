@@ -29,7 +29,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: RealLidar
+    SyncSource: Hall
 Visualization Manager:
   Class: ""
   Displays:
@@ -286,7 +286,7 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        {}
+        hallucinated_obstacles: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -339,7 +339,7 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: -1.4950047731399536
+      Angle: -1.47500479221344
       Class: rviz_default_plugins/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
@@ -349,11 +349,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 26.399560928344727
+      Scale: 63.495399475097656
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz_default_plugins)
-      X: 1.017902135848999
-      Y: 0.6293532252311707
+      X: -5.568958759307861
+      Y: 1.2087124586105347
     Saved:
       - Class: rviz_default_plugins/Orbit
         Distance: 10

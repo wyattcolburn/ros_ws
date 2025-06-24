@@ -45,8 +45,8 @@ bool circles_intersect(const Obstacle &t_bot, const Obstacle &obstacle) {
     return distanceSquared <= (radiusSum * radiusSum);
 }
 
-std::pair<float, float> modulation_onnx_lidar(float odom_x, float odom_y, float input_cmd_v, float input_cmd_w,
-                                              const double *lidar_ranges, const size_t num_lidars) {
+std::pair<float, float> modulation_onnx_lidar(float odom_x, float odom_y, float yaw, float input_cmd_v,
+                                              float input_cmd_w, const double *lidar_ranges, const size_t num_lidars) {
 
     /* Function takes current localation, outs of neural network and calculates
      * the modulation factor then applies
@@ -75,28 +75,32 @@ std::pair<float, float> modulation_onnx_lidar(float odom_x, float odom_y, float 
     // add noise to cmd v and restrict w < .04 to 0
 
     float angle_step = 2.0f * M_PI / num_lidars;
+
     for (int attempts = 0; attempts < attempt_lim; attempts++) {
 
         noisy_cmd_v = gaussian(input_cmd_v, 0, .1);
         noisy_cmd_w = gaussian(input_cmd_w, 0, .1);
 
+        float future_yaw = yaw + noisy_cmd_w * TIMESTEP;
         // do i need to propegate in the future
-        x_future = odom_x + noisy_cmd_v * cos(noisy_cmd_w) * TIMESTEP *
-                                10; // does it matter, how much accuracy does it mater to factor in each odom_initial
-        y_future = odom_y + noisy_cmd_v * sin(noisy_cmd_w) * TIMESTEP * 10;
+        x_future =
+            odom_x + noisy_cmd_v * cos(future_yaw) *
+                         TIMESTEP; // does it matter, how much accuracy does it mater to factor in each odom_initial
+        y_future = odom_y + noisy_cmd_v * sin(future_yaw) * TIMESTEP;
 
         T_BOT.center_x = x_future;
         T_BOT.center_y = y_future;
 
+        std::cout << "start position x, y :" << odom_x << "  " << odom_y << std::endl;
         std::cout << "x future, y future" << x_future << "  " << y_future << std::endl;
 
         for (size_t lidar_counter = 0; lidar_counter < num_lidars; lidar_counter++) {
 
             // float theta_prev = map_yaw - M_PI / 2 + angle_step * index;
-            double theta = angle_step * lidar_counter;
-
-            float proj_x = odom_x + lidar_ranges[lidar_counter] * static_cast<float>(cos(theta));
-            float proj_y = odom_y + lidar_ranges[lidar_counter] * static_cast<float>(sin(theta));
+            double theta = yaw - M_PI / 2 + angle_step * lidar_counter;
+            double norm_theta = normalize_angle(theta);
+            float proj_x = odom_x + lidar_ranges[lidar_counter] * static_cast<float>(cos(norm_theta));
+            float proj_y = odom_y + lidar_ranges[lidar_counter] * static_cast<float>(sin(norm_theta));
             Obstacle currentObs;
             currentObs.center_x = proj_x;
             currentObs.center_y = proj_y;
