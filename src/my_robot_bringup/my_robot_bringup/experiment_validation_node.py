@@ -55,6 +55,17 @@ class ReliableNavigationSequence(Node):
         self.initial_pose_pub = self.create_publisher(
             PoseWithCovarianceStamped, '/initialpose', 10
         )
+
+
+        self.amcl_pose_sub = self.create_subscription(
+        PoseWithCovarianceStamped,
+        '/amcl_pose',
+        self.amcl_pose_callback,
+        10
+        )
+        
+        self.amcl_pose_received = False
+        self.pose_stable_count = 0
         
         # Parameters
         self.declare_parameter('initial_x', 0.0)
@@ -101,6 +112,9 @@ class ReliableNavigationSequence(Node):
         elif self.current_state == SequenceState.INITIALIZING_POSE:
             self.get_logger().info("Setting init position")
             self.handle_pose_initialization()    
+        elif self.current_state == SequenceState.NAVIGATING:
+            self.get_logger().info('Navigating')
+            self.handle_navigation()
         elif self.current_state == SequenceState.COMPLETED:
             # Only log this once
             if not hasattr(self, '_completed_logged'):
@@ -202,69 +216,102 @@ class ReliableNavigationSequence(Node):
             self.initial_pose_pub.publish(initial_pose)
             self._pose_sent = True
             self._pose_init_time = time.time()
+            # self.amcl_pose_received = False
+            # self.pose_stable_count = 0
             
-        # Wait a bit for pose to be processed
-        delay = self.get_parameter('pose_init_delay').value
-        if time.time() - self._pose_init_time >= delay:
-            self.current_state = SequenceState.NAVIGATING
-            self._pose_sent = False  # Reset for potential retry
+          # Wait a bit for pose to be processed
+        elif hasattr(self, '_pose_init_time'):
+            delay = 10.0
+            elapsed = time.time() - self._pose_init_time
+            
+            self.get_logger().info(f'Waiting for AMCL: received={self.amcl_pose_received}, elapsed={elapsed:.1f}s/{delay}s')
+            
+            # Proceed when AMCL has received pose AND minimum delay has passed
+            if self.amcl_pose_received and elapsed >= delay:
+                self.get_logger().info('AMCL pose confirmed, proceeding to navigation...')
+                self.current_state = SequenceState.NAVIGATING
+                self._pose_sent = False
 
-    # def handle_navigation(self):
-    #     """Handle navigation to goal pose"""
-    #     if not hasattr(self, '_nav_sent') or not self._nav_sent:
-    #         if not self.navigate_client.wait_for_server(timeout_sec=5.0):
-    #             self.get_logger().error('Navigation action server not available')
-    #             self.retry_or_fail()
-    #             return
-    #         
-    #         self.get_logger().info('Sending navigation goal...')
-    #         
-    #         goal_msg = NavigateToPose.Goal()
-    #         goal_msg.pose.header.frame_id = 'map'
-    #         goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
-    #         
-    #         # Set goal position
-    #         goal_msg.pose.pose.position.x = self.get_parameter('goal_x').value
-    #         goal_msg.pose.pose.position.y = self.get_parameter('goal_y').value
-    #         goal_msg.pose.pose.position.z = 0.0
-    #         
-    #         # Set goal orientation
-    #         goal_yaw = self.get_parameter('goal_yaw').value
-    #         goal_msg.pose.pose.orientation.x = 0.0
-    #         goal_msg.pose.pose.orientation.y = 0.0
-    #         goal_msg.pose.pose.orientation.z = 0.0  # sin(yaw/2) for simple case
-    #         goal_msg.pose.pose.orientation.w = 1.0  # cos(yaw/2) for simple case
-    #         
-    #         self._nav_future = self.navigate_client.send_goal_async(goal_msg)
-    #         self._nav_future.add_done_callback(self.nav_goal_response_callback)
-    #         self._nav_sent = True
-    #         self._nav_start_time = time.time()
-    #
-    #     # Check for timeout (adjust as needed for your environment)
-    #     elif time.time() - self._nav_start_time > 120.0:  # 2 minute timeout
-    #         self.get_logger().warn('Navigation action timed out')
-    #         self.retry_or_fail()
-    #
-    # def nav_goal_response_callback(self, future):
-    #     """Callback for navigation goal response"""
-    #     goal_handle = future.result()
-    #     if not goal_handle.accepted:
-    #         self.get_logger().error('Navigation goal rejected')
-    #         self.retry_or_fail()
-    #         return
-    #
-    #     self.get_logger().info('Navigation goal accepted')
-    #     self._get_nav_result_future = goal_handle.get_result_async()
-    #     self._get_nav_result_future.add_done_callback(self.nav_result_callback)
-    #
-    # def nav_result_callback(self, future):
-    #     """Callback for navigation result"""
-    #     result = future.result().result
-    #     self.get_logger().info(f'Navigation completed with result: {result}')
-    #     
-    #     self.current_state = SequenceState.COMPLETED
-    #     self._nav_sent = False  # Reset for potential retry
-    #
+    def handle_navigation(self):
+        """Handle navigation to goal pose"""
+        if not hasattr(self, '_nav_sent') or not self._nav_sent:
+            if not self.navigate_client.wait_for_server(timeout_sec=5.0):
+                self.get_logger().error('Navigation action server not available')
+                self.retry_or_fail()
+                return
+            
+            self.get_logger().info('Sending navigation goal...')
+            
+            goal_msg = NavigateToPose.Goal()
+            goal_msg.pose.header.frame_id = 'map'
+            goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
+            
+            # Set goal position
+            goal_msg.pose.pose.position.x = self.get_parameter('goal_x').value
+            goal_msg.pose.pose.position.y = self.get_parameter('goal_y').value
+            goal_msg.pose.pose.position.z = 0.0
+            
+            # Set goal orientation
+            goal_yaw = self.get_parameter('goal_yaw').value
+            goal_msg.pose.pose.orientation.x = 0.0
+            goal_msg.pose.pose.orientation.y = 0.0
+            goal_msg.pose.pose.orientation.z = 0.0  # sin(yaw/2) for simple case
+            goal_msg.pose.pose.orientation.w = 1.0  # cos(yaw/2) for simple case
+            
+            self._nav_future = self.navigate_client.send_goal_async(goal_msg)
+            self._nav_future.add_done_callback(self.nav_goal_response_callback)
+            self._nav_sent = True
+            self._nav_start_time = time.time()
+
+        # Check for timeout (adjust as needed for your environment)
+        elif time.time() - self._nav_start_time > 120.0:  # 2 minute timeout
+            self.get_logger().warn('Navigation action timed out')
+            self.retry_or_fail()
+
+    def nav_goal_response_callback(self, future):
+        """Callback for navigation goal response"""
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().error('Navigation goal rejected')
+            #self.retry_or_fail()
+            return
+
+        self.get_logger().info('Navigation goal accepted')
+        self._get_nav_result_future = goal_handle.get_result_async()
+        self._get_nav_result_future.add_done_callback(self.nav_result_callback)
+
+    def nav_result_callback(self, future):
+        """Callback for navigation result"""
+        result = future.result().result
+        self.get_logger().info(f'Navigation completed with result: {result}')
+        
+        self.current_state = SequenceState.COMPLETED
+        self._nav_sent = False  # Reset for potential retry
+
+    def amcl_pose_callback(self, msg):
+        """Monitor AMCL pose for stability"""
+        self.amcl_pose_received = True
+        # You could also check if pose is "stable" by comparing with previous poses
+        self.pose_stable_count += 1
+
+    """
+pntroller_server-1] mod factor is 1.49182
+[controller_server-1] [INFO] [1750726735.801638752] [controller_server]: Final commands after modulation (lin, ang): 0.270, -0.133
+[controller_server-1] [INFO] [1750726735.801653425] [controller_server]: Final clamped commands (lin, ang): 0.270, -0.133
+[planner_server-3] [INFO] [1750726735.820640924] [global_costmap.global_costmap]: Received request to clear entirely the global_costmap
+[controller_server-1] [INFO] [1750726735.850750044] [controller_server]: Passing new path to controller.
+[controller_server-1] [ERROR] [1750726735.851019768] [controller_server]: Invalid path, Path is empty.
+[controller_server-1] [WARN] [1750726735.851070596] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-1] [INFO] [1750726735.880884418] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[controller_server-1] [INFO] [1750726735.882182558] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-1] [ERROR] [1750726735.882273495] [controller_server]: Invalid path, Path is empty.
+[controller_server-1] [INFO] [1750726735.882320922] [controller_server]: Receiving Input from Middle man...
+[controller_server-1] [WARN] [1750726735.882322256] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[bt_navigator-5] [ERROR] [1750726735.921096240] [bt_navigator_navigate_to_pose_rclcpp_node]: Failed to get result for compute_path_to_pose in node halt!
+ maybe this error message can be used to record failures
+
+
+    """
 
 def main(args=None):
     rclpy.init(args=args)
