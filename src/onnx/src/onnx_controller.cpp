@@ -241,18 +241,23 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     // 3) Define your input shape
     std::vector<int64_t> inputShape = {1, static_cast<int64_t>(1085)};
 
-    float odom_x = latest[1086];
-    float odom_y = latest[1087];
+    float odom_x = latest[1085];
+    float odom_y = latest[1086];
+    float odom_yaw = latest[1087]
 
-    std::vector<Obstacle> obstacle_data;
-    for (size_t obstacle_counter = 1088; obstacle_counter < latest.size(); obstacle_counter += 2) {
-        Obstacle current_obs;
-        current_obs.center_x = latest[obstacle_counter];
-        current_obs.center_y = latest[obstacle_counter + 1];
-        obstacle_data.push_back(current_obs);
-    }
-    // 4) Create the Ort tensor<float>
-    auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
+        // just doing lidar for now
+        //
+        //
+
+        // std::vector<Obstacle> obstacle_data;
+        // for (size_t obstacle_counter = 1088; obstacle_counter < latest.size(); obstacle_counter += 2) {
+        //     Obstacle current_obs;
+        //     current_obs.center_x = latest[obstacle_counter];
+        //     current_obs.center_y = latest[obstacle_counter + 1];
+        //     obstacle_data.push_back(current_obs);
+        // }
+        // 4) Create the Ort tensor<float>
+        auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
     Ort::Value inputTensor = Ort::Value::CreateTensor<float>(memory_info, input_data_f.data(), input_data_f.size(),
                                                              inputShape.data(), inputShape.size());
 
@@ -271,7 +276,7 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     // Now we want to modulate the output of the network
 
     std::pair<float, float> cmds =
-        modulation_onnx_lidar(odom_x, odom_y, predicted_linear, predicted_angular, lidar_pointer, num_lidar);
+        modulation_onnx_lidar(odom_x, odom_y, yaw, predicted_linear, predicted_angular, lidar_pointer, num_lidar);
 
     RCLCPP_INFO(logger_, "Final commands after modulation (lin, ang): %.3f, %.3f", cmds.first, cmds.second);
 
