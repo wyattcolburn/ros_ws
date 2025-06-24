@@ -15,6 +15,7 @@ from irobot_create_msgs.action import Undock
 from nav2_msgs.action import NavigateToPose
 import time
 from enum import Enum
+import math
 
 
 class SequenceState(Enum):
@@ -67,7 +68,7 @@ class ReliableNavigationSequence(Node):
         
         # Timer for state machine
         self.state_timer = self.create_timer(
-            0.5, self.state_machine_callback,
+            1.0, self.state_machine_callback,
             callback_group=self.callback_group
         )
         
@@ -96,7 +97,10 @@ class ReliableNavigationSequence(Node):
             self.handle_undocking_in_progress()
         elif self.current_state == SequenceState.WAITING_AFTER_UNDOCK:
             self.get_logger().info("Undocking sequence completed successfully!")
-            self.current_state = SequenceState.COMPLETED
+            self.current_state = SequenceState.INITIALIZING_POSE
+        elif self.current_state == SequenceState.INITIALIZING_POSE:
+            self.get_logger().info("Setting init position")
+            self.handle_pose_initialization()    
         elif self.current_state == SequenceState.COMPLETED:
             # Only log this once
             if not hasattr(self, '_completed_logged'):
@@ -112,7 +116,7 @@ class ReliableNavigationSequence(Node):
         """Handle undocking phase - only sends command once"""
         if not self.undock_client.wait_for_server(timeout_sec=5.0):
             self.get_logger().error('Undock action server not available')
-            self.retry_or_fail()
+            #self.retry_or_fail()
             return
         
         self.get_logger().info('Sending undock command...')
@@ -129,14 +133,14 @@ class ReliableNavigationSequence(Node):
         """Handle timeout while undocking is in progress"""
         if time.time() - self._undock_start_time > 60.0:  # 30 second timeout
             self.get_logger().warn('Undock action timed out')
-            self.retry_or_fail()
+            #self.retry_or_fail()
 
     def undock_goal_response_callback(self, future):
         """Callback for undock goal response"""
         goal_handle = future.result()
         if not goal_handle.accepted:
             self.get_logger().error('Undock goal rejected')
-            self.retry_or_fail()
+            #self.retry_or_fail()
             return
 
         self.get_logger().info('Undock goal accepted, waiting for completion...')
@@ -168,43 +172,43 @@ class ReliableNavigationSequence(Node):
     #     if time.time() - self._wait_start_time >= wait_time:
     #         self.current_state = SequenceState.INITIALIZING_POSE
     #
-    # def handle_pose_initialization(self):
-    #     """Handle initial pose setting"""
-    #     if not hasattr(self, '_pose_sent') or not self._pose_sent:
-    #         self.get_logger().info('Setting initial pose...')
-    #         
-    #         initial_pose = PoseWithCovarianceStamped()
-    #         initial_pose.header.frame_id = 'map'
-    #         initial_pose.header.stamp = self.get_clock().now().to_msg()
-    #         
-    #         # Set position
-    #         initial_pose.pose.pose.position.x = self.get_parameter('initial_x').value
-    #         initial_pose.pose.pose.position.y = self.get_parameter('initial_y').value
-    #         initial_pose.pose.pose.position.z = 0.0
-    #         
-    #         # Set orientation (convert yaw to quaternion)
-    #         yaw = self.get_parameter('initial_yaw').value
-    #         initial_pose.pose.pose.orientation.x = 0.0
-    #         initial_pose.pose.pose.orientation.y = 0.0
-    #         initial_pose.pose.pose.orientation.z = 0.0  # sin(yaw/2) for simple case
-    #         initial_pose.pose.pose.orientation.w = 1.0  # cos(yaw/2) for simple case
-    #         
-    #         # Set covariance (you may want to adjust these values)
-    #         initial_pose.pose.covariance = [0.0] * 36
-    #         initial_pose.pose.covariance[0] = 0.25   # x
-    #         initial_pose.pose.covariance[7] = 0.25   # y
-    #         initial_pose.pose.covariance[35] = 0.068 # yaw
-    #         
-    #         self.initial_pose_pub.publish(initial_pose)
-    #         self._pose_sent = True
-    #         self._pose_init_time = time.time()
-    #         
-    #     # Wait a bit for pose to be processed
-    #     delay = self.get_parameter('pose_init_delay').value
-    #     if time.time() - self._pose_init_time >= delay:
-    #         self.current_state = SequenceState.NAVIGATING
-    #         self._pose_sent = False  # Reset for potential retry
-    #
+    def handle_pose_initialization(self):
+        """Handle initial pose setting"""
+        if not hasattr(self, '_pose_sent') or not self._pose_sent:
+            self.get_logger().info('Setting initial pose...')
+            
+            initial_pose = PoseWithCovarianceStamped()
+            initial_pose.header.frame_id = 'map'
+            initial_pose.header.stamp = self.get_clock().now().to_msg()
+            
+            # Set position
+            initial_pose.pose.pose.position.x = self.get_parameter('initial_x').value
+            initial_pose.pose.pose.position.y = self.get_parameter('initial_y').value
+            initial_pose.pose.pose.position.z = 0.0
+            
+            # Set orientation (convert yaw to quaternion)
+            yaw = self.get_parameter('initial_yaw').value
+            initial_pose.pose.pose.orientation.x = 0.0
+            initial_pose.pose.pose.orientation.y = 0.0
+            initial_pose.pose.pose.orientation.z = math.sin(yaw/2) # sin(yaw/2) for simple case
+            initial_pose.pose.pose.orientation.w = math.cos(yaw/2) # cos(yaw/2) for simple case
+            
+            # Set covariance (you may want to adjust these values)
+            initial_pose.pose.covariance = [0.0] * 36
+            initial_pose.pose.covariance[0] = 0.25   # x
+            initial_pose.pose.covariance[7] = 0.25   # y
+            initial_pose.pose.covariance[35] = 0.068 # yaw
+            
+            self.initial_pose_pub.publish(initial_pose)
+            self._pose_sent = True
+            self._pose_init_time = time.time()
+            
+        # Wait a bit for pose to be processed
+        delay = self.get_parameter('pose_init_delay').value
+        if time.time() - self._pose_init_time >= delay:
+            self.current_state = SequenceState.NAVIGATING
+            self._pose_sent = False  # Reset for potential retry
+
     # def handle_navigation(self):
     #     """Handle navigation to goal pose"""
     #     if not hasattr(self, '_nav_sent') or not self._nav_sent:
