@@ -108,24 +108,12 @@ void ONNXController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr &p
     declare_parameter_if_not_declared(node, plugin_name_ + ".max_linear_vel", rclcpp::ParameterValue(0.5));
     declare_parameter_if_not_declared(node, plugin_name_ + ".max_angular_vel", rclcpp::ParameterValue(1.0));
 
-    // declare_parameter_if_not_declared(
-    //	node, plugin_name_ + ".scaler_min_path", rclcpp::ParameterValue(
-    //"/home/wyatt/ros_ws/src/onnx/src/scaler_mins.txt"));
-    // declare_parameter_if_not_declared(
-    //		node, plugin_name_ + ".scaler_max_path", rclcpp::ParameterValue(
-    //"/home/wyatt/ros_ws/src/onnx/src/scaler_max.txt"));
-
     node->get_parameter(plugin_name_ + ".model_path", model_path_);
     node->get_parameter(plugin_name_ + ".max_linear_vel", max_linear_vel_);
     node->get_parameter(plugin_name_ + ".max_angular_vel", max_angular_vel_);
 
-    //	node->get_parameter(plugin_name_ + ".scaler_min_path", scaler_min_path);
-    //	node->get_parameter(plugin_name_ + ".scaler_max_path", scaler_max_path);
     feature_mins_ = readCSVToFloats("/home/wyatt/ros_ws/src/onnx/src/combine_scaler_min.txt");
     feature_maxs_ = readCSVToFloats("/home/wyatt/ros_ws/src/onnx/src/combine_scaler_max.txt");
-
-    // feature_mins_= readCSVToFloats("/home/wyatt/ros_ws/onnx/src/combined_scaler_mins.txt");
-    // feature_maxs_ = readCSVToFloats("/home/wyatt/ros_ws/onnx/src/combined_scaler_max.txt");
 
     // Load ONNX Model
     Ort::Env env;
