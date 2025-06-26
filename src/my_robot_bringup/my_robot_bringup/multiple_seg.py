@@ -508,7 +508,7 @@ class MapTraining(Node):
         
         self.current_odom = (0.0, 0.0)
         
-        self.OFFSET = 0.5
+        self.OFFSET = 1.0
         self.RADIUS = .4
         self.NUM_VALID_OBS = 20
         self.NUM_LIDAR = 1080

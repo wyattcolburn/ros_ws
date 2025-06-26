@@ -16,7 +16,9 @@ from nav2_msgs.action import NavigateToPose
 import time
 from enum import Enum
 import math
-
+import subprocess
+from lifecycle_msgs.srv import ChangeState
+from nav2_msgs.srv import ClearEntireCostmap
 
 class SequenceState(Enum):
     IDLE = 0
@@ -27,6 +29,7 @@ class SequenceState(Enum):
     NAVIGATING = 5
     COMPLETED = 6
     FAILED = 7
+    RESTART = 8
 
 
 class ReliableNavigationSequence(Node):
@@ -51,6 +54,19 @@ class ReliableNavigationSequence(Node):
             callback_group=self.callback_group
         )
         
+ # Create service clients for better reliability
+        self.controller_state_client = self.create_client(
+            ChangeState, '/controller_server/change_state'
+        )
+        self.planner_state_client = self.create_client(
+            ChangeState, '/planner_server/change_state'
+        )
+        self.clear_global_costmap_client = self.create_client(
+            ClearEntireCostmap, '/global_costmap/clear_entirely_global_costmap'
+        )
+        self.clear_local_costmap_client = self.create_client(
+            ClearEntireCostmap, '/local_costmap/clear_entirely_local_costmap'
+        )
         # Publishers
         self.initial_pose_pub = self.create_publisher(
             PoseWithCovarianceStamped, '/initialpose', 10
@@ -125,6 +141,8 @@ class ReliableNavigationSequence(Node):
             if not hasattr(self, '_failed_logged'):
                 self.get_logger().info("Node failed - staying alive")
                 self._failed_logged = True
+        elif self.current_state == SequenceState.RESTART:
+            self.restart(None)
 
     def handle_undocking(self):
         """Handle undocking phase - only sends command once"""
@@ -285,8 +303,27 @@ class ReliableNavigationSequence(Node):
         result = future.result().result
         self.get_logger().info(f'Navigation completed with result: {result}')
         
-        self.current_state = SequenceState.COMPLETED
+        self.current_state = SequenceState.RESTART
         self._nav_sent = False  # Reset for potential retry
+
+    def restart(self, result):
+        """Restarts the simulator
+
+        # Set robot pose to origin (adjust namespace if needed)
+        ign service -s /world/maze/set_pose --reqtype ignition.msgs.Pose --reptype ignition.msgs.Boolean --timeout 1000 --req 'name: "turtlebot4", position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}'
+        """
+        self.get_logger().info(f"Trial x was a {result}")
+
+        self.current_state = SequenceState.IDLE
+        if (self.reset_robot_pose()):
+            if (self.restart_controller_server()):
+                self.start_sequence()
+            else:
+                self.get_logger().error("Failed to reset controller server")
+                self.current_state = SequenceState.FAILED
+        else:
+            self.get_logger().error("Failed to reset")
+            self.current_state = SequenceState.FAILED 
 
     def amcl_pose_callback(self, msg):
         """Monitor AMCL pose for stability"""
@@ -294,25 +331,131 @@ class ReliableNavigationSequence(Node):
         # You could also check if pose is "stable" by comparing with previous poses
         self.pose_stable_count += 1
 
-    """
-pntroller_server-1] mod factor is 1.49182
-[controller_server-1] [INFO] [1750726735.801638752] [controller_server]: Final commands after modulation (lin, ang): 0.270, -0.133
-[controller_server-1] [INFO] [1750726735.801653425] [controller_server]: Final clamped commands (lin, ang): 0.270, -0.133
-[planner_server-3] [INFO] [1750726735.820640924] [global_costmap.global_costmap]: Received request to clear entirely the global_costmap
-[controller_server-1] [INFO] [1750726735.850750044] [controller_server]: Passing new path to controller.
-[controller_server-1] [ERROR] [1750726735.851019768] [controller_server]: Invalid path, Path is empty.
-[controller_server-1] [WARN] [1750726735.851070596] [controller_server]: [follow_path] [ActionServer] Aborting handle.
-[controller_server-1] [INFO] [1750726735.880884418] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
-[controller_server-1] [INFO] [1750726735.882182558] [controller_server]: Received a goal, begin computing control effort.
-[controller_server-1] [ERROR] [1750726735.882273495] [controller_server]: Invalid path, Path is empty.
-[controller_server-1] [INFO] [1750726735.882320922] [controller_server]: Receiving Input from Middle man...
-[controller_server-1] [WARN] [1750726735.882322256] [controller_server]: [follow_path] [ActionServer] Aborting handle.
-[bt_navigator-5] [ERROR] [1750726735.921096240] [bt_navigator_navigate_to_pose_rclcpp_node]: Failed to get result for compute_path_to_pose in node halt!
- maybe this error message can be used to record failures
+
+    def reset_robot_pose(self):
+            """Restarts the simulator by resetting robot pose to origin"""
+            try:
+                cmd = [
+                    'ign', 'service', '-s', '/world/maze/set_pose',
+                    '--reqtype', 'ignition.msgs.Pose',
+                    '--reptype', 'ignition.msgs.Boolean',
+                    '--timeout', '1000',
+                    '--req', 'name: "turtlebot4", position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}'
+                ]
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    self.get_logger().info("Successfully reset robot pose")
+                    return True
+                else:
+                    self.get_logger().error(f"Failed to reset pose: {result.stderr}")
+                    return False
+                    
+            except subprocess.TimeoutExpired:
+                self.get_logger().error("Service call timed out")
+                return False
+            except Exception as e:
+                self.get_logger().error(f"Error calling service: {str(e)}")
+                return False
 
 
-    """
+    def restart_controller_server(self):
+        """Restart navigation stack using service clients"""
+        try:
+            # 1. Cancel active navigation
+            self.get_logger().info("Canceling active navigation...")
+            self.navigate_client.cancel_all_goals()
+            
+            # 2. Clear costmaps
+            if not self._clear_costmaps():
+                self.get_logger().warn("Failed to clear costmaps, continuing anyway...")
+            
+            # 3. Restart lifecycle nodes
+            if self._restart_lifecycle_node('controller_server') and \
+               self._restart_lifecycle_node('planner_server'):
+                self.get_logger().info("Navigation stack restarted successfully")
+                return True
+            else:
+                self.get_logger().error("Failed to restart navigation components")
+                return False
+                
+        except Exception as e:
+            self.get_logger().error(f"Failed to restart navigation stack: {e}")
+            return False
 
+    def _clear_costmaps(self):
+        """Clear costmaps using service clients"""
+        success = True
+        
+        # Clear global costmap
+        if self.clear_global_costmap_client.wait_for_service(timeout_sec=2.0):
+            request = ClearEntireCostmap.Request()
+            future = self.clear_global_costmap_client.call_async(request)
+            rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
+            
+            if future.result() is None:
+                self.get_logger().warn("Failed to clear global costmap")
+                success = False
+        else:
+            self.get_logger().warn("Global costmap clear service not available")
+            success = False
+        
+        # Clear local costmap
+        if self.clear_local_costmap_client.wait_for_service(timeout_sec=2.0):
+            request = ClearEntireCostmap.Request()
+            future = self.clear_local_costmap_client.call_async(request)
+            rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
+            
+            if future.result() is None:
+                self.get_logger().warn("Failed to clear local costmap")
+                success = False
+        else:
+            self.get_logger().warn("Local costmap clear service not available")
+            success = False
+            
+        return success
+
+    def _restart_lifecycle_node(self, node_name):
+        """Restart a lifecycle node using service client"""
+        client = getattr(self, f'{node_name.replace("_", "_")}_state_client')
+        
+        if not client.wait_for_service(timeout_sec=3.0):
+            self.get_logger().error(f'{node_name} service not available')
+            return False
+        
+        try:
+            # Deactivate
+            deactivate_req = ChangeState.Request()
+            deactivate_req.transition.id = 3  # TRANSITION_DEACTIVATE
+            
+            future = client.call_async(deactivate_req)
+            rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
+            
+            if future.result() is None or not future.result().success:
+                self.get_logger().error(f'Failed to deactivate {node_name}')
+                return False
+            
+            # Brief pause
+            time.sleep(0.5)
+            
+            # Activate
+            activate_req = ChangeState.Request()
+            activate_req.transition.id = 4  # TRANSITION_ACTIVATE
+            
+            future = client.call_async(activate_req)
+            rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
+            
+            if future.result() is None or not future.result().success:
+                self.get_logger().error(f'Failed to activate {node_name}')
+                return False
+            
+            self.get_logger().info(f'Successfully restarted {node_name}')
+            return True
+            
+        except Exception as e:
+            self.get_logger().error(f'Error restarting {node_name}: {e}')
+            return False
 def main(args=None):
     rclpy.init(args=args)
     
@@ -333,3 +476,21 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
+
+"""
+pntroller_server-1] mod factor is 1.49182
+[controller_server-1] [INFO] [1750726735.801638752] [controller_server]: Final commands after modulation (lin, ang): 0.270, -0.133
+[controller_server-1] [INFO] [1750726735.801653425] [controller_server]: Final clamped commands (lin, ang): 0.270, -0.133
+[planner_server-3] [INFO] [1750726735.820640924] [global_costmap.global_costmap]: Received request to clear entirely the global_costmap
+[controller_server-1] [INFO] [1750726735.850750044] [controller_server]: Passing new path to controller.
+[controller_server-1] [ERROR] [1750726735.851019768] [controller_server]: Invalid path, Path is empty.
+[controller_server-1] [WARN] [1750726735.851070596] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-1] [INFO] [1750726735.880884418] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[controller_server-1] [INFO] [1750726735.882182558] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-1] [ERROR] [1750726735.882273495] [controller_server]: Invalid path, Path is empty.
+[controller_server-1] [INFO] [1750726735.882320922] [controller_server]: Receiving Input from Middle man...
+[controller_server-1] [WARN] [1750726735.882322256] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[bt_navigator-5] [ERROR] [1750726735.921096240] [bt_navigator_navigate_to_pose_rclcpp_node]: Failed to get result for compute_path_to_pose in node halt!
+ maybe this error message can be used to record failures
+"""
