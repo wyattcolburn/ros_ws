@@ -91,9 +91,6 @@ std::pair<float, float> modulation_onnx_lidar(float odom_x, float odom_y, float 
         T_BOT.center_x = x_future;
         T_BOT.center_y = y_future;
 
-        std::cout << "start position x, y :" << odom_x << "  " << odom_y << std::endl;
-        std::cout << "x future, y future" << x_future << "  " << y_future << std::endl;
-
         for (size_t lidar_counter = 0; lidar_counter < num_lidars; lidar_counter++) {
 
             // float theta_prev = map_yaw - M_PI / 2 + angle_step * index;
