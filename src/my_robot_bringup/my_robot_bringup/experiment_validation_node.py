@@ -263,7 +263,7 @@ class ReliableNavigationSequence(Node):
             self._trial_result = "TIMEOUT"
             self.current_state = SequenceState.RESTART
             self._nav_sent = False
-
+        ## method get_feeedback from navigate client, distance remaining
     def nav_goal_response_callback(self, future):
         """Callback for navigation goal response"""
         goal_handle = future.result()
