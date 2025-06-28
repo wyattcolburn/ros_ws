@@ -7,6 +7,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
 from irobot_create_msgs.action import Undock, Dock
+from ros_gz_interfaces.msg import Contacts
 from nav2_msgs.action import NavigateToPose
 from lifecycle_msgs.srv import ChangeState
 from nav2_msgs.srv import ClearEntireCostmap
@@ -39,7 +40,7 @@ class ReliableNavigationSequence(Node):
         
         # State management
         self.current_state = SequenceState.IDLE
-        self.num_trials = 3 
+        self.num_trials = 10 
         self.current_trial = 0
         # Action clients
         self.undock_client = ActionClient(
@@ -62,7 +63,12 @@ class ReliableNavigationSequence(Node):
             self.amcl_pose_callback,
             10
         )
-        
+        self.bumper_sub = self.create_subscription(
+            Contacts, '/bumper_contact', self.bumper_callback,
+                10)
+
+        self.collision_detected = False
+
         self.amcl_pose_received = False
         self.pose_stable_count = 0
         self._nav_goal_handle = None  # Track navigation goal handle for cancellationrestart
@@ -219,12 +225,14 @@ class ReliableNavigationSequence(Node):
             successes = self.trial_results.count("SUCCESS")
             failures = self.trial_results.count("FAILURE")
             timeouts = self.trial_results.count("TIMEOUT")
-            
+            collisions = self.trial_results.count("COLLISIONS")
+
             self.get_logger().info(f"EXPERIMENT COMPLETE:")
             self.get_logger().info(f"  Total trials: {len(self.trial_results)}")
             self.get_logger().info(f"  Successes: {successes}")
             self.get_logger().info(f"  Failures: {failures}")
             self.get_logger().info(f"  Timeouts: {timeouts}")
+            self.get_logger().info(f"  Collisions: {collisions}")
             self.get_logger().info(f"  Success rate: {successes/len(self.trial_results)*100:.1f}%")
             self.state_timer.cancel()
             return
@@ -354,7 +362,19 @@ class ReliableNavigationSequence(Node):
             self.get_logger().error(f"Error calling service: {str(e)}")
             return False
 
+    def bumper_callback(self, msg):
+        """Monitor for bumper collisions"""
+        if msg.contacts: # collision detected
+            self.get_logger().warn(f"Collision! {len(msg.contacts)} contact")
 
+            for i, contact in enumerate(msg.contacts):
+                self.get_logger().info(f"Collision {i} {contact.collision1.name} hit {contact.collision2.name}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+
+            self.collision_detected = True
+            self._trial_result = "COLLISION"
+            self.trial_results.append(self._trial_result)
+            self.current_state = SequenceState.RESTART
 def main(args=None):
     rclpy.init(args=args)
     
