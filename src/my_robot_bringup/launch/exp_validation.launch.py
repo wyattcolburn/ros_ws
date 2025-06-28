@@ -18,7 +18,7 @@ ARGUMENTS = [
                           choices=['standard', 'lite'],
                           description='Turtlebot4 Model'),
     # Navigation sequence parameters
-    DeclareLaunchArgument('initial_x', default_value='0.0',
+    DeclareLaunchArgument('initial_x', default_value='-.250',
                           description='Initial X position'),
     DeclareLaunchArgument('initial_y', default_value='0.0',
                           description='Initial Y position'),

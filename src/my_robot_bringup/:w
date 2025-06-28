@@ -256,8 +256,8 @@ class ReliableNavigationSequence(Node):
             goal_yaw = self.get_parameter('goal_yaw').value
             goal_msg.pose.pose.orientation.x = 0.0
             goal_msg.pose.pose.orientation.y = 0.0
-            goal_msg.pose.pose.orientation.z = math.sin(goal_yaw/2) 
-            goal_msg.pose.pose.orientation.w = math.cos(goal_yaw/2) 
+            goal_msg.pose.pose.orientation.z = 0.0
+            goal_msg.pose.pose.orientation.w = 1.0
             
             self._nav_future = self.navigate_client.send_goal_async(goal_msg)
             self._nav_future.add_done_callback(self.nav_goal_response_callback)
