@@ -231,7 +231,7 @@ class ReliableNavigationSequence(Node):
             collisions = self.trial_results.count("COLLISIONS")
 
             self.get_logger().info(f"EXPERIMENT COMPLETE:")
-            self.get_logger().info(f"  Total trials: {len(self.trial_results)}")
+            self.get_logger().info(f"  Total trials: {self.num_trials}")
             self.get_logger().info(f"  Successes: {successes}")
             self.get_logger().info(f"  Failures: {failures}")
             self.get_logger().info(f"  Timeouts: {timeouts}")
@@ -259,7 +259,7 @@ class ReliableNavigationSequence(Node):
             goal_yaw = self.get_parameter('goal_yaw').value
             goal_msg.pose.pose.orientation.x = 0.0
             goal_msg.pose.pose.orientation.y = 0.0
-            goal_msg.pose.pose.orientation.z = math.sin(goal_yaw/2) 
+            goal_msg.pose.pose.orientation.z = math.sin(goal_yaw/2) # to take the initial goal pose from launch file
             goal_msg.pose.pose.orientation.w = math.cos(goal_yaw/2) 
             
             if not self.is_cmd_vel_subscribed():
@@ -298,7 +298,6 @@ class ReliableNavigationSequence(Node):
             if future.cancelled():
                 self.get_logger().warn("Navigation goal was cancelled before completion")
                 self._trial_result = "CANCELLED"
-                self.trial_results.append(self._trial_result)
                 self.current_state = SequenceState.RESTART
                 self._nav_sent = False
                 return
@@ -311,7 +310,6 @@ class ReliableNavigationSequence(Node):
             if result_msg is None:
                 self.get_logger().error("Navigation result returned None")
                 self._trial_result = "ERROR"
-                self.trial_results.append(self._trial_result)
                 self.current_state = SequenceState.RESTART
                 self._nav_sent = False
                 return
@@ -327,77 +325,93 @@ class ReliableNavigationSequence(Node):
                 self.get_logger().info(f'Navigation failed: {result}')
                 trial_result = "FAILURE"
 
+            # This does ot accout for collisions
             self.get_logger().info(f"Setting trial_result to: {trial_result}")
             self._trial_result = trial_result
-            self.trial_results.append(trial_result)
             self.current_state = SequenceState.RESTART
             self._nav_sent = False
 
         except Exception as e:
             self.get_logger().error(f'Navigation result error: {e}')
             self._trial_result = "ERROR"
-            self.trial_results.append(self._trial_result)
             self.current_state = SequenceState.RESTART
             self._nav_sent = False
-    
     def restart(self):
-        """Restarts the simulator and resets everything for the next trial."""
 
-        # Step 1: Cancel any active navigation goal safely
-        if self._nav_goal_handle:
-            self.get_logger().info("Canceling existing navigation goal before reset...")
-            try:
-                cancel_future = self._nav_goal_handle.cancel_goal_async()
-                rclpy.spin_until_future_complete(self, cancel_future)
-                self.get_logger().info("Navigation goal canceled")
-            except Exception as e:
-                self.get_logger().warn(f"Failed to cancel nav goal cleanly: {e}")
+        """Restarts the simulator"""
 
-        # Step 2: Invalidate all navigation-related futures and goal handles
-        self._nav_goal_handle = None
-        self._nav_future = None
-        self._get_nav_result_future = None
-        self._nav_sent = False
-
-        # Step 3: Reset simulation pose
-        if not self.reset_robot_pose():
-            self.get_logger().error("Failed to reset robot pose")
-            self.current_state = SequenceState.FAILED
-            return
-
-        self.get_logger().info("Robot pose reset. Attempting to reset controller...")
-
-        # Step 4: Reset the diffdrive_controller safely
-        if not self.reset_diffdrive_controller():
-            self.get_logger().error("Failed to reset diffdrive_controller")
-            self.current_state = SequenceState.FAILED
-            return
-
-        self.get_logger().info("Navigation action state cleared and controller reset")
-
-        # Step 5: Rebuild the goal pose (identical values, new instance)
-        goal_msg = NavigateToPose.Goal()
-        goal_msg.pose.header.frame_id = 'map'
-        goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
-
-        goal_msg.pose.pose.position.x = self.get_parameter('goal_x').value
-        goal_msg.pose.pose.position.y = self.get_parameter('goal_y').value
-        goal_msg.pose.pose.position.z = 0.0
-
-        goal_yaw = self.get_parameter('goal_yaw').value
-        goal_msg.pose.pose.orientation.x = 0.0
-        goal_msg.pose.pose.orientation.y = 0.0
-        goal_msg.pose.pose.orientation.z = math.sin(goal_yaw / 2)
-        goal_msg.pose.pose.orientation.w = math.cos(goal_yaw / 2)
-
-        self._next_goal_pose = goal_msg
-
-        # Step 6: Advance trial and reset to pose initialization
-        self.current_trial += 1
-        self.current_state = SequenceState.INITIALIZING_POSE
-        self._pose_sent = False          # force a new /initialpose publish
-        self.amcl_pose_received = False  # force AMCL wait again
-        self._restart_in_progress = False
+        self._restart_in_progress = False  # Prevent restart loops
+        self.collision_detected = False # Restarting
+        self.trial_results.append(self._trial_result)
+        self.clear_costmaps()
+        # Don't set to IDLE, let start_sequence handle the state
+        if self.reset_robot_pose():
+            #self.dock_robot()
+                # Add a small delay before starting
+            # self.start_sequence()  # This will set state to UNDOCKING
+            self.current_state = SequenceState.INITIALIZING_POSE
+            self.current_trial +=1
+        else:
+            self.get_logger().error("Failed to reset")
+            self.current_state = SequenceState.FAILED 
+    # def restart(self):
+    #     """Restarts the simulator and resets everything for the next trial."""
+    #
+    #     # Step 1: Cancel any active navigation goal safely
+    #     if self._nav_goal_handle:
+    #         self.get_logger().info("Canceling existing navigation goal before reset...")
+    #         try:
+    #             cancel_future = self._nav_goal_handle.cancel_goal_async()
+    #             rclpy.spin_until_future_complete(self, cancel_future)
+    #             self.get_logger().info("Navigation goal canceled")
+    #         except Exception as e:
+    #             self.get_logger().warn(f"Failed to cancel nav goal cleanly: {e}")
+    #
+    #     # Step 2: Invalidate all navigation-related futures and goal handles
+    #     self._nav_goal_handle = None
+    #     self._nav_future = None
+    #     self._get_nav_result_future = None
+    #     self._nav_sent = False
+    #
+    #     # Step 3: Reset simulation pose
+    #     if not self.reset_robot_pose():
+    #         self.get_logger().error("Failed to reset robot pose")
+    #         self.current_state = SequenceState.FAILED
+    #         return
+    #
+    #     self.get_logger().info("Robot pose reset. Attempting to reset controller...")
+    #
+    #     # Step 4: Reset the diffdrive_controller safely
+    #     if not self.reset_diffdrive_controller():
+    #         self.get_logger().error("Failed to reset diffdrive_controller")
+    #         self.current_state = SequenceState.FAILED
+    #         return
+    #
+    #     self.get_logger().info("Navigation action state cleared and controller reset")
+    #
+    #     # Step 5: Rebuild the goal pose (identical values, new instance)
+    #     goal_msg = NavigateToPose.Goal()
+    #     goal_msg.pose.header.frame_id = 'map'
+    #     goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
+    #
+    #     goal_msg.pose.pose.position.x = self.get_parameter('goal_x').value
+    #     goal_msg.pose.pose.position.y = self.get_parameter('goal_y').value
+    #     goal_msg.pose.pose.position.z = 0.0
+    #
+    #     goal_yaw = self.get_parameter('goal_yaw').value
+    #     goal_msg.pose.pose.orientation.x = 0.0
+    #     goal_msg.pose.pose.orientation.y = 0.0
+    #     goal_msg.pose.pose.orientation.z = math.sin(goal_yaw / 2)
+    #     goal_msg.pose.pose.orientation.w = math.cos(goal_yaw / 2)
+    #
+    #     self._next_goal_pose = goal_msg
+    #
+    #     # Step 6: Advance trial and reset to pose initialization
+    #     self.current_trial += 1
+    #     self.current_state = SequenceState.INITIALIZING_POSE
+    #     self._pose_sent = False          # force a new /initialpose publish
+    #     self.amcl_pose_received = False  # force AMCL wait again
+    #     self._restart_in_progress = False
     def amcl_pose_callback(self, msg):
         """Monitor AMCL pose for stability"""
         self.amcl_pose_received = True
@@ -492,10 +506,30 @@ class ReliableNavigationSequence(Node):
                 self.get_logger().info(f"This collision occured at {contact.positions}")
 
             self.collision_detected = True
-            self._trial_result = "COLLISION"
-            self.trial_results.append(self._trial_result)
+            self._trial_result = "COLLISIONS"
             self.current_state = SequenceState.RESTART
 
+    def clear_costmaps(self):
+        """Clears both global and local costmaps"""
+        try:
+        # Clear global costmap
+            global_client = self.create_client(ClearEntireCostmap, '/global_costmap/clear_entirely_global_costmap')
+            if global_client.wait_for_service(timeout_sec=2.0):
+                global_req = ClearEntireCostmap.Request()
+                global_future = global_client.call_async(global_req)
+                rclpy.spin_until_future_complete(self, global_future)
+                self.get_logger().info("Global costmap cleared")
+            
+            # Clear local costmap  
+            local_client = self.create_client(ClearEntireCostmap, '/local_costmap/clear_entirely_local_costmap')
+            if local_client.wait_for_service(timeout_sec=2.0):
+                local_req = ClearEntireCostmap.Request()
+                local_future = local_client.call_async(local_req)
+                rclpy.spin_until_future_complete(self, local_future)
+                self.get_logger().info("Local costmap cleared")
+            
+        except Exception as e:
+            self.get_logger().warn(f"Failed to clear costmaps: {e}")
     def is_diffdrive_active(self):
         """Retries lookup of diffdrive_controller and checks if it's active."""
         client = self.create_client(ListControllers, '/controller_manager/list_controllers')
