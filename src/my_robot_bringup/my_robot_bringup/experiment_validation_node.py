@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-
+from controller_manager_msgs.srv import SwitchController, ListControllers
+from rclpy.executors import ExternalShutdownException
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
@@ -129,10 +130,11 @@ class ReliableNavigationSequence(Node):
                 self.get_logger().info("Node failed - staying alive")
                 self._failed_logged = True
         elif self.current_state == SequenceState.RESTART:
-            # Only call restart once, not on every timer tick
             if not self._restart_in_progress:
                 self._restart_in_progress = True
+                self.get_logger().info("Restarting trial logic...")
                 self.restart()
+
 
     def handle_undocking(self):
         """Handle undocking phase - only sends command once"""
@@ -218,6 +220,7 @@ class ReliableNavigationSequence(Node):
                 self.current_state = SequenceState.NAVIGATING
                 self._pose_sent = False
 
+
     def handle_navigation(self):
         """Handle navigation to goal pose"""
         if (self.current_trial >= self.num_trials -1): #minus one because starts at 0
@@ -259,6 +262,9 @@ class ReliableNavigationSequence(Node):
             goal_msg.pose.pose.orientation.z = math.sin(goal_yaw/2) 
             goal_msg.pose.pose.orientation.w = math.cos(goal_yaw/2) 
             
+            if not self.is_cmd_vel_subscribed():
+                self.get_logger().warn("cmd_vel has no subscribers — controller likely not active yet")
+                return  # or transition to FAILED if it's unrecoverable
             self._nav_future = self.navigate_client.send_goal_async(goal_msg)
             self._nav_future.add_done_callback(self.nav_goal_response_callback)
             self._nav_sent = True
@@ -284,46 +290,114 @@ class ReliableNavigationSequence(Node):
         self._nav_goal_handle = goal_handle  # Store for potential cancellation
         self._get_nav_result_future = goal_handle.get_result_async()
         self._get_nav_result_future.add_done_callback(self.nav_result_callback)
-
     def nav_result_callback(self, future):
         """Callback for navigation result"""
-        self.get_logger().info("nav_result_callback called!")  # Add this debug line
+        self.get_logger().info("nav_result_callback called!")
+
         try:
-            result = future.result().result
-            status = future.result().status
+            if future.cancelled():
+                self.get_logger().warn("Navigation goal was cancelled before completion")
+                self._trial_result = "CANCELLED"
+                self.trial_results.append(self._trial_result)
+                self.current_state = SequenceState.RESTART
+                self._nav_sent = False
+                return
+
+            if not future.done():
+                self.get_logger().warn("Navigation result future is not done yet")
+                return
+
+            result_msg = future.result()
+            if result_msg is None:
+                self.get_logger().error("Navigation result returned None")
+                self._trial_result = "ERROR"
+                self.trial_results.append(self._trial_result)
+                self.current_state = SequenceState.RESTART
+                self._nav_sent = False
+                return
+
+            status = result_msg.status
+            result = result_msg.result
+
             self.get_logger().info(f"Nav status: {status}")
-            if status == 4: # success
+            if status == 4:  # SUCCESS
                 self.get_logger().info(f'Navigation success: {result}')
                 trial_result = "SUCCESS"
-            else: 
-                self.get_logger().info(f'Nav failed {result}')
+            else:
+                self.get_logger().info(f'Navigation failed: {result}')
                 trial_result = "FAILURE"
 
-            self.get_logger().info(f"Setting trial_result to: {trial_result}") 
-            self.current_state = SequenceState.RESTART
-            self._nav_sent = False
+            self.get_logger().info(f"Setting trial_result to: {trial_result}")
             self._trial_result = trial_result
             self.trial_results.append(trial_result)
+            self.current_state = SequenceState.RESTART
+            self._nav_sent = False
+
         except Exception as e:
             self.get_logger().error(f'Navigation result error: {e}')
             self._trial_result = "ERROR"
+            self.trial_results.append(self._trial_result)
             self.current_state = SequenceState.RESTART
             self._nav_sent = False
-            self.trial_results.append(self._trial_result)
+    
     def restart(self):
-        """Restarts the simulator"""
-        self._restart_in_progress = False  # Prevent restart loops
-        # Don't set to IDLE, let start_sequence handle the state
-        if self.reset_robot_pose():
-            #self.dock_robot()
-                # Add a small delay before starting
-            # self.start_sequence()  # This will set state to UNDOCKING
-            self.current_state = SequenceState.INITIALIZING_POSE
-            self.current_trial +=1
-        else:
-            self.get_logger().error("Failed to reset")
-            self.current_state = SequenceState.FAILED 
+        """Restarts the simulator and resets everything for the next trial."""
 
+        # Step 1: Cancel any active navigation goal safely
+        if self._nav_goal_handle:
+            self.get_logger().info("Canceling existing navigation goal before reset...")
+            try:
+                cancel_future = self._nav_goal_handle.cancel_goal_async()
+                rclpy.spin_until_future_complete(self, cancel_future)
+                self.get_logger().info("Navigation goal canceled")
+            except Exception as e:
+                self.get_logger().warn(f"Failed to cancel nav goal cleanly: {e}")
+
+        # Step 2: Invalidate all navigation-related futures and goal handles
+        self._nav_goal_handle = None
+        self._nav_future = None
+        self._get_nav_result_future = None
+        self._nav_sent = False
+
+        # Step 3: Reset simulation pose
+        if not self.reset_robot_pose():
+            self.get_logger().error("Failed to reset robot pose")
+            self.current_state = SequenceState.FAILED
+            return
+
+        self.get_logger().info("Robot pose reset. Attempting to reset controller...")
+
+        # Step 4: Reset the diffdrive_controller safely
+        if not self.reset_diffdrive_controller():
+            self.get_logger().error("Failed to reset diffdrive_controller")
+            self.current_state = SequenceState.FAILED
+            return
+
+        self.get_logger().info("Navigation action state cleared and controller reset")
+
+        # Step 5: Rebuild the goal pose (identical values, new instance)
+        goal_msg = NavigateToPose.Goal()
+        goal_msg.pose.header.frame_id = 'map'
+        goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
+
+        goal_msg.pose.pose.position.x = self.get_parameter('goal_x').value
+        goal_msg.pose.pose.position.y = self.get_parameter('goal_y').value
+        goal_msg.pose.pose.position.z = 0.0
+
+        goal_yaw = self.get_parameter('goal_yaw').value
+        goal_msg.pose.pose.orientation.x = 0.0
+        goal_msg.pose.pose.orientation.y = 0.0
+        goal_msg.pose.pose.orientation.z = math.sin(goal_yaw / 2)
+        goal_msg.pose.pose.orientation.w = math.cos(goal_yaw / 2)
+
+        self._next_goal_pose = goal_msg
+
+        # Step 6: Advance trial and reset to pose initialization
+        self.current_trial += 1
+        self.current_state = SequenceState.INITIALIZING_POSE
+        self._pose_sent = False          # force a new /initialpose publish
+        self.amcl_pose_received = False  # force AMCL wait again
+        self._restart_in_progress = False
     def amcl_pose_callback(self, msg):
         """Monitor AMCL pose for stability"""
         self.amcl_pose_received = True
@@ -362,6 +436,52 @@ class ReliableNavigationSequence(Node):
             self.get_logger().error(f"Error calling service: {str(e)}")
             return False
 
+
+    def reset_diffdrive_controller(self):
+        """Safely reset diffdrive_controller (deactivate then activate)"""
+        client = self.create_client(SwitchController, '/controller_manager/switch_controller')
+        while not client.wait_for_service(timeout_sec=3.0):
+            self.get_logger().warn("Waiting for /switch_controller service...")
+
+        if not self.is_diffdrive_active():
+            self.get_logger().info("diffdrive_controller already inactive — proceeding to activate")
+        else:
+            deactivate_req = SwitchController.Request()
+            deactivate_req.deactivate_controllers = ['diffdrive_controller']
+            deactivate_req.activate_controllers = []
+            deactivate_req.strictness = SwitchController.Request.BEST_EFFORT
+            future = client.call_async(deactivate_req)
+            rclpy.spin_until_future_complete(self, future)
+
+            if not future.result() or not future.result().ok:
+                self.get_logger().error("Failed to deactivate diffdrive_controller")
+                return False
+
+            self.get_logger().info("Successfully deactivated diffdrive_controller")
+            time.sleep(1.0)
+          # Attempt to activate controller
+            activate_req = SwitchController.Request()
+            activate_req.activate_controllers = ['diffdrive_controller']
+            activate_req.deactivate_controllers = []
+            activate_req.strictness = SwitchController.Request.BEST_EFFORT
+
+            future = client.call_async(activate_req)
+            rclpy.spin_until_future_complete(self, future)
+
+            if not future.result() or not future.result().ok:
+                self.get_logger().error("Failed to activate diffdrive_controller")
+                return False
+
+            # Wait for controller to become active again
+            for _ in range(5):  # retry up to 5 seconds
+                if self.is_diffdrive_active():
+                    self.get_logger().info("Successfully activated diffdrive_controller")
+                    return True
+                self.get_logger().warn("Waiting for diffdrive_controller to become active...")
+                time.sleep(1.0)
+
+            self.get_logger().error("diffdrive_controller never became active after activation")
+            return False
     def bumper_callback(self, msg):
         """Monitor for bumper collisions"""
         if msg.contacts: # collision detected
@@ -376,7 +496,34 @@ class ReliableNavigationSequence(Node):
             self.trial_results.append(self._trial_result)
             self.current_state = SequenceState.RESTART
 
+    def is_diffdrive_active(self):
+        """Retries lookup of diffdrive_controller and checks if it's active."""
+        client = self.create_client(ListControllers, '/controller_manager/list_controllers')
+        retries = 3
+        for attempt in range(retries):
+            if not client.wait_for_service(timeout_sec=2.0):
+                self.get_logger().warn("Waiting for list_controllers service...")
+
+            req = ListControllers.Request()
+            future = client.call_async(req)
+            rclpy.spin_until_future_complete(self, future)
+
+            if future.result():
+                for controller in future.result().controller:
+                    if controller.name == 'diffdrive_controller':
+                        self.get_logger().info(f"diffdrive_controller state: {controller.state}")
+                        return controller.state == 'active'
+
+            self.get_logger().warn(f"diffdrive_controller not found (attempt {attempt + 1}/{retries})")
+            time.sleep(1.0)
+
+        self.get_logger().error("diffdrive_controller not found after retries")
+        return False
          
+    def is_cmd_vel_subscribed(self):
+        """Check if any node is subscribed to /cmd_vel."""
+        info = self.get_publishers_info_by_topic('/cmd_vel')
+        return len(info) > 0
 def main(args=None):
     rclpy.init(args=args)
     
