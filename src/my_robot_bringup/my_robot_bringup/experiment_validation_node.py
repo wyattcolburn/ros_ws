@@ -43,6 +43,7 @@ class ReliableNavigationSequence(Node):
         self.current_state = SequenceState.IDLE
         self.num_trials = 10 
         self.current_trial = 0
+        
         # Action clients
         self.undock_client = ActionClient(
             self, Undock, '/undock', 
@@ -68,6 +69,11 @@ class ReliableNavigationSequence(Node):
             Contacts, '/bumper_contact', self.bumper_callback,
                 10)
 
+        self.global_costmap_client = self.create_client(ClearEntireCostmap, 
+                                                '/global_costmap/clear_entirely_global_costmap')
+        
+        self.local_costmap_client = self.create_client(ClearEntireCostmap, 
+                                               '/local_costmap/clear_entirely_local_costmap')
         self.collision_detected = False
 
         self.amcl_pose_received = False
@@ -217,6 +223,7 @@ class ReliableNavigationSequence(Node):
             
             if self.amcl_pose_received and elapsed >= delay:
                 self.get_logger().info('AMCL pose confirmed, proceeding to navigation...')
+                self.clear_costmaps()
                 self.current_state = SequenceState.NAVIGATING
                 self._pose_sent = False
 
@@ -340,20 +347,22 @@ class ReliableNavigationSequence(Node):
 
         """Restarts the simulator"""
 
-        self._restart_in_progress = False  # Prevent restart loops
         self.collision_detected = False # Restarting
         self.trial_results.append(self._trial_result)
-        self.clear_costmaps()
         # Don't set to IDLE, let start_sequence handle the state
         if self.reset_robot_pose():
             #self.dock_robot()
                 # Add a small delay before starting
             # self.start_sequence()  # This will set state to UNDOCKING
             self.current_state = SequenceState.INITIALIZING_POSE
+            self._pose_sent = False           # Force new pose to be sent
+            self.amcl_pose_received = False   # Force AMCL wait again
+            self.pose_stable_count = 0             
             self.current_trial +=1
         else:
             self.get_logger().error("Failed to reset")
             self.current_state = SequenceState.FAILED 
+        self._restart_in_progress = False  # Prevent restart loops
     # def restart(self):
     #     """Restarts the simulator and resets everything for the next trial."""
     #
@@ -498,7 +507,7 @@ class ReliableNavigationSequence(Node):
             return False
     def bumper_callback(self, msg):
         """Monitor for bumper collisions"""
-        if msg.contacts: # collision detected
+        if msg.contacts and self.current_state == SequenceState.NAVIGATING: # collision detected
             self.get_logger().warn(f"Collision! {len(msg.contacts)} contact")
 
             for i, contact in enumerate(msg.contacts):
@@ -506,30 +515,33 @@ class ReliableNavigationSequence(Node):
                 self.get_logger().info(f"This collision occured at {contact.positions}")
 
             self.collision_detected = True
-            self._trial_result = "COLLISIONS"
-            self.current_state = SequenceState.RESTART
-
     def clear_costmaps(self):
-        """Clears both global and local costmaps"""
+        """Clear both global and local costmaps with proper error checking"""
         try:
-        # Clear global costmap
-            global_client = self.create_client(ClearEntireCostmap, '/global_costmap/clear_entirely_global_costmap')
-            if global_client.wait_for_service(timeout_sec=2.0):
+            # Clear global costmap
+            if self.global_costmap_client.wait_for_service(timeout_sec=2.0):
                 global_req = ClearEntireCostmap.Request()
-                global_future = global_client.call_async(global_req)
-                rclpy.spin_until_future_complete(self, global_future)
-                self.get_logger().info("Global costmap cleared")
+                global_future = self.global_costmap_client.call_async(global_req)
+                self.get_logger().info(f"Global costmap requested successfully")
+            else:
+                self.get_logger().error("Global costmap clear timed out")
+                return False
             
             # Clear local costmap  
-            local_client = self.create_client(ClearEntireCostmap, '/local_costmap/clear_entirely_local_costmap')
-            if local_client.wait_for_service(timeout_sec=2.0):
+            if self.local_costmap_client.wait_for_service(timeout_sec=2.0):
                 local_req = ClearEntireCostmap.Request()
-                local_future = local_client.call_async(local_req)
-                rclpy.spin_until_future_complete(self, local_future)
-                self.get_logger().info("Local costmap cleared")
+                local_future = self.local_costmap_client.call_async(local_req)
+                self.get_logger().info(f"Local costmap requested successfully")
+            else:
+                self.get_logger().error("Local costmap clear timed out")
+                return False
+                
+            return True
             
         except Exception as e:
-            self.get_logger().warn(f"Failed to clear costmaps: {e}")
+            self.get_logger().error(f"Exception in clear_costmaps: {e}")
+            return False  # Don't change state here!       
+    
     def is_diffdrive_active(self):
         """Retries lookup of diffdrive_controller and checks if it's active."""
         client = self.create_client(ListControllers, '/controller_manager/list_controllers')
