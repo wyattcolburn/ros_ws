@@ -37,6 +37,8 @@ from visualization_msgs.msg import MarkerArray
 from scipy.spatial.transform import Rotation as R
 from visualization_msgs.msg import Marker
 
+# for progress bar
+import tqdm
 from sensor_msgs.msg import LaserScan
 from tf_transformations import euler_from_quaternion
 from geometry_msgs.msg import Pose
@@ -91,14 +93,6 @@ class Obstacle_Manager():
         self.RADIUS = RADIUS
         self.prev_dir_x = 0
         self.prev_dir_y = 0
-    def get_active_obstacles(self):
-        current_local_goal_count = self.local_goal_manager_.get_local_goal_counter()
-        total_goals = len(self.local_goal_manager_.data)
-        print(f"local goal count {current_local_goal_count}") 
-        valid_border_min = max(0, current_local_goal_count - 4)
-        valid_border_max = min(total_goals, current_local_goal_count + 20)
-        active_list = self.obstacle_array[valid_border_min: valid_border_max]
-        return active_list
     def get_active_obstacles_claude(self, global_path=None, current_index=None):
         """Select obstacles based on distance to the current robot position."""
         # Get current robot position
@@ -458,52 +452,16 @@ class Local_Goal_Manager():
                 pose.orientation.w)
         _, _, yaw = euler_from_quaternion(quat)
         return yaw
-def odom_to_map(node, odom_x, odom_y, odom_frame='odom', map_frame='map'):
-    """
-    convert coordinates from odometry frame to map frame using ros2 tf2.
-    
-    parameters:
-    - node: ros2 node instance
-    - odom_x: x coordinate in odometry frame
-    - odom_y: y coordinate in odometry frame
-    - odom_frame: name of the odometry frame (default: 'odom')
-    - map_frame: name of the map frame (default: 'map')
-    
-    returns:
-    - (map_x, map_y): coordinates in map frame
-    - none if transformation failed
-    """
-    # create point in odometry frame
-    point = pointstamped()
-    point.header.stamp = rclpy.time.time().to_msg()
-
-    point.header.frame_id = odom_frame
-    point.point.x = float(odom_x)
-    point.point.y = float(odom_y)
-    point.point.z = 0.0
-    
-    try:
-        # transform point from odom frame to map frame
-        transformed_point = node.tf_buffer.transform(point, map_frame, rclpy.duration.duration(seconds=0.5))
-        return transformed_point.point.x, transformed_point.point.y
-    except transformexception as ex:
-        node.get_logger().warn(f"could not transform point from {odom_frame} to {map_frame}: {ex}")
-        return none
 
 class MapTraining(Node):
     def __init__(self):
         super().__init__('map_training_node')
 
-        # TF setup
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         # Data setup
         self.odom_x = None
         self.odom_y = None
-        self.map_x = []
-        self.map_y = []
-        self.map_points = []
+        self.odom_points = []
         self.global_path = None
         
         self.current_odom = (0.0, 0.0)
@@ -514,19 +472,14 @@ class MapTraining(Node):
         self.NUM_LIDAR = 1080
         self.Obstacle_list = []
 
-        self.Obstacle_list = []
         self.dist_between_goals = .2
-        # Delay the odom-to-map conversion until TF is ready
-        self.odom_timer = self.create_timer(2.0, self.check_tf_and_run)
 
-
-        
         self.distances = [0] * self.NUM_LIDAR
 
         self.lidar_header_flag = True
         # Files for training data to be stored
         self.input_bag = "/home/wyatt/ros_ws/may15_medium/"
-        self.frame_dkr = f"{self.input_bag}/input_data/"
+        self.frame_dkr = f"{self.input_bag}_odom/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
         self.cmd_csv = os.path.join(self.frame_dkr, "cmd_vel.csv")
@@ -534,11 +487,10 @@ class MapTraining(Node):
         
         self.local_goals_output = os.path.join(self.frame_dkr, "local_goals.csv")
         self.cmd_output_csv = os.path.join(self.frame_dkr, "cmd_vel_output.csv")
-        
 
-        training_output = os.path.join(self.frame_dkr, "big_csv.csv")
-        path_output = os.path.join(self.frame_dkr, "odom_path")
-        obstacles_output = os.path.join(self.frame_dkr, "obactles.csv")
+        # start the program by collecting all the odometry data
+        self.odom_data()
+
     def validate_obstacles(self):
         output_folder = "obstacle_validation"
         os.makedirs(output_folder, exist_ok=True)
@@ -664,16 +616,6 @@ class MapTraining(Node):
         
         print(f"Saved obstacle validation plots to {output_folder}/")
    
-    def check_tf_and_run(self):
-        # Try checking for transform once TF listener has had time to populate
-        if self.tf_buffer.can_transform(
-            'map', 'odom', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.5)
-        ):
-            self.get_logger().info("TF transform map → odom is now available. Proceeding with data transformation.")
-            self.odom_timer.cancel()  # Stop calling this timer
-            self.odom_data()  # Run the conversion
-        else:
-            self.get_logger().warn("TF not ready: waiting for map → odom...")
 
     def odom_data(self):
         
@@ -687,21 +629,9 @@ class MapTraining(Node):
         self.odom_x = df['odom_x'].tolist()
         self.odom_y = df['odom_y'].tolist()
 
-        for i, (x_odom, y_odom) in enumerate(zip(self.odom_x, self.odom_y)):
-            result = odom_to_map(self, x_odom, y_odom)
-            if result is not None:
-                x_map, y_map = result
-                self.map_x.append(x_map)
-                self.map_y.append(y_map)
-            else:
-                self.get_logger().warn(f"Skipping index {i} due to transform failure.")
-                self.map_x.append(None)
-                self.map_y.append(None)
-
-    
         self.segment_setup()
         #self.setup()
-        self.get_logger().info(f"Transformed {len(self.map_x)} points to map frame.")
+        self.get_logger().info(f"Read {len(self.odom_x)} odom points from ros bag.")
 
 
     def visualize_path_with_yaw(self, sample_rate=20):
@@ -760,21 +690,22 @@ class MapTraining(Node):
         print(f"Saved path with yaw visualization to {output_folder}/path_with_yaw.png")
     def segment_setup(self):
 
-        self.map_points = list(zip(self.map_x, self.map_y))
+        # create map_points from odom_x, odom_y
+        self.odom_points = list(zip(self.odom_x, self.odom_y))
 
         # Global stuff for training data
 
-        self.global_path = self.create_path_from_points(self.map_points)
+        self.global_path = self.create_path_from_points(self.odom_points)
 
-        self.local_goal_manager_ = Local_Goal_Manager((self.map_points[0][0], self.map_points[0][1]))
+        self.local_goal_manager_ = Local_Goal_Manager((self.odom_points[0][0], self.odom_points[0][1]))
 
         self.local_goal_manager_.global_path = self.global_path
         self.local_goal_manager_.generate_local_goals_claude(self.global_path)
 
-        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output)
+        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.odom_points, self.local_goals_output)
 
-        self.current_odom = (self.map_points[0][0], self.map_points[0][1])
-        self.segments = self.create_segments(self.map_points)
+        self.current_odom = (self.odom_points[0][0], self.odom_points[0][1])
+        self.segments = self.create_segments(self.odom_points)
 
         for seg in self.segments:
             print(f"segment index {seg.start_index} and {seg.end_index}")
@@ -1039,7 +970,7 @@ class MapTraining(Node):
                 for row in csv_reader:
                     start_index = int(row[1])
                     end_index = int(row[2])
-                    curr_seg_ = Segment(self.map_points[start_index:end_index],self, self.RADIUS, self.OFFSET)
+                    curr_seg_ = Segment(map_points[start_index:end_index],self, self.RADIUS, self.OFFSET)
                     curr_seg_.start_index = start_index
                     curr_seg_.end_index = end_index
                     curr_seg_.init()
@@ -1061,7 +992,6 @@ class MapTraining(Node):
             for i in range(1, len(map_points)):
 
                 current_segment.append(map_points[i])
-                start_index 
 
                 for j in range(len(current_segment) - 200):
                     if self.distance_between_points(current_segment[j], map_points[i]) < threshold:
@@ -1170,14 +1100,12 @@ class MapTraining(Node):
         return False, None
 
 # Then in your setup method:
-    def create_path_from_points(self, map_points, frame_id='map'):
+    def create_path_from_points(self, odom_points, frame_id='odom'):
         """
-        Create a Path message from a list of (x, y) map points.
+        Create a Path message from a list of (x, y) odom points.
 
         Parameters:
-        - map_points: List of (x, y) coordinates in the map frame
-        - frame_id: The frame ID for the path (default: 'map')
-
+        - odom_points: List of (x, y) coordinates in the odom frame
         Returns:
         - path: nav_msgs/Path message
         """
@@ -1185,7 +1113,7 @@ class MapTraining(Node):
         path.header.frame_id = frame_id
         path.header.stamp = self.get_clock().now().to_msg()
 
-        for i, (x, y) in enumerate(map_points):
+        for i, (x, y) in enumerate(odom_points):
             pose = PoseStamped()
             pose.header.frame_id = frame_id
             pose.header.stamp = path.header.stamp
@@ -1194,8 +1122,8 @@ class MapTraining(Node):
             pose.pose.position.z = 0.0
 
             # If not the last point, set orientation toward the next point
-            if i < len(map_points) - 1:
-                next_x, next_y = map_points[i + 1]
+            if i < len(odom_points) - 1:
+                next_x, next_y = odom_points[i + 1]
                 yaw = math.atan2(next_y - y, next_x - x)
                 # Convert yaw to quaternion (simplified)
                 pose.pose.orientation.z = math.sin(yaw / 2.0)
