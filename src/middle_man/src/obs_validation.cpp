@@ -73,6 +73,9 @@ class obsValid : public rclcpp::Node {
     double map_y = 0;
     double map_yaw = 0;
 
+    double map_lg_x = 0;
+    double map_lg_y = 0;
+    double map_lg_yaw = 0;
     Local_Goal GOAL;
 
     static constexpr double GOAL_THRESHOLD = .5;
@@ -146,7 +149,7 @@ class obsValid : public rclcpp::Node {
         for (size_t i = 0; i < packetOut_size; ++i) {
             msg.data[i] = static_cast<double>(packetOut[i]);
         }
-
+        RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
         RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
         packetOut_publisher_->publish(msg);
         RCLCPP_INFO(this->get_logger(), "PUBLISHING NEURAL NET INPUT MESSAGE");
@@ -158,10 +161,13 @@ class obsValid : public rclcpp::Node {
         packetOut[0] = current_cmd_v;
         packetOut[1] = current_cmd_w;
 
-        Local_Goal currentLG = local_goal_manager_.data_vector[local_goal_manager_.current_local_goal_counter];
-        packetOut[2] = currentLG.x_point;
-        packetOut[3] = currentLG.y_point;
-        packetOut[4] = currentLG.yaw;
+        Local_Goal currentLG = local_goal_manager_.data_vector[0];
+        // packetOut[2] = currentLG.x_point;
+        // packetOut[3] = currentLG.y_point;
+        // packetOut[4] = currentLG.yaw;
+        packetOut[2] = map_lg_x;
+        packetOut[3] = map_lg_y;
+        packetOut[4] = map_lg_yaw;
 
         for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter++) {
             packetOut[5 + lidar_counter] = hall_lidar_ranges[lidar_counter];
@@ -197,6 +203,19 @@ class obsValid : public rclcpp::Node {
             return;
         }
 
+        RCLCPP_INFO(this->get_logger(), "PRE TRANSFORMATION LOCAL GOAL %.3f, %.3f", pathMsg->poses[0].pose.position.x,
+                    pathMsg->poses[0].pose.position.y);
+        map_lg_x = pathMsg->poses[0].pose.position.x;
+        map_lg_y = pathMsg->poses[0].pose.position.y;
+
+        tf2::Quaternion q(pathMsg->poses[0].pose.orientation.x, pathMsg->poses[0].pose.orientation.y,
+                          pathMsg->poses[0].pose.orientation.z, pathMsg->poses[0].pose.orientation.w);
+
+        tf2::Matrix3x3 m(q);
+        double roll, pitch, yaw;
+        m.getRPY(roll, pitch, yaw);
+
+        map_lg_yaw = yaw;
         local_goal_manager_.clean_data();
         // translate local goals into odom points
         for (size_t i = 0; i < pathMsg->poses.size(); i += 8) {
@@ -206,7 +225,6 @@ class obsValid : public rclcpp::Node {
 
             pose_in_map.header.frame_id = "map";
             pose_in_map.pose = pathMsg->poses[i].pose;
-
             try {
                 tf2::doTransform(pose_in_map, pose_in_odom, transform);
 
