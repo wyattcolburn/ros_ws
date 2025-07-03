@@ -417,23 +417,29 @@ class OneShot(Node):
                     self._trial_result
                 ])
         return
-
-def main(args=None):
-    rclpy.init(args=args)
-    
-    node = OneShot()
-    
-    # Use MultiThreadedExecutor for concurrent action handling
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
+def main():
+    rclpy.init()
     
     try:
-        executor.spin()
+        # Your existing node creation and logic here
+        node = OneShot()  # Replace with your actual node class
+        
+        # Your existing code...
+        
+        # Use spin or executor as needed
+        rclpy.spin(node)
+        
     except KeyboardInterrupt:
-        pass
+        print("Received KeyboardInterrupt, shutting down gracefully...")
+    except Exception as e:
+        print(f"An error occurred: {e}")
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
-
+        # Clean shutdown
+        try:
+            if rclpy.ok():  # Check if ROS2 context is still valid
+                node.destroy_node()  # Clean up your node
+                rclpy.shutdown()
+        except Exception as e:
+            print(f"Error during shutdown: {e}")
 if __name__ == '__main__':
     main()
