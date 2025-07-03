@@ -101,7 +101,7 @@ class Obstacle_Manager():
         else:
             robot_pos = self.local_goal_manager_.current_odom
         #robot_pos = self.local_goal_manager_.current_odom
-        print(f"active obstacles reference to where it is {robot_pos}") 
+        # print(f"active obstacles reference to where it is {robot_pos}") 
         # Calculate distance to each obstacle
         obstacles_with_distance = []
         for obs in self.obstacle_array:
@@ -233,9 +233,10 @@ class Local_Goal_Manager():
             print("Cannot generate local goals: No global path available")
             self.global_path = global_path
             return
-
+        
+        print(f"I am in the start of generate local goals claude, first point is: {global_path.poses[0].pose.position.x} and {global_path.poses[0].pose.position.y}")
         accumulated_distance = 0.0
-        base_threshold = 0.2
+        base_threshold = 0.05
         print(f"len of global_path : {len(self.global_path.poses)}") 
         for i in range(len(self.global_path.poses)-1):
             current_pose = self.global_path.poses[i]
@@ -412,38 +413,48 @@ class Local_Goal_Manager():
             return True
         return False
 
-    def upscale_local_goal(self, start_lg, map_points, output_csv):
 
-        
-        currentLocalGoal = (start_lg[0],start_lg[1])
+    def upscale_local_goal(self, map_points, output_csv):
+        """
+        Simplest version that assigns the closest local goal to each odom point
+        """
         lg_upsampled = [] 
         lg_yaw_upsampled = []
-        lgCounter = 0
-        odomCounter = 0
-        while len(map_points) != len(lg_upsampled):
-            odomPoint = (map_points[odomCounter][0], map_points[odomCounter][1])
-            if odomPoint == currentLocalGoal:
-                # if have reached the local goal, update to next local goal
-                if lgCounter +1 < len(self.data):
-                    lgCounter += 1
-                    currentLocalGoal = (self.data[lgCounter].pose.position.x, self.data[lgCounter].pose.position.y)
-                    print("success, local goal has been reached")
-
-            
-            yaw = self.get_yaw(self.data[lgCounter].pose)
-            lg_yaw_upsampled.append(yaw)
-            lg_upsampled.append(currentLocalGoal)
-            odomCounter += 1
-            print("len of lg_upsampled", len(lg_upsampled), len(map_points), lgCounter, len(self.data))
-        print(len(lg_upsampled) == len(map_points))
         
+        print(f"Upscaling {len(self.data)} local goals to {len(map_points)} odom points")
+        
+        for odom_point in map_points:
+            odom_x, odom_y = odom_point[0], odom_point[1]
+            
+            # Find the closest local goal to this odom point
+            min_distance = float('inf')
+            closest_lg_index = 0
+            
+            for lg_index, local_goal in enumerate(self.data):
+                lg_x = local_goal.pose.position.x
+                lg_y = local_goal.pose.position.y
+                
+                distance = math.sqrt((odom_x - lg_x)**2 + (odom_y - lg_y)**2)
+                
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_lg_index = lg_index
+            
+            # Use the closest local goal
+            closest_lg = self.data[closest_lg_index]
+            current_local_goal = (closest_lg.pose.position.x, closest_lg.pose.position.y)
+            yaw = self.get_yaw(closest_lg.pose)
+            
+            lg_upsampled.append(current_local_goal)
+            lg_yaw_upsampled.append(yaw)
 
+        print(f"Completed upscaling: {len(lg_upsampled)} entries")
 
-
-        with open(output_csv, 'w', newline = '') as csvfile:
+        # Save to CSV
+        with open(output_csv, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(['local_goals_x', 'local_goals_y', 'local_goals_yaw'])
-        
+            
             for i in range(len(lg_upsampled)):
                 writer.writerow([lg_upsampled[i][0], lg_upsampled[i][1], lg_yaw_upsampled[i]])
 
@@ -458,6 +469,8 @@ class MapTraining(Node):
         super().__init__('map_training_node')
 
 
+        # limit for only 1000 points for development
+        self.data_limit = 1000
         # Data setup
         self.odom_x = None
         self.odom_y = None
@@ -626,8 +639,8 @@ class MapTraining(Node):
         
 
         df = pd.read_csv(self.odom_csv_file)
-        self.odom_x = df['odom_x'].tolist()
-        self.odom_y = df['odom_y'].tolist()
+        self.odom_x = df['odom_x'].tolist()[self.data_limit:self.data_limit*10]
+        self.odom_y = df['odom_y'].tolist()[self.data_limit:self.data_limit*10]
 
         self.segment_setup()
         #self.setup()
@@ -702,7 +715,7 @@ class MapTraining(Node):
         self.local_goal_manager_.global_path = self.global_path
         self.local_goal_manager_.generate_local_goals_claude(self.global_path)
 
-        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.odom_points, self.local_goals_output)
+        self.local_goal_manager_.upscale_local_goal(self.odom_points, self.local_goals_output)
 
         self.current_odom = (self.odom_points[0][0], self.odom_points[0][1])
         self.segments = self.create_segments(self.odom_points)
@@ -712,7 +725,7 @@ class MapTraining(Node):
             print(f"len of seg.map_points : {len(seg.map_points)}")
         self.debug_segment_obstacles()
         print("done")
-        self.process_segment(self.segments[0], 0)
+        self.process_segment_1000(self.segments[0], 0)
 
 
     def debug_segment_obstacles(self, seg_index=0):  # Use a small segment
@@ -767,8 +780,7 @@ class MapTraining(Node):
             self.process_segment(seg, seg_index)
      
 
-    def process_segment(self, seg, seg_index):
-
+    def process_segment_1000(self, seg, seg_index):
         """
         Args: Segment
         Output: Nothing, data just written to CSV
@@ -778,7 +790,94 @@ class MapTraining(Node):
         """
         
         self.lidar_header_flag = True
-        output_folder = f"{self.input_bag}/seg_{seg_index}_test_ind/input_data"
+        output_folder = f"{self.input_bag}/small"
+        os.makedirs(output_folder, exist_ok=True)
+
+        odom_all = pd.read_csv(self.odom_csv_file)
+        odom_curr = odom_all[self.data_limit:self.data_limit*10]
+        odom_curr.to_csv(f"{output_folder}/odom_data.csv")
+        
+        cmd_all = pd.read_csv(self.cmd_output_csv)
+        cmd_curr = cmd_all[self.data_limit:self.data_limit*10]
+        cmd_curr.to_csv(f"{output_folder}/cmd_vel_output.csv")
+
+        local_goal_all = pd.read_csv(self.local_goals_output)
+        local_goal_all.to_csv(f"{output_folder}/local_goals.csv")
+       
+        if os.path.exists(f"{output_folder}/lidar_data.csv"):
+            os.remove(f"{output_folder}/lidar_data.csv")
+
+        print(f"odom_curr length: {len(odom_all)}")
+        print(f"cmd_curr length: {len(cmd_all)}")
+        print(f"local_goal_all length: {len(local_goal_all)}")
+        
+
+
+        self.current_odom_index = 0
+        counter = 0
+
+        path_x = [point[0] for point in seg.map_points]
+        path_y = [point[1] for point in seg.map_points]
+
+        frames_folder = f"{output_folder}/frames"
+        os.makedirs(frames_folder, exist_ok=True)
+    
+        for i, map_point in enumerate(seg.map_points[:len(cmd_curr)]):
+            
+            self.current_odom = (map_point[0], map_point[1])
+            seg.local_goal_manager_.current_odom = self.current_odom
+            active_obstacles = seg.get_obstacles(i)
+            ray_data = self.ray_tracing(seg.global_path.poses[i].pose,seg,active_obstacles)
+            self.ray_data_append(filename=f"{output_folder}/lidar_data.csv")
+
+            if i % 100 != 0:
+                counter +=1
+                self.current_odom_index +=1
+                continue
+
+            plt.clf()  # clear previous plot
+            ax = plt.gca()
+            ax.set_aspect('equal')
+            # replot the base elements
+            plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="odometry path")
+
+
+            for obstacle in active_obstacles:
+                circle = patches.Circle(
+                (obstacle.center_x, obstacle.center_y),
+                radius=obstacle.radius,
+                fill=False,
+                color='red',
+                linewidth=1.5,
+                linestyle='-'
+            )
+                ax.add_patch(circle)
+
+            plt.scatter(self.current_odom[0], self.current_odom[1], color='cyan', s=200, label='robot')
+
+            # plot the entire path
+            plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, color='black', label='odom path')
+            self.draw_rays_claude_2(self.current_odom[0], self.current_odom[1], ray_data, seg)
+            # save the frame
+            
+            frame_path = f"{frames_folder}/frame_{counter:03d}.png"
+            counter+=1
+            self.current_odom_index +=1
+            plt.savefig(frame_path)
+    
+        plt.close()
+        print("done with main loop")
+    def process_segment(self, seg, seg_index):
+        """
+        Args: Segment
+        Output: Nothing, data just written to CSV
+        Make a dkr
+        First, make odom_data.csv, cmd_vel_output.csv, local_goals.csv just for that section, 
+        ray_trace
+        """
+        
+        self.lidar_header_flag = True
+        output_folder = f"{self.input_bag}/small"
         os.makedirs(output_folder, exist_ok=True)
 
         odom_all = pd.read_csv(self.odom_csv_file)
@@ -848,7 +947,6 @@ class MapTraining(Node):
             plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="odometry path")
 
 
-            print("local goal count") 
             for obstacle in active_obstacles:
                 circle = patches.Circle(
                 (obstacle.center_x, obstacle.center_y),
@@ -911,7 +1009,6 @@ class MapTraining(Node):
                 plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="odometry path")
 
 
-                print("local goal count") 
                 for obstacle in active_obstacle:
                     circle = patches.Circle(
                     (obstacle.center_x, obstacle.center_y),
@@ -1242,10 +1339,7 @@ class MapTraining(Node):
         Output: Lidar data with 1080 values
         """
         local_data = [0] * self.NUM_LIDAR
-        #active_obstacles = self.test_seg.obstacle_manager_.get_active_obstacles_claude(self.global_path, self.current_odom_index)
 
-        print(f"I am located at {(pose.position.x, pose.position.y)}")
-        #print(f" len of active obstacles {len(active_obstacles)}")
         yaw = self.get_yaw(pose)
         incrementor = (2 * math.pi) / self.NUM_LIDAR
         lidar_offset = -math.pi/2 
@@ -1295,7 +1389,7 @@ class MapTraining(Node):
             if min_distance != float('inf'):
                 self.distances[index] = min_distance
                 local_data[index] = min_distance
-        self.get_logger().info("Calculated distances") 
+        # self.get_logger().info("Calculated distances") 
         return local_data 
 
 

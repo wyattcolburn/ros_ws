@@ -460,22 +460,22 @@ class Local_Goal_Manager():
         return yaw
 def odom_to_map(node, odom_x, odom_y, odom_frame='odom', map_frame='map'):
     """
-    convert coordinates from odometry frame to map frame using ros2 tf2.
+    Convert coordinates from odometry frame to map frame using ROS2 TF2.
     
-    parameters:
-    - node: ros2 node instance
+    Parameters:
+    - node: ROS2 node instance
     - odom_x: x coordinate in odometry frame
     - odom_y: y coordinate in odometry frame
     - odom_frame: name of the odometry frame (default: 'odom')
     - map_frame: name of the map frame (default: 'map')
     
-    returns:
+    Returns:
     - (map_x, map_y): coordinates in map frame
-    - none if transformation failed
+    - None if transformation failed
     """
-    # create point in odometry frame
-    point = pointstamped()
-    point.header.stamp = rclpy.time.time().to_msg()
+    # Create point in odometry frame
+    point = PointStamped()
+    point.header.stamp = rclpy.time.Time().to_msg()
 
     point.header.frame_id = odom_frame
     point.point.x = float(odom_x)
@@ -483,12 +483,12 @@ def odom_to_map(node, odom_x, odom_y, odom_frame='odom', map_frame='map'):
     point.point.z = 0.0
     
     try:
-        # transform point from odom frame to map frame
-        transformed_point = node.tf_buffer.transform(point, map_frame, rclpy.duration.duration(seconds=0.5))
+        # Transform point from odom frame to map frame
+        transformed_point = node.tf_buffer.transform(point, map_frame, rclpy.duration.Duration(seconds=0.5))
         return transformed_point.point.x, transformed_point.point.y
-    except transformexception as ex:
-        node.get_logger().warn(f"could not transform point from {odom_frame} to {map_frame}: {ex}")
-        return none
+    except TransformException as ex:
+        node.get_logger().warn(f"Could not transform point from {odom_frame} to {map_frame}: {ex}")
+        return None
 
 class MapTraining(Node):
     def __init__(self):
@@ -508,7 +508,7 @@ class MapTraining(Node):
         
         self.current_odom = (0.0, 0.0)
         
-        self.OFFSET = 1.0
+        self.OFFSET = 0.5
         self.RADIUS = .4
         self.NUM_VALID_OBS = 20
         self.NUM_LIDAR = 1080

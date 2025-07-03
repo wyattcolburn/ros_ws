@@ -24,7 +24,7 @@ ARGUMENTS = [
                           description='Initial Y position'),
     DeclareLaunchArgument('initial_yaw', default_value='3.141',
                           description='Initial yaw orientation'),
-    DeclareLaunchArgument('goal_x', default_value='-2.5',
+    DeclareLaunchArgument('goal_x', default_value='-3.5',
                           description='Goal X position'),
     DeclareLaunchArgument('goal_y', default_value='0.5',
                           description='Goal Y position'),
@@ -73,11 +73,10 @@ def generate_launch_description():
             ('yaw', LaunchConfiguration('yaw'))]
     )
 
-    # Reliable navigation sequence node
-    reliable_nav_node = Node(
+    one_shot = Node(
         package='my_robot_bringup',  # Replace with your actual package name
-        executable='validate',
-        name='reliable_navigation_sequence',
+        executable='one_shot',
+        name='one_shot_trial',
         output='screen',
         parameters=[{
             'initial_x': LaunchConfiguration('initial_x'),
@@ -92,10 +91,33 @@ def generate_launch_description():
     )
 
     # Add a delay before starting the navigation sequence to ensure everything is ready
-    delayed_nav_node = TimerAction(
+    delayed_one_shot_node = TimerAction(
         period=15.0,  # Increased delay to 15 seconds
-        actions=[reliable_nav_node]
+        actions=[one_shot]
     )
+    # Reliable navigation sequence node
+    # reliable_nav_node = Node(
+    #     package='my_robot_bringup',  # Replace with your actual package name
+    #     executable='validate',
+    #     name='reliable_navigation_sequence',
+    #     output='screen',
+    #     parameters=[{
+    #         'initial_x': LaunchConfiguration('initial_x'),
+    #         'initial_y': LaunchConfiguration('initial_y'),
+    #         'initial_yaw': LaunchConfiguration('initial_yaw'),
+    #         'goal_x': LaunchConfiguration('goal_x'),
+    #         'goal_y': LaunchConfiguration('goal_y'),
+    #         'goal_yaw': LaunchConfiguration('goal_yaw'),
+    #         'wait_after_undock': 2.0,
+    #         'pose_init_delay': 1.0,
+    #     }]
+    # )
+    #
+    # # Add a delay before starting the navigation sequence to ensure everything is ready
+    # delayed_nav_node = TimerAction(
+    #     period=15.0,  # Increased delay to 15 seconds
+    #     actions=[reliable_nav_node]
+    # )
 
     # Optional: ROS2 bag recording (uncomment if needed)
     # bag_record = ExecuteProcess(
@@ -107,7 +129,7 @@ def generate_launch_description():
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
-    ld.add_action(delayed_nav_node)
+    ld.add_action(delayed_one_shot_node)
     # ld.add_action(bag_record)  # Uncomment if you want bag recording
     
     return ld
