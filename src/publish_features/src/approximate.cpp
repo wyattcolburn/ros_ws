@@ -80,7 +80,7 @@ class dataNode : public rclcpp::Node {
         for (size_t i = 0; i < ODOM_FIELD_COUNT + LIDAR_COUNT; ++i) {
             msg.data[i] = packetOut[i];
         }
-        RCLCPP_INFO(this->get_logger(), "Publishing synced data");
+        // RCLCPP_INFO(this->get_logger(), "Publishing synced data");
         std::cout << "packet Out index 4    : " << msg.data[4] << std::endl;
 
         publisher_->publish(msg);
@@ -97,9 +97,9 @@ class dataNode : public rclcpp::Node {
         double roll, pitch, yaw;
         tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
 
-        RCLCPP_INFO(this->get_logger(),
-                    "Received /odom: position [x: %.2f, y: %.2f, odom_v : %.2f, odom_w : %.2f, odom_w, yaw : %.2f], ",
-                    packetOut[0], packetOut[1], packetOut[2], packetOut[3], yaw);
+        // RCLCPP_INFO(this->get_logger(),
+        //             "Received /odom: position [x: %.2f, y: %.2f, odom_v : %.2f, odom_w : %.2f, odom_w, yaw : %.2f],
+        //             ", packetOut[0], packetOut[1], packetOut[2], packetOut[3], yaw);
 
         packetOut[4] = yaw;
     }
@@ -114,9 +114,9 @@ class dataNode : public rclcpp::Node {
         // upscaling floats to doubles
         std::transform(msg->ranges.begin(), msg->ranges.end(), packetOut + offset,
                        [](float value) -> double { return static_cast<double>(value); });
-        RCLCPP_INFO(
-
-            this->get_logger(), "Received /laserscan: num_ranges: %ld", num_ranges);
+        // RCLCPP_INFO(
+        //
+        //     this->get_logger(), "Received /laserscan: num_ranges: %ld", num_ranges);
     }
     void printPacketOut() {
         // Calculate the total number of elements in the packetOut array.

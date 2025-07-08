@@ -186,7 +186,7 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
             .data; // std::vector<double>, contains data for neural net and obstacle data (20 obstacle data)
 
     if (latest.size() < 1088) { // Minimum size needed for odom_x, odom_y
-        RCLCPP_ERROR(logger_, "Input data size (%zu) is smaller than required (1088)", latest.size());
+        // RCLCPP_ERROR(logger_, "Input data size (%zu) is smaller than required (1088)", latest.size());
         // Return a zero velocity command or use previously valid command
         geometry_msgs::msg::TwistStamped cmd_vel;
         cmd_vel.header.frame_id = pose.header.frame_id;
@@ -204,10 +204,10 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     for (size_t i = 0; i < 1085; i++) {
         input_data_f[i] = latest[i];
     }
-    RCLCPP_INFO(logger_, "Pre normalize");
+    // RCLCPP_INFO(logger_, "Pre normalize");
 
     for (size_t i = 0; i < 20; i++) {
-        RCLCPP_INFO(logger_, "input_data_f[%zu]: %f", i, input_data_f[i]);
+        // RCLCPP_INFO(logger_, "input_data_f[%zu]: %f", i, input_data_f[i]);
     }
     // 2) Normalize the data from training values
     if (feature_mins_.size() != input_data_f.size() || feature_maxs_.size() != input_data_f.size()) {
@@ -236,7 +236,7 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     }
 
     for (size_t i = 0; i < 20; i++) {
-        RCLCPP_INFO(logger_, "input_data_f[%zu]: %f", i, input_data_f[i]);
+        // RCLCPP_INFO(logger_, "input_data_f[%zu]: %f", i, input_data_f[i]);
     }
     // 3) Define your input shape
     std::vector<int64_t> inputShape = {1, static_cast<int64_t>(1085)};

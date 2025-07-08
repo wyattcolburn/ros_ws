@@ -130,11 +130,13 @@ class OneShot(Node):
                 self._failed_logged = True
                 self._failed_logged = True
                 self.record_results()
+                self.terminate()
         elif self.current_state == SequenceState.FAILED:
             if not hasattr(self, '_failed_logged'):
                 self.get_logger().info("Node failed - staying alive")
                 self._failed_logged = True
                 self.record_results()
+                self.terminate()
     def handle_undocking(self):
         """Handle undocking phase - only sends command once"""
         if not self.undock_client.wait_for_server(timeout_sec=5.0):
@@ -417,18 +419,40 @@ class OneShot(Node):
                     self._trial_result
                 ])
         return
+
+
+    def terminate(self):
+        """Reset the simulation and should kill all the nodes"""
+        self.get_logger().info("Terminating function")
+        
+        if hasattr(self, 'state_timer'):
+            self.state_timer.cancel()
+        for i in range(30):
+            self.get_logger().info("Resetting Gazebo simulation...")
+        try:
+            subprocess.run(['pkill', '-f', 'ros2'], timeout=5)    
+        except Exception as e:
+            self.get_logger().error(f"Failed to reset Gazebo: {e}")
+            self.get_logger().error(f"Failed to reset Gazebo: {e}")
+            self.get_logger().error(f"Failed to reset Gazebo: {e}")
+            self.get_logger().error(f"Failed to reset Gazebo: {e}")
+            self.get_logger().error(f"Failed to reset Gazebo: {e}")
+            self.get_logger().error(f"Failed to reset Gazebo: {e}")
+            self.get_logger().error(f"Failed to reset Gazebo: {e}")
+            self.get_logger().error(f"Failed to reset Gazebo: {e}")
+            self.get_logger().error(f"Failed to reset Gazebo: {e}")
+            self.get_logger().error(f"Failed to reset Gazebo: {e}")
+    
+
+        rclpy.shutdown()
 def main():
     rclpy.init()
     
     try:
-        # Your existing node creation and logic here
-        node = OneShot()  # Replace with your actual node class
+        node = OneShot()  
         
-        # Your existing code...
         
-        # Use spin or executor as needed
         rclpy.spin(node)
-        
     except KeyboardInterrupt:
         print("Received KeyboardInterrupt, shutting down gracefully...")
     except Exception as e:

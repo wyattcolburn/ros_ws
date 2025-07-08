@@ -121,8 +121,9 @@ class obsValid : public rclcpp::Node {
             return;
         }
 
-        RCLCPP_INFO(this->get_logger(), "odom (%.2f, %.2f) -> map (%.2f, %.2f) yaw %.2f), map_yaw %.2f", odom_x, odom_y,
-                    map_x, map_y, yaw, map_yaw);
+        // RCLCPP_INFO(this->get_logger(), "odom (%.2f, %.2f) -> map (%.2f, %.2f) yaw %.2f), map_yaw %.2f", odom_x,
+        // odom_y,
+        //             map_x, map_y, yaw, map_yaw);
 
         local_goal_manager_.updateLocalGoal(odom_x, odom_y); // local goals have already been converted to odom
         obstacle_manager_.update_obstacles(local_goal_manager_);
@@ -139,9 +140,9 @@ class obsValid : public rclcpp::Node {
         int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
         std_msgs::msg::Float64MultiArray msg;
         msg.data.resize(packetOut_size);
-        RCLCPP_INFO(this->get_logger(), "SIZE OF packetOUt %d", packetOut_size);
+        // RCLCPP_INFO(this->get_logger(), "SIZE OF packetOUt %d", packetOut_size);
 
-        RCLCPP_INFO(this->get_logger(), "Size of neural net output %zu", msg.data.size());
+        // RCLCPP_INFO(this->get_logger(), "Size of neural net output %zu", msg.data.size());
         // Test with a simpler message
         if (!packetOut_publisher_) {
             RCLCPP_ERROR(this->get_logger(), "Publisher is null!");
@@ -150,10 +151,10 @@ class obsValid : public rclcpp::Node {
         for (size_t i = 0; i < packetOut_size; ++i) {
             msg.data[i] = static_cast<double>(packetOut[i]);
         }
-        RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
-        RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
+        // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
+        // RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
         packetOut_publisher_->publish(msg);
-        RCLCPP_INFO(this->get_logger(), "PUBLISHING NEURAL NET INPUT MESSAGE");
+        // RCLCPP_INFO(this->get_logger(), "PUBLISHING NEURAL NET INPUT MESSAGE");
         reached_goal(odom_x, odom_y);
         return;
     }
@@ -191,21 +192,22 @@ class obsValid : public rclcpp::Node {
 
     void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
 
-        RCLCPP_INFO(this->get_logger(), "Received %zu poses in frame %s", pathMsg->poses.size(),
-                    pathMsg->header.frame_id.c_str());
+        // RCLCPP_INFO(this->get_logger(), "Received %zu poses in frame %s", pathMsg->poses.size(),
+        //             pathMsg->header.frame_id.c_str());
 
         // Get transform from map to odom
         geometry_msgs::msg::TransformStamped transform;
         try {
             transform = tf_buffer_->lookupTransform("odom", "map", tf2::TimePointZero);
-            RCLCPP_INFO(this->get_logger(), "Successfully got transform from map to odom");
+            // RCLCPP_INFO(this->get_logger(), "Successfully got transform from map to odom");
         } catch (tf2::TransformException &ex) {
             RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
             return;
         }
 
-        RCLCPP_INFO(this->get_logger(), "PRE TRANSFORMATION LOCAL GOAL %.3f, %.3f", pathMsg->poses[0].pose.position.x,
-                    pathMsg->poses[0].pose.position.y);
+        // RCLCPP_INFO(this->get_logger(), "PRE TRANSFORMATION LOCAL GOAL %.3f, %.3f",
+        // pathMsg->poses[0].pose.position.x,
+        //             pathMsg->poses[0].pose.position.y);
         map_lg_x = pathMsg->poses[0].pose.position.x;
         map_lg_y = pathMsg->poses[0].pose.position.y;
 
@@ -242,12 +244,14 @@ class obsValid : public rclcpp::Node {
             }
         }
 
-        RCLCPP_INFO(this->get_logger(), "Our current Odom position is %f %f", odom_x, odom_y);
+        // RCLCPP_INFO(this->get_logger(), "Our current Odom position is %f %f", odom_x, odom_y);
         // add to local goal manager to create obstacles
         if (local_goal_manager_.get_num_lg() > 0) {
-            RCLCPP_INFO(this->get_logger(), "FIRST GOAL VALUES ARE %f and %f",
-                        local_goal_manager_.data_vector[0].x_point, local_goal_manager_.data_vector[0].y_point);
-            RCLCPP_INFO(this->get_logger(), "SIZE OF LOCAL_GOAL_VECTOR %d", local_goal_manager_.get_num_lg());
+            // RCLCPP_INFO(this->get_logger(), "FIRST GOAL VALUES ARE %f and %f",
+            //             local_goal_manager_.data_vector[0].x_point,
+            //             local_goal_manager_.data_vector[0].y_point);
+            // RCLCPP_INFO(this->get_logger(), "SIZE OF LOCAL_GOAL_VECTOR %d",
+            // local_goal_manager_.get_num_lg());
             obstacle_manager_.clean_data(); // reset the obstacles array
             obstacle_manager_.local_goals_to_obs(local_goal_manager_);
             local_goal_manager_.set_distance_vector(odom_x, odom_y);

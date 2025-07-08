@@ -25,7 +25,7 @@ ARGUMENTS = [
                           description='Initial Y position'),
     DeclareLaunchArgument('initial_yaw', default_value='3.141',
                           description='Initial yaw orientation'),
-    DeclareLaunchArgument('goal_x', default_value='-3.5',
+    DeclareLaunchArgument('goal_x', default_value='-1.5',
                           description='Goal X position'),
     DeclareLaunchArgument('goal_y', default_value='0.5',
                           description='Goal Y position'),
@@ -129,7 +129,7 @@ def generate_launch_description():
         package='publish_features',
         executable='publish_features_node',
         name='publish_features',  # Fixed: was 'publish'
-        output='screen',
+        output='log',
         parameters=[],
     )
     
@@ -137,7 +137,7 @@ def generate_launch_description():
         package='middle_man',
         executable='middle_man_valid',
         name='middle_man',  # Fixed: was 'publish'
-        output='screen',
+        output='log',
         parameters=[],
     )
     
