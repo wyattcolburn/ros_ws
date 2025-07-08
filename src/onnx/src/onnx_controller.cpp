@@ -286,6 +286,7 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     cmds.second = std::clamp(cmds.second, min_angular_vel, max_angular_vel);
 
     RCLCPP_INFO(logger_, "Final clamped commands (lin, ang): %.3f, %.3f", cmds.first, cmds.second);
+    RCLCPP_INFO(logger_, "LOCAL GOAL DATA: %.3f, %.3f", latest[2], latest[3]);
     // 7) Pack into TwistStamped
     geometry_msgs::msg::TwistStamped cmd_vel;
     cmd_vel.header.frame_id = pose.header.frame_id;

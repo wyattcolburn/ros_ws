@@ -5,6 +5,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch.actions import TimerAction
+from launch.conditions import IfCondition
 
 # Declare arguments
 ARGUMENTS = [
@@ -33,6 +34,9 @@ ARGUMENTS = [
     DeclareLaunchArgument('auto_start_nav', default_value='true',
                           choices=['true', 'false'],
                           description='Automatically start navigation sequence'),
+    DeclareLaunchArgument('map_file', default_value='exp1.yaml',
+                          description='Map file for localization'),
+    # Optional package flags
 ]
 
 for pose_element in ['x', 'y', 'z', 'yaw']:
@@ -47,11 +51,18 @@ def generate_launch_description():
     pkg_my_robot_bringup = get_package_share_directory(
         'my_robot_bringup')
     
+    # Get additional package directories
+    pkg_turtlebot4_navigation = get_package_share_directory('turtlebot4_navigation')
+    
     # Paths
     ignition_launch = PathJoinSubstitution(
         [pkg_turtlebot4_ignition_bringup, 'launch', 'ignition.launch.py'])
     robot_spawn_launch = PathJoinSubstitution(
         [pkg_turtlebot4_ignition_bringup, 'launch', 'turtlebot4_spawn.launch.py'])
+    localization_launch = PathJoinSubstitution(
+        [pkg_turtlebot4_navigation, 'launch', 'localization.launch.py'])
+    nav2_launch = PathJoinSubstitution(
+        [pkg_turtlebot4_navigation, 'launch', 'nav2.launch.py'])
     
     # Include ignition simulation
     ignition = IncludeLaunchDescription(
@@ -73,8 +84,31 @@ def generate_launch_description():
             ('yaw', LaunchConfiguration('yaw'))]
     )
 
+    # Include localization
+    localization = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([localization_launch]),
+        launch_arguments=[
+            ('map', LaunchConfiguration('map_file')),
+            ('use_sim_time', 'true')
+        ]
+    )
+
+    # Include nav2 with delay
+    nav2 = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([nav2_launch]),
+        launch_arguments=[
+            ('use_sim_time', 'true')
+        ]
+    )
+    
+    # Add delay for nav2 to start after localization
+    delayed_nav2 = TimerAction(
+        period=3.0,  # 3 second delay like your sleep command
+        actions=[nav2]
+    )
+
     one_shot = Node(
-        package='my_robot_bringup',  # Replace with your actual package name
+        package='my_robot_bringup',
         executable='one_shot',
         name='one_shot_trial',
         output='screen',
@@ -90,48 +124,47 @@ def generate_launch_description():
         }]
     )
 
+    # Optional nodes - only launch if packages exist and are enabled
     publish_features_node = Node(
-        package='publish_features',  # Replace with your actual package name
+        package='publish_features',
         executable='publish_features_node',
-        name='publish',
-        output='log',
-        parameters=[]
+        name='publish_features',  # Fixed: was 'publish'
+        output='screen',
+        parameters=[],
     )
+    
     middle_man_node = Node(
-        package='middle_man',  # Replace with your actual package name
+        package='middle_man',
         executable='middle_man_valid',
-        name='publish',
-        output='log',
-        parameters=[]
+        name='middle_man',  # Fixed: was 'publish'
+        output='screen',
+        parameters=[],
     )
-    # Add a delay before starting the navigation sequence to ensure everything is ready
+    
+    # Add delays
     delayed_one_shot_node = TimerAction(
-        period=15.0,  # Increased delay to 15 seconds
+        period=15.0,
         actions=[one_shot]
     )
+    
     delayed_publish_node = TimerAction(
-        period=45.0,  # Increased delay to 15 seconds
+        period=15.0,
         actions=[publish_features_node]
     )
-    delayed_middle_man_node= TimerAction(
-        period=45.0,  # Increased delay to 15 seconds
+    
+    delayed_middle_man_node = TimerAction(
+        period=15.0,
         actions=[middle_man_node]
     )
-
-    # Optional: ROS2 bag recording (uncomment if needed)
-    # bag_record = ExecuteProcess(
-    #     cmd=['ros2', 'bag', 'record', '/scan', '/scan_spoofed', '/tf', '/tf_static', '/odom', '/cmd_vel'],
-    #     output='screen'
-    # )
 
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
+    ld.add_action(localization)
+    ld.add_action(delayed_nav2)
     ld.add_action(delayed_one_shot_node)
-    # ld.add_action(delayed_publish_node)
-    # ld.add_action(delayed_middle_man_node)
-    # ld.add_action(bag_record)  # Uncomment if you want bag recording
+    ld.add_action(delayed_publish_node)
+    ld.add_action(delayed_middle_man_node)
     
     return ld
-

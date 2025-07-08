@@ -79,6 +79,7 @@ class obsValid : public rclcpp::Node {
     Local_Goal GOAL;
 
     static constexpr double GOAL_THRESHOLD = .5;
+
     void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
 
         if (path_flag == false) {
@@ -167,7 +168,7 @@ class obsValid : public rclcpp::Node {
         // packetOut[4] = currentLG.yaw;
         packetOut[2] = map_lg_x;
         packetOut[3] = map_lg_y;
-        packetOut[4] = map_lg_yaw;
+        packetOut[4] = currentLG.yaw;
 
         for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter++) {
             packetOut[5 + lidar_counter] = hall_lidar_ranges[lidar_counter];
