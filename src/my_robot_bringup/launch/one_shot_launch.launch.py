@@ -6,7 +6,8 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch.actions import TimerAction
 from launch.conditions import IfCondition
-
+from launch.actions import RegisterEventHandler, Shutdown
+from launch.event_handlers import OnProcessExit
 # Declare arguments
 ARGUMENTS = [
     DeclareLaunchArgument('namespace', default_value='',
@@ -25,7 +26,7 @@ ARGUMENTS = [
                           description='Initial Y position'),
     DeclareLaunchArgument('initial_yaw', default_value='3.141',
                           description='Initial yaw orientation'),
-    DeclareLaunchArgument('goal_x', default_value='-1.5',
+    DeclareLaunchArgument('goal_x', default_value='-3.5',
                           description='Goal X position'),
     DeclareLaunchArgument('goal_y', default_value='0.5',
                           description='Goal Y position'),
@@ -36,7 +37,6 @@ ARGUMENTS = [
                           description='Automatically start navigation sequence'),
     DeclareLaunchArgument('map_file', default_value='exp1.yaml',
                           description='Map file for localization'),
-    # Optional package flags
 ]
 
 for pose_element in ['x', 'y', 'z', 'yaw']:
@@ -68,7 +68,7 @@ def generate_launch_description():
     ignition = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([ignition_launch]),
         launch_arguments=[
-            ('world', LaunchConfiguration('world'))
+            ('world', LaunchConfiguration('world')),
         ]
     )
 
@@ -156,7 +156,14 @@ def generate_launch_description():
         period=15.0,
         actions=[middle_man_node]
     )
-
+    shutdown_handler = RegisterEventHandler(
+        OnProcessExit(
+            target_action=one_shot,
+            on_exit=[
+                Shutdown(reason='one_shot_node completed')
+            ]
+        )
+    )
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
@@ -166,5 +173,5 @@ def generate_launch_description():
     ld.add_action(delayed_one_shot_node)
     ld.add_action(delayed_publish_node)
     ld.add_action(delayed_middle_man_node)
-    
+    ld.add_action(shutdown_handler) 
     return ld

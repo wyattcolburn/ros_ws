@@ -1,5 +1,4 @@
-
-#!/usr/bin/env python3
+   
 from controller_manager_msgs.srv import SwitchController, ListControllers
 from rclpy.executors import ExternalShutdownException
 import rclpy
@@ -19,6 +18,7 @@ import math
 import subprocess
 import csv
 import os
+from pathlib import Path
 from pathlib import Path
 class SequenceState(Enum):
     IDLE = 0
@@ -45,7 +45,9 @@ class OneShot(Node):
         self.current_state = SequenceState.IDLE
         self.num_trials = 10 
         self.current_trial = 0
-        
+
+        self._nav_timeout_counter = 0
+        self._nav_timeout_limit = 5
         # Action clients
         self.undock_client = ActionClient(
             self, Undock, '/undock', 
@@ -215,12 +217,15 @@ class OneShot(Node):
             elapsed = time.time() - self._pose_init_time
             
             self.get_logger().info(f'Waiting for AMCL: received={self.amcl_pose_received}, elapsed={elapsed:.1f}s/{delay}s')
-            
+           
+            if (elapsed >= 30):
+                # timeout not working correctly
+                self._trial_result = "AMCL TIMEOUT"
+                self.current_state = SequenceState.FAILED
             if self.amcl_pose_received and elapsed >= delay:
                 self.get_logger().info('AMCL pose confirmed, proceeding to navigation...')
                 self.current_state = SequenceState.NAVIGATING
                 self._pose_sent = False
-
 
     def handle_navigation(self):
         """Handle navigation to goal pose"""
@@ -243,6 +248,12 @@ class OneShot(Node):
         if not hasattr(self, '_nav_sent') or not self._nav_sent:
             if not self.navigate_client.wait_for_server(timeout_sec=5.0):
                 self.get_logger().error('Navigation action server not available')
+                self._nav_timeout_counter+=1
+                
+                if self._nav_timeout_counter >= self._nav_timeout_limit:
+                    self.get_logger().error('Nav server has timed out')
+                    self._trial_result = "NAV_SERVER_UNAVAILABLE"
+                    self.current_state = SequenceState.FAILED
                 return
             
             self.get_logger().info('Sending navigation goal...')
@@ -266,6 +277,8 @@ class OneShot(Node):
             if not self.is_cmd_vel_subscribed():
                 self.get_logger().warn("cmd_vel has no subscribers — controller likely not active yet")
                 return  # or transition to FAILED if it's unrecoverable
+
+
             self._nav_future = self.navigate_client.send_goal_async(goal_msg)
             self._nav_future.add_done_callback(self.nav_goal_response_callback)
             self._nav_sent = True
@@ -376,8 +389,6 @@ class OneShot(Node):
         return len(info) > 0
     def record_results(self):
         """Records the results of the current trial into a CSV"""
-        import os
-        from pathlib import Path
         
         # Fix 1: Properly expand the path and ensure directory exists
         filepath = Path.home() / 'ros_ws' / 'trial_results.csv'  # Fixed typo: trail -> trial
@@ -420,30 +431,49 @@ class OneShot(Node):
                 ])
         return
 
-
+    # def progress_checker(self):
+    #     """This function checks if the robot is making progress towards the goal pose, terminates if not"""
+    #     goal_x = self.get_parameter('goal_x').value,
+    #     goal_y = self.get_parameter('goal_y').value,
+    #     goal_yaw = self.get_parameter('goal_yaw').value,
+    #
+    #     current_x = 
     def terminate(self):
         """Reset the simulation and should kill all the nodes"""
         self.get_logger().info("Terminating function")
         
         if hasattr(self, 'state_timer'):
             self.state_timer.cancel()
-        for i in range(30):
-            self.get_logger().info("Resetting Gazebo simulation...")
+        self.get_logger().info("Resetting Gazebo simulation...")
         try:
-            subprocess.run(['pkill', '-f', 'ros2'], timeout=5)    
+            # Kill processes in order of dependency
+            processes_to_kill = [
+                'ros_gz_bridge',
+                'parameter_bridge',
+                'ign gazebo',
+                'ignition gazebo',
+                'gz sim',
+                'gzserver',
+                'gzclient',
+                'ignition.launch.py',
+                'gz-sim'
+            ]
+            
+            for process in processes_to_kill:
+                try:
+                    subprocess.run(['pkill', '-f', process], timeout=5)
+                    time.sleep(0.5)  # Give processes time to terminate
+                except subprocess.TimeoutExpired:
+                    # Force kill if normal termination fails
+                    subprocess.run(['pkill', '-9', '-f', process], timeout=5)
+        
+            # Alternative: Kill by process group
+            subprocess.run(['pkill', '-f', 'gz'], timeout=5)
+            
+            self.get_logger().info("Killed ignition processes")
         except Exception as e:
             self.get_logger().error(f"Failed to reset Gazebo: {e}")
-            self.get_logger().error(f"Failed to reset Gazebo: {e}")
-            self.get_logger().error(f"Failed to reset Gazebo: {e}")
-            self.get_logger().error(f"Failed to reset Gazebo: {e}")
-            self.get_logger().error(f"Failed to reset Gazebo: {e}")
-            self.get_logger().error(f"Failed to reset Gazebo: {e}")
-            self.get_logger().error(f"Failed to reset Gazebo: {e}")
-            self.get_logger().error(f"Failed to reset Gazebo: {e}")
-            self.get_logger().error(f"Failed to reset Gazebo: {e}")
-            self.get_logger().error(f"Failed to reset Gazebo: {e}")
-    
-
+        
         rclpy.shutdown()
 def main():
     rclpy.init()

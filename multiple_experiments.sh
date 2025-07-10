@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NUM_TRIALS=3
+NUM_TRIALS=10
 RESET_DELAY=10
 WORLD="EXP1"
 
