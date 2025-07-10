@@ -19,7 +19,7 @@ import subprocess
 import csv
 import os
 from pathlib import Path
-from pathlib import Path
+from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
 class SequenceState(Enum):
     IDLE = 0
     UNDOCKING = 1
@@ -48,6 +48,11 @@ class OneShot(Node):
 
         self._nav_timeout_counter = 0
         self._nav_timeout_limit = 5
+
+        self._nav_feedback_counter = 0
+        self._nav_feedback_limit = 10
+        self.prev_distance_flag = False
+            
         # Action clients
         self.undock_client = ActionClient(
             self, Undock, '/undock', 
@@ -73,6 +78,9 @@ class OneShot(Node):
             Contacts, '/bumper_contact', self.bumper_callback,
                 10)
 
+        self.feedback_sub = self.create_subscription(NavigateToPose_FeedbackMessage, '/navigate_to_pose/_action/feedback',
+                                                     self.nav_feedback_callback, 10)
+
 
         self.amcl_pose_received = False
         self.pose_stable_count = 0
@@ -88,7 +96,9 @@ class OneShot(Node):
         self.declare_parameter('goal_yaw', 0.0)
         self.declare_parameter('wait_after_undock', 2.0)
         self.declare_parameter('pose_init_delay', 1.0)
-        
+
+        self.prev_distance = 0
+        self.distance_remaining = 0
         # Timer for state machine
         self.state_timer = self.create_timer(
             1.0, self.state_machine_callback,
@@ -273,7 +283,6 @@ class OneShot(Node):
             goal_msg.pose.pose.orientation.y = 0.0
             goal_msg.pose.pose.orientation.z = math.sin(goal_yaw/2) # to take the initial goal pose from launch file
             goal_msg.pose.pose.orientation.w = math.cos(goal_yaw/2) 
-            
             if not self.is_cmd_vel_subscribed():
                 self.get_logger().warn("cmd_vel has no subscribers — controller likely not active yet")
                 return  # or transition to FAILED if it's unrecoverable
@@ -430,14 +439,48 @@ class OneShot(Node):
                     self._trial_result
                 ])
         return
+    def nav_feedback_callback(self, msg):
+        """This function checks if the robot is making progress towards the goal pose, terminates if not"""
+        if not self.prev_distance_flag:
 
-    # def progress_checker(self):
-    #     """This function checks if the robot is making progress towards the goal pose, terminates if not"""
-    #     goal_x = self.get_parameter('goal_x').value,
-    #     goal_y = self.get_parameter('goal_y').value,
-    #     goal_yaw = self.get_parameter('goal_yaw').value,
-    #
-    #     current_x = 
+            initial_x = self.get_parameter('initial_x').value 
+            initial_y = self.get_parameter('initial_y').value
+            goal_x = self.get_parameter('goal_x').value
+            goal_y = self.get_parameter('goal_y').value
+
+            self.get_logger().info(f"Initial pose: ({initial_x}, {initial_y})")
+            self.get_logger().info(f"Goal pose: ({goal_x}, {goal_y})")
+
+            self.prev_distance = math.sqrt((goal_x - initial_x)**2 + (goal_y - initial_y)**2)
+            self.get_logger().info(f"Calculated initial distance: {self.prev_distance}")
+            self.prev_distance_flag = True 
+            self.last_progress_check_time = time.time()
+            self.progress_check_interval = 1.0  # Check every 1 second
+            return
+        if msg.feedback.distance_remaining == 0:
+            return
+        
+        self.distance_remaining = msg.feedback.distance_remaining
+        
+        current_time = time.time()
+
+        if current_time - self.last_progress_check_time >= self.progress_check_interval:
+
+            self.get_logger().info(f'Dist to goal {self.distance_remaining} and prev distance {self.prev_distance}')
+            if self.distance_remaining > self.prev_distance:
+                self._nav_feedback_counter+=1
+                self.get_logger().info(f'Increasing counter {self._nav_feedback_counter}')
+                if self._nav_feedback_counter >= self._nav_feedback_limit:
+                    self.get_logger().info('Have not made progress within 10 tries, failure')
+                    self._trial_result = "FAILURE"
+                    self.current_state = SequenceState.FAILED
+            else:
+                self.prev_distance = self.distance_remaining
+                self._nav_feedback_counter = 0
+
+            self.last_progress_check_time = current_time
+
+        
     def terminate(self):
         """Reset the simulation and should kill all the nodes"""
         self.get_logger().info("Terminating function")
