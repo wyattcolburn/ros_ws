@@ -176,13 +176,64 @@
         </model>
         <model name='obstacles'>
             <!-- Left side cylinders -->
+            <link name='cylinder_left_-1'>
+                <pose>1.5 -1 0 0 0 0</pose>
+                <static>true</static>
+                <collision name='cylinder_left_-1_collision'>
+                    <geometry>
+                        <cylinder>
+                            <radius>1.0</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                </collision>
+                <visual name='cylinder_left_-1_visual'>
+                    <geometry>
+                        <cylinder>
+                            <radius>1.0</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                    <material>
+                        <ambient>0.2 0.1 0.1 1</ambient>
+                        <diffuse>0.4 0.2 0.2 1</diffuse>
+                        <specular>0.1 0.05 0.05 1</specular>
+                    </material>
+                </visual>
+            </link>
+            <link name='cylinder_left_0'>
+                <pose>0 -1 0 0 0 0</pose>
+                <static>true</static>
+                <collision name='cylinder_left_0_collision'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.6</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                </collision>
+                <visual name='cylinder_left_0_visual'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.6</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                    <material>
+                        <ambient>0.2 0.1 0.1 1</ambient>
+                        <diffuse>0.4 0.2 0.2 1</diffuse>
+                        <specular>0.1 0.05 0.05 1</specular>
+                    </material>
+                </visual>
+            </link>
+
             <link name='cylinder_left_1'>
-                <pose>-1 -1 0 0 0 0</pose>
+                <pose>-1 -.5 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='cylinder_left_1_collision'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>0.5</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -190,7 +241,7 @@
                 <visual name='cylinder_left_1_visual'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>0.5</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -208,7 +259,7 @@
                 <collision name='cylinder_left_2_collision'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>0.65</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -216,7 +267,7 @@
                 <visual name='cylinder_left_2_visual'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>0.65</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -229,12 +280,12 @@
             </link>
 
             <link name='cylinder_left_3'>
-                <pose>-3 -1 0 0 0 0</pose>
+                <pose>-3 0 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='cylinder_left_3_collision'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>0.5</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -242,7 +293,7 @@
                 <visual name='cylinder_left_3_visual'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>0.5</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -281,13 +332,64 @@
             </link>
 
             <!-- Right side cylinders -->
+            <link name='cylinder_med_0'>
+                <pose>-1 1.2 0 0 0 0</pose>
+                <static>true</static>
+                <collision name='cylinder_med_0_collision'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.5</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                </collision>
+                <visual name='cylinder_med_0_collision'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.5</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                    <material>
+                        <ambient>0.1 0.2 0.1 1</ambient>
+                        <diffuse>0.2 0.4 0.2 1</diffuse>
+                        <specular>0.05 0.1 0.05 1</specular>
+                    </material>
+                </visual>
+            </link>
+            <link name='cylinder_right_0'>
+                <pose>0 1 0 0 0 0</pose>
+                <static>true</static>
+                <collision name='cylinder_right_0_collision'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.5</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                </collision>
+                <visual name='cylinder_right_0_visual'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.5</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                    <material>
+                        <ambient>0.1 0.2 0.1 1</ambient>
+                        <diffuse>0.2 0.4 0.2 1</diffuse>
+                        <specular>0.05 0.1 0.05 1</specular>
+                    </material>
+                </visual>
+            </link>
+
             <link name='cylinder_right_1'>
-                <pose>-1 1 0 0 0 0</pose>
+                <pose>1.5 1 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='cylinder_right_1_collision'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>1.0</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -295,7 +397,7 @@
                 <visual name='cylinder_right_1_visual'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>1.0</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -306,14 +408,13 @@
                     </material>
                 </visual>
             </link>
-
             <link name='cylinder_right_2'>
-                <pose>-2 1 0 0 0 0</pose>
+                <pose>-2 1.5 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='cylinder_right_2_collision'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>0.8</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -321,7 +422,7 @@
                 <visual name='cylinder_right_2_visual'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>0.8</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -333,13 +434,38 @@
                 </visual>
             </link>
 
+            <link name='cylinder_right_3_2'>
+                <pose>-3 -1.5 0 0 0 0</pose>
+                <static>true</static>
+                <collision name='cylinder_right_3_2_collision'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.5</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                </collision>
+                <visual name='cylinder_right_3_2_visual'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.5</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                    <material>
+                        <ambient>0.1 0.2 0.1 1</ambient>
+                        <diffuse>0.2 0.4 0.2 1</diffuse>
+                        <specular>0.05 0.1 0.05 1</specular>
+                    </material>
+                </visual>
+            </link>
             <link name='cylinder_right_3'>
                 <pose>-3 1 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='cylinder_right_3_collision'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>0.5</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -347,7 +473,7 @@
                 <visual name='cylinder_right_3_visual'>
                     <geometry>
                         <cylinder>
-                            <radius>0.3</radius>
+                            <radius>0.5</radius>
                             <length>2</length>
                         </cylinder>
                     </geometry>
@@ -385,7 +511,7 @@
                 </visual>
             </link>
             <link name='middle_1'>
-                <pose>-2 0 0 0 0 0</pose>
+                <pose>-1 .5 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='middle_1_collision'>
                     <geometry>
@@ -409,8 +535,58 @@
                     </material>
                 </visual>
             </link>
+            <link name='middle_2_1'>
+                <pose>-2 0 0 0 0 0</pose>
+                <static>true</static>
+                <collision name='middle_2_1_collision'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.1</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                </collision>
+                <visual name='middle_2_1_visual'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.1</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                    <material>
+                        <ambient>0.1 0.2 0.1 1</ambient>
+                        <diffuse>0.2 0.4 0.2 1</diffuse>
+                        <specular>0.05 0.1 0.05 1</specular>
+                    </material>
+                </visual>
+            </link>
+            <link name='middle_2_2'>
+                <pose>-2 0.45 0 0 0 0</pose>
+                <static>true</static>
+                <collision name='middle_2_2_collision'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.1</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                </collision>
+                <visual name='middle_2_1_visual'>
+                    <geometry>
+                        <cylinder>
+                            <radius>0.1</radius>
+                            <length>2</length>
+                        </cylinder>
+                    </geometry>
+                    <material>
+                        <ambient>0.1 0.2 0.1 1</ambient>
+                        <diffuse>0.2 0.4 0.2 1</diffuse>
+                        <specular>0.05 0.1 0.05 1</specular>
+                    </material>
+                </visual>
+            </link>
             <link name='middle_2'>
-                <pose>-3 0 0 0 0 0</pose>
+                <pose>-2 0 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='middle_2_collision'>
                     <geometry>

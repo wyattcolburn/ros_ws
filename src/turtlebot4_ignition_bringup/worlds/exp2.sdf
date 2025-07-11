@@ -254,7 +254,7 @@
             </link>
 
             <link name='cylinder_left_2'>
-                <pose>-2 -1 0 0 0 0</pose>
+                <pose>-2 -1.25 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='cylinder_left_2_collision'>
                     <geometry>
