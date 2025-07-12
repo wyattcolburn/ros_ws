@@ -1,0 +1,10 @@
+#Notes for july 11
+
+Current exp2 map is super tighter, 
+
+"""
+:[planner_server-3] [WARN] [1752257625.397677842] [planner_server]: GridBased: failed to create plan with tolerance 0.50.
+
+ how can i change this parameter
+ """
+ get this error currently

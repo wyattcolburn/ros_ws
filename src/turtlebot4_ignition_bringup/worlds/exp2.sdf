@@ -228,7 +228,7 @@
             </link>
 
             <link name='cylinder_left_1'>
-                <pose>-1 -.5 0 0 0 0</pose>
+                <pose>-1 -1 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='cylinder_left_1_collision'>
                     <geometry>
@@ -306,7 +306,7 @@
             </link>
 
             <link name='cylinder_left_4'>
-                <pose>-4 -1 0 0 0 0</pose>
+                <pose>-4.2 -1 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='cylinder_left_4_collision'>
                     <geometry>
@@ -435,7 +435,7 @@
             </link>
 
             <link name='cylinder_right_3_2'>
-                <pose>-3 -1.5 0 0 0 0</pose>
+                <pose>-3.2 -1.5 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='cylinder_right_3_2_collision'>
                     <geometry>
@@ -511,7 +511,7 @@
                 </visual>
             </link>
             <link name='middle_1'>
-                <pose>-1 .5 0 0 0 0</pose>
+                <pose>-1 .25 0 0 0 0</pose>
                 <static>true</static>
                 <collision name='middle_1_collision'>
                     <geometry>

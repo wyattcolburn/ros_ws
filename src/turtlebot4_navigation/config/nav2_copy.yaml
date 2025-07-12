@@ -95,7 +95,7 @@ controller_server:
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.50
+      xy_goal_tolerance: 0.10
       yaw_goal_tolerance: 1.0
     # DWB parameters
     FollowPath:
@@ -119,8 +119,9 @@ local_costmap:
       plugins: ["static_layer", "voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 4.0
-        inflation_radius: 0.45
+        cost_scaling_factor: 2.0
+        inflation_radius: 0.15
+        enabled: True
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: True
@@ -182,8 +183,9 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 4.0
-        inflation_radius: 0.45
+        cost_scaling_factor: 1.0
+        inflation_radius: 0.15
+        enabled: True
       always_send_full_costmap: True
 
 planner_server:
@@ -193,7 +195,7 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
-      tolerance: 0.5
+      tolerance: 0.25
       use_astar: true 
       allow_unknown: true
 
