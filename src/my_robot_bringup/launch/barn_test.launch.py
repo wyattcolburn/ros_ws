@@ -47,8 +47,8 @@ def generate_launch_description():
         launch_arguments=[
             ('namespace', LaunchConfiguration('namespace')),
             ('rviz', LaunchConfiguration('rviz')),
-            ('x', LaunchConfiguration('x')),
-            ('y', LaunchConfiguration('y')),
+            ('x', '-0.675'),
+            ('y', '5.075'), 
             ('z', LaunchConfiguration('z')),
             ('yaw', LaunchConfiguration('yaw'))]
     )
@@ -60,14 +60,12 @@ def generate_launch_description():
     undock_with_delay = TimerAction(
         period=25.0,  # Delay in seconds
         actions=[undock_command]
-
+    ) 
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
-    # ld.add_action(init_command)
     ld.add_action(undock_with_delay)
-    #ld.add_action(goal_command)
     return ld
 
 
