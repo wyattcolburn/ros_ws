@@ -5,7 +5,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch.actions import TimerAction
-
+import numpy as np
 # Declare arguments
 ARGUMENTS = [
     DeclareLaunchArgument('namespace', default_value='',
@@ -27,6 +27,33 @@ for pose_element in ['x', 'y', 'z', 'yaw']:
     ARGUMENTS.append(DeclareLaunchArgument(pose_element, default_value='0.0',
                      description=f'{pose_element} component of the robot pose.'))
 
+def parse_world():
+
+    # I am concerned that these files need to be within turtlebot4_ignition_bringup
+    world_name = LaunchConfiguration('world')
+    world_number = world_name.replace('world_', "")
+
+    print(f"world_number {world_number}")
+
+    map_file = f"~/ros_ws/BARN_turtlebot/map_files/yaml_{world_number}.yaml"
+
+    starting_location_path = np.load(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_number}.npy')[0] # tuple 
+    start_location_gazebo = path_coord_to_gazebo_coord(starting_location_path[0], starting_location_path[1])
+
+    print(map_file)
+    print(start_location_gazebo)
+    
+
+def path_coord_to_gazebo_coord(x, y):
+    # Tis is from the jackal_timer github repo from dperille (UT-AUSTIN LAB)
+    RADIUS=.075
+    r_shift = -RADIUS - (30 * RADIUS * 2)
+    c_shift = RADIUS + 5
+
+    gazebo_x = x * (RADIUS * 2) + r_shift
+    gazebo_y = y * (RADIUS * 2) + c_shift
+
+    return (gazebo_x, gazebo_y)
 
 def generate_launch_description():
     # Directories
@@ -72,6 +99,17 @@ def generate_launch_description():
         actions=[undock_command]
     )
 
+    """
+    The idea is that the bash script will say which trial we are running. This will be decided by world_name number,
+    then we need to provide the .yaml for the map file, we also then to grab the path values, and convert them
+
+    also need this for start position
+
+    So POC:
+        1) Spawn into the world, at the path[0] converted spawn, 
+        2) Load the localization,
+        3) NAV with DWA
+    """
 
     # Include localization
     localization = IncludeLaunchDescription(
