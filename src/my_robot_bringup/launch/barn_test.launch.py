@@ -71,6 +71,7 @@ def generate_launch_description():
         [pkg_turtlebot4_navigation, 'launch', 'localization.launch.py'])
     nav2_launch = PathJoinSubstitution(
         [pkg_turtlebot4_navigation, 'launch', 'nav2.launch.py'])
+    
     ignition = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([ignition_launch]),
         launch_arguments=[
@@ -138,8 +139,7 @@ def generate_launch_description():
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
     ld.add_action(undock_with_delay)
-    ld.add_action(localization)
-    ld.add_action(nav2)
+    # ld.add_action(localization)
+    # ld.add_action(nav2)
     return ld
-
 
