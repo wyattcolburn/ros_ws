@@ -27,21 +27,6 @@ for pose_element in ['x', 'y', 'z', 'yaw']:
     ARGUMENTS.append(DeclareLaunchArgument(pose_element, default_value='0.0',
                      description=f'{pose_element} component of the robot pose.'))
 
-def parse_world():
-
-    # I am concerned that these files need to be within turtlebot4_ignition_bringup
-    world_name = LaunchConfiguration('world')
-    world_number = world_name.replace('world_', "")
-
-    print(f"world_number {world_number}")
-
-    map_file = f"~/ros_ws/BARN_turtlebot/map_files/yaml_{world_number}.yaml"
-
-    starting_location_path = np.load(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_number}.npy')[0] # tuple 
-    start_location_gazebo = path_coord_to_gazebo_coord(starting_location_path[0], starting_location_path[1])
-
-    print(map_file)
-    print(start_location_gazebo)
     
 
 def path_coord_to_gazebo_coord(x, y):
@@ -56,6 +41,19 @@ def path_coord_to_gazebo_coord(x, y):
     return (gazebo_x, gazebo_y)
 
 def generate_launch_description():
+    
+    # world_name = LaunchConfiguration('world')
+    # world_number = world_name.replace('world_', "")
+    #
+    # print(f"world_number {world_number}")
+    #
+    # map_file = f"~/ros_ws/BARN_turtlebot/map_files/yaml_{world_number}.yaml"
+    #
+    # starting_location_path = np.load(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_number}.npy')[0] # tuple 
+    # start_location_gazebo = path_coord_to_gazebo_coord(starting_location_path[0], starting_location_path[1])
+
+    # print(map_file)
+    # print(start_location_gazebo)
     # Directories
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')
@@ -85,8 +83,8 @@ def generate_launch_description():
         launch_arguments=[
             ('namespace', LaunchConfiguration('namespace')),
             ('rviz', LaunchConfiguration('rviz')),
-            ('x', '-0.675'),
-            ('y', '5.075'), 
+            ('x', '-.675'),
+            ('y', '4.925'), 
             ('z', LaunchConfiguration('z')),
             ('yaw', LaunchConfiguration('yaw'))]
     )
@@ -139,7 +137,7 @@ def generate_launch_description():
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
     ld.add_action(undock_with_delay)
-    # ld.add_action(localization)
-    # ld.add_action(nav2)
+    ld.add_action(localization)
+    ld.add_action(nav2)
     return ld
 
