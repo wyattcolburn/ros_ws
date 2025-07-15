@@ -64,6 +64,7 @@ def generate_launch_description():
         value=[
             os.path.join(pkg_turtlebot4_ignition_bringup, 'worlds'), ':' +
             os.path.join(pkg_irobot_create_ignition_bringup, 'worlds'), ':' +
+            os.path.expanduser('~/ros_ws/BARN_turtlebot/world_files'), ':' +
             str(Path(pkg_turtlebot4_description).parent.resolve()), ':' +
             str(Path(pkg_irobot_create_description).parent.resolve())])
 

@@ -27,6 +27,7 @@ setup(
             'validate=my_robot_bringup.experiment_validation_node:main',
             'create_training=my_robot_bringup.create_training:main',
             'one_shot= my_robot_bringup.one_shot_trial:main',
+            'barn_one_shot = my_robot_bringup.barn_one_shot:main',
         ]
     },
 )

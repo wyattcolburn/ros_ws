@@ -6,6 +6,7 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch.actions import TimerAction
 import numpy as np
+import os
 # Declare arguments
 ARGUMENTS = [
     DeclareLaunchArgument('namespace', default_value='',
@@ -21,6 +22,11 @@ ARGUMENTS = [
     
     DeclareLaunchArgument('map_file', default_value='yaml_0.yaml',
                           description='Map file for localization'),
+    DeclareLaunchArgument('world_num'', default_value='0',
+                          description='What trial?'),
+    DeclareLaunchArgument('auto_start_nav', default_value='true',
+                          choices=['true', 'false'],
+                          description='Automatically start navigation sequence'),
 ]
 
 for pose_element in ['x', 'y', 'z', 'yaw']:
@@ -42,19 +48,9 @@ def path_coord_to_gazebo_coord(x, y):
 
 def generate_launch_description():
     
-    # world_name = LaunchConfiguration('world')
-    # world_number = world_name.replace('world_', "")
-    #
-    # print(f"world_number {world_number}")
-    #
-    # map_file = f"~/ros_ws/BARN_turtlebot/map_files/yaml_{world_number}.yaml"
-    #
-    # starting_location_path = np.load(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_number}.npy')[0] # tuple 
-    # start_location_gazebo = path_coord_to_gazebo_coord(starting_location_path[0], starting_location_path[1])
-
-    # print(map_file)
-    # print(start_location_gazebo)
-    # Directories
+    
+    starting_location_path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{LaunchConfiguration('world_num'}.npy'))[0]
+    start_location_gazebo = path_coord_to_gazebo_coord(starting_location_path[0], starting_location_path[1])
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')
     pkg_my_robot_bringup = get_package_share_directory(
@@ -83,8 +79,8 @@ def generate_launch_description():
         launch_arguments=[
             ('namespace', LaunchConfiguration('namespace')),
             ('rviz', LaunchConfiguration('rviz')),
-            ('x', '-.675'),
-            ('y', '4.925'), 
+            ('x', f'{start_location_gazebo[0]}'),
+            ('y', f'{start_location_gazebo[1]}'), 
             ('z', LaunchConfiguration('z')),
             ('yaw', LaunchConfiguration('yaw'))]
     )
@@ -127,17 +123,39 @@ def generate_launch_description():
         ]
     )
     
+    barn_one_shot = Node(
+        package='my_robot_bringup',
+        executable='barn_one_shot',
+        name='one_shot_trial',
+        output='screen',
+        parameters=[{
+            'initial_x':  float(start_location_gazebo[0]),
+            'initial_y': float(start_location_gazebo[1]),
+            'initial_yaw': LaunchConfiguration('initial_yaw'),
+            'goal_x': LaunchConfiguration('goal_x'),
+            'goal_y': LaunchConfiguration('goal_y'),
+            'goal_yaw': LaunchConfiguration('goal_yaw'),
+            'wait_after_undock': 2.0,
+            'pose_init_delay': 1.0,
+            'world_num': 5,
+        }]
+    )
     # Add delay for nav2 to start after localization
     delayed_nav2 = TimerAction(
         period=3.0,  # 3 second delay like your sleep command
         actions=[nav2]
     )
+    delayed_barn= TimerAction(
+        period=25.0,  # 3 second delay like your sleep command
+        actions=[barn_one_shot]
+    )
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
-    ld.add_action(undock_with_delay)
+    # ld.add_action(undock_with_delay)
     ld.add_action(localization)
-    ld.add_action(nav2)
+    ld.add_action(delayed_nav2)
+    ld.add_action(delayed_barn)
     return ld
 
