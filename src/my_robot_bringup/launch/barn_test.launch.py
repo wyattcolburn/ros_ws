@@ -147,7 +147,7 @@ def generate_launch_description():
     
     middle_man_node = Node(
         package='middle_man',
-        executable='middle_man_valid',
+        executable='middle_man_barn',
         name='middle_man',  # Fixed: was 'publish'
         output='log',
         parameters=[],

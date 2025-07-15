@@ -78,7 +78,7 @@ class BarnOneShot(Node):
             PoseWithCovarianceStamped, '/initialpose', 10
         )
         # publishs converted barn map to nav stack
-        self.path_publisher = self.create_publisher(Path, '/plan', 10)
+        self.path_publisher = self.create_publisher(Path, '/plan_barn', 10)
 
         self.amcl_pose_sub = self.create_subscription(
             PoseWithCovarianceStamped,
@@ -98,7 +98,9 @@ class BarnOneShot(Node):
         self.pose_stable_count = 0
         self._nav_goal_handle = None  # Track navigation goal handle for cancellationrestart
         self._restart_in_progress = False  # Prevent restart loops
-        
+       
+        # gazebo path
+        self.gazebo_path = None
         # Parameters
         self.declare_parameter('initial_x', 0.0)
         self.declare_parameter('initial_y', 0.0)
@@ -145,8 +147,9 @@ class BarnOneShot(Node):
         elif self.current_state == SequenceState.INITIALIZING_POSE:
             self.handle_pose_initialization()    
         elif self.current_state == SequenceState.CREATE_PATH:
-            gazebo_path = self.load_barn_path(self.world_num)
-            self.path_publisher.publish(gazebo_path)
+            self.gazebo_path = self.load_barn_path(self.world_num)
+            self.path_publisher.publish(self.gazebo_path)
+            self.current_state = SequenceState.NAVIGATING
         elif self.current_state == SequenceState.NAVIGATING:
             self.handle_navigation()
         elif self.current_state == SequenceState.COMPLETED:
@@ -266,21 +269,33 @@ class BarnOneShot(Node):
             
             self.get_logger().info('Sending navigation goal...')
             
+            last_pose = self.gazebo_path.poses[-1]
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
+            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
             goal_msg = NavigateToPose.Goal()
             goal_msg.pose.header.frame_id = 'map'
             goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
             
             # Set goal position
-            goal_msg.pose.pose.position.x = self.get_parameter('goal_x').value
-            goal_msg.pose.pose.position.y = self.get_parameter('goal_y').value
+            goal_msg.pose.pose.position.x = self.gazebo_path.poses[-1].pose.position.x 
+            goal_msg.pose.pose.position.y = self.gazebo_path.poses[-1].pose.position.x
             goal_msg.pose.pose.position.z = 0.0
             
             # Set goal orientation
-            goal_yaw = self.get_parameter('goal_yaw').value
-            goal_msg.pose.pose.orientation.x = 0.0
-            goal_msg.pose.pose.orientation.y = 0.0
-            goal_msg.pose.pose.orientation.z = math.sin(goal_yaw/2) # to take the initial goal pose from launch file
-            goal_msg.pose.pose.orientation.w = math.cos(goal_yaw/2) 
+            goal_msg.pose.pose.orientation.x = self.gazebo_path.poses[-1].pose.orientation.x
+            goal_msg.pose.pose.orientation.y = self.gazebo_path.poses[-1].pose.orientation.y
+            goal_msg.pose.pose.orientation.z = self.gazebo_path.poses[-1].pose.orientation.z
+            goal_msg.pose.pose.orientation.w = self.gazebo_path.poses[-1].pose.orientation.w
             if not self.is_cmd_vel_subscribed():
                 self.get_logger().warn("cmd_vel has no subscribers — controller likely not active yet")
                 return  # or transition to FAILED if it's unrecoverable
