@@ -22,7 +22,7 @@ ARGUMENTS = [
     
     DeclareLaunchArgument('map_file', default_value='yaml_0.yaml',
                           description='Map file for localization'),
-    DeclareLaunchArgument('world_num'', default_value='0',
+    DeclareLaunchArgument('world_num', default_value='0',
                           description='What trial?'),
     DeclareLaunchArgument('auto_start_nav', default_value='true',
                           choices=['true', 'false'],
@@ -49,7 +49,7 @@ def path_coord_to_gazebo_coord(x, y):
 def generate_launch_description():
     
     
-    starting_location_path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{LaunchConfiguration('world_num'}.npy'))[0]
+    starting_location_path = np.load(os.path.expanduser('~/ros_ws/BARN_turtlebot/path_files/path_0.npy'))[0]
     start_location_gazebo = path_coord_to_gazebo_coord(starting_location_path[0], starting_location_path[1])
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')
@@ -131,15 +131,28 @@ def generate_launch_description():
         parameters=[{
             'initial_x':  float(start_location_gazebo[0]),
             'initial_y': float(start_location_gazebo[1]),
-            'initial_yaw': LaunchConfiguration('initial_yaw'),
-            'goal_x': LaunchConfiguration('goal_x'),
-            'goal_y': LaunchConfiguration('goal_y'),
-            'goal_yaw': LaunchConfiguration('goal_yaw'),
+            'initial_yaw': float(3.14),
             'wait_after_undock': 2.0,
             'pose_init_delay': 1.0,
-            'world_num': 5,
+            'world_num': 0,
         }]
     )
+    publish_features_node = Node(
+        package='publish_features',
+        executable='publish_features_node',
+        name='publish_features',  # Fixed: was 'publish'
+        output='log',
+        parameters=[],
+    )
+    
+    middle_man_node = Node(
+        package='middle_man',
+        executable='middle_man_valid',
+        name='middle_man',  # Fixed: was 'publish'
+        output='log',
+        parameters=[],
+    )
+    
     # Add delay for nav2 to start after localization
     delayed_nav2 = TimerAction(
         period=3.0,  # 3 second delay like your sleep command
@@ -149,6 +162,15 @@ def generate_launch_description():
         period=25.0,  # 3 second delay like your sleep command
         actions=[barn_one_shot]
     )
+    delayed_publish_node = TimerAction(
+        period=15.0,
+        actions=[publish_features_node]
+    )
+    
+    delayed_middle_man_node = TimerAction(
+        period=15.0,
+        actions=[middle_man_node]
+    )
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
@@ -156,6 +178,8 @@ def generate_launch_description():
     # ld.add_action(undock_with_delay)
     ld.add_action(localization)
     ld.add_action(delayed_nav2)
+    ld.add_action(delayed_publish_node)
+    ld.add_action(delayed_middle_man_node)
     ld.add_action(delayed_barn)
     return ld
 

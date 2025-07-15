@@ -24,15 +24,21 @@ import csv
 import os
 from pathlib import Path
 from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
+import numpy as np
+
+from nav_msgs.msg import Path
+from geometry_msgs.msg import PoseStamped
+from builtin_interfaces.msg import Time
 class SequenceState(Enum):
     IDLE = 0
     UNDOCKING = 1
     UNDOCKING_IN_PROGRESS = 2
     WAITING_AFTER_UNDOCK = 3
     INITIALIZING_POSE = 4
-    NAVIGATING = 5
-    COMPLETED = 6
-    FAILED = 7
+    CREATE_PATH =5
+    NAVIGATING = 6
+    COMPLETED = 7
+    FAILED = 8
 
 class BarnOneShot(Node):
     def __init__(self):
@@ -71,6 +77,8 @@ class BarnOneShot(Node):
         self.initial_pose_pub = self.create_publisher(
             PoseWithCovarianceStamped, '/initialpose', 10
         )
+        # publishs converted barn map to nav stack
+        self.path_publisher = self.create_publisher(Path, '/plan', 10)
 
         self.amcl_pose_sub = self.create_subscription(
             PoseWithCovarianceStamped,
@@ -99,6 +107,7 @@ class BarnOneShot(Node):
         self.declare_parameter('pose_init_delay', 1.0)
         self.declare_parameter('world_num', 0)
 
+        self.world_num = self.get_parameter('world_num').value
         self.prev_distance = 0
         self.distance_remaining = 0
         # Timer for state machine
@@ -135,6 +144,9 @@ class BarnOneShot(Node):
             self.current_state = SequenceState.INITIALIZING_POSE
         elif self.current_state == SequenceState.INITIALIZING_POSE:
             self.handle_pose_initialization()    
+        elif self.current_state == SequenceState.CREATE_PATH:
+            gazebo_path = self.load_barn_path(self.world_num)
+            self.path_publisher.publish(gazebo_path)
         elif self.current_state == SequenceState.NAVIGATING:
             self.handle_navigation()
         elif self.current_state == SequenceState.COMPLETED:
@@ -236,27 +248,11 @@ class BarnOneShot(Node):
                 self.current_state = SequenceState.FAILED
             if self.amcl_pose_received and elapsed >= delay:
                 self.get_logger().info('AMCL pose confirmed, proceeding to navigation...')
-                self.current_state = SequenceState.NAVIGATING
+                self.current_state = SequenceState.CREATE_PATH
                 self._pose_sent = False
 
     def handle_navigation(self):
         """Handle navigation to goal pose"""
-        if (self.current_trial >= self.num_trials -1): #minus one because starts at 0
-            self.get_logger().info(f"Completed all {self.num_trials}. Shutting down")
-            successes = self.trial_results.count("SUCCESS")
-            failures = self.trial_results.count("FAILURE")
-            timeouts = self.trial_results.count("TIMEOUT")
-            collisions = self.trial_results.count("COLLISIONS")
-
-            self.get_logger().info(f"EXPERIMENT COMPLETE:")
-            self.get_logger().info(f"  Total trials: {self.num_trials}")
-            self.get_logger().info(f"  Successes: {successes}")
-            self.get_logger().info(f"  Failures: {failures}")
-            self.get_logger().info(f"  Timeouts: {timeouts}")
-            self.get_logger().info(f"  Collisions: {collisions}")
-            self.get_logger().info(f"  Success rate: {successes/len(self.trial_results)*100:.1f}%")
-            self.state_timer.cancel()
-            return
         if not hasattr(self, '_nav_sent') or not self._nav_sent:
             if not self.navigate_client.wait_for_server(timeout_sec=5.0):
                 self.get_logger().error('Navigation action server not available')
@@ -520,6 +516,66 @@ class BarnOneShot(Node):
             self.get_logger().error(f"Failed to reset Gazebo: {e}")
         
         rclpy.shutdown()
+
+    def path_coord_to_gazebo_coord(self,x, y):
+        # This is from the jackal_timer github repo from dperille (UT-AUSTIN LAB)
+        RADIUS=.075
+        r_shift = -RADIUS - (30 * RADIUS * 2)
+        c_shift = RADIUS + 5
+
+        gazebo_x = x * (RADIUS * 2) + r_shift
+        gazebo_y = y * (RADIUS * 2) + c_shift
+
+        return (gazebo_x, gazebo_y)
+    def load_barn_path(self, world_num):
+
+        # Load path and convert to gazebo coordinates       
+        barn_path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
+
+        path_msg = Path()
+        path_msg.header.frame_id = "map"  # or whatever your map frame is
+        path_msg.header.stamp = self.get_clock().now().to_msg()
+        for i, element in enumerate(barn_path):
+            gazebo_x, gazebo_y = self.path_coord_to_gazebo_coord(element[0], element[1])
+            
+            pose_stamped = PoseStamped()
+            pose_stamped.header.frame_id = "map"
+            pose_stamped.header.stamp = path_msg.header.stamp
+            
+            pose_stamped.pose.position.x = float(gazebo_x)
+            pose_stamped.pose.position.y = float(gazebo_y)
+            pose_stamped.pose.position.z = 0.0
+            
+            # Calculate orientation if not the last point
+            if i < len(barn_path) - 1:
+                next_element = barn_path[i + 1]
+                next_gazebo = self.path_coord_to_gazebo_coord(next_element[0], next_element[1])
+                qx, qy, qz, qw = self.calculate_orientation((gazebo_x, gazebo_y), next_gazebo)
+                
+                pose_stamped.pose.orientation.x = qx
+                pose_stamped.pose.orientation.y = qy
+                pose_stamped.pose.orientation.z = qz
+                pose_stamped.pose.orientation.w = qw
+            else:
+                # Last point, use previous orientation or default
+                pose_stamped.pose.orientation.w = 1.0
+            
+            path_msg.poses.append(pose_stamped)
+
+        return path_msg
+
+    def calculate_orientation(self, current_point, next_point):
+        """Calculate quaternion orientation from current point to next point"""
+        dx = next_point[0] - current_point[0]
+        dy = next_point[1] - current_point[1]
+        yaw = math.atan2(dy, dx)
+        
+        # Convert yaw to quaternion
+        qz = math.sin(yaw / 2.0)
+        qw = math.cos(yaw / 2.0)
+        
+        return (0.0, 0.0, qz, qw)  # (qx, qy, qz, qw)
+
 def main():
     rclpy.init()
     
