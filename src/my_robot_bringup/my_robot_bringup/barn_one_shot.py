@@ -271,24 +271,13 @@ class BarnOneShot(Node):
             
             last_pose = self.gazebo_path.poses[-1]
             self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-            self.get_logger().info(f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
             goal_msg = NavigateToPose.Goal()
             goal_msg.pose.header.frame_id = 'map'
             goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
             
             # Set goal position
             goal_msg.pose.pose.position.x = self.gazebo_path.poses[-1].pose.position.x 
-            goal_msg.pose.pose.position.y = self.gazebo_path.poses[-1].pose.position.x
+            goal_msg.pose.pose.position.y = self.gazebo_path.poses[-1].pose.position.y
             goal_msg.pose.pose.position.z = 0.0
             
             # Set goal orientation

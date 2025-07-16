@@ -149,7 +149,7 @@ def generate_launch_description():
         package='middle_man',
         executable='middle_man_barn',
         name='middle_man',  # Fixed: was 'publish'
-        output='log',
+        output='screen',
         parameters=[],
     )
     
