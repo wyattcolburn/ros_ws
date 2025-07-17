@@ -34,6 +34,10 @@ class obsValid : public rclcpp::Node {
             "/scan", 10, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
 
         marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array", 10);
+        // Add this to your constructor
+        local_goal_marker_pub_ =
+            this->create_publisher<visualization_msgs::msg::MarkerArray>("/local_goal_markers", 10);
+
         hall_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("/HallScan", 10);
 
         packetOut_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("neuralNetInput", 10);
@@ -50,6 +54,8 @@ class obsValid : public rclcpp::Node {
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
     rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr hall_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr packetOut_publisher_;
+    // Add this to your private members
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr local_goal_marker_pub_;
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
@@ -128,6 +134,8 @@ class obsValid : public rclcpp::Node {
         local_goal_manager_.updateLocalGoal(odom_x, odom_y); // local goals have already been converted to odom
         obstacle_manager_.update_obstacles(local_goal_manager_);
 
+        auto local_goal_markers = make_local_goal_markers();
+        local_goal_marker_pub_->publish(local_goal_markers);
         int num_obs;
         auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
         auto marker_array = make_markers(obs_list, static_cast<size_t>(num_obs));
@@ -151,11 +159,12 @@ class obsValid : public rclcpp::Node {
         for (size_t i = 0; i < packetOut_size; ++i) {
             msg.data[i] = static_cast<double>(packetOut[i]);
         }
-        // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
+        RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
+        RCLCPP_INFO(this->get_logger(), "LOCAL GOAL VEC SIZE, and current position %zu, %d",
+                    local_goal_manager_.data_vector.size(), local_goal_manager_.current_local_goal_counter);
         // RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
         packetOut_publisher_->publish(msg);
-        // RCLCPP_INFO(this->get_logger(), "PUBLISHING NEURAL NET INPUT MESSAGE");
-        reached_goal(odom_x, odom_y);
+        // reached_goal(odom_x, odom_y);
         return;
     }
 
@@ -164,12 +173,12 @@ class obsValid : public rclcpp::Node {
         packetOut[1] = current_cmd_w;
 
         Local_Goal currentLG = local_goal_manager_.data_vector[0];
-        // packetOut[2] = currentLG.x_point;
-        // packetOut[3] = currentLG.y_point;
-        // packetOut[4] = currentLG.yaw;
-        packetOut[2] = map_lg_x;
-        packetOut[3] = map_lg_y;
+        packetOut[2] = currentLG.x_point;
+        packetOut[3] = currentLG.y_point;
         packetOut[4] = currentLG.yaw;
+        // packetOut[2] = map_lg_x;
+        // packetOut[3] = map_lg_y;
+        // packetOut[4] = currentLG.yaw;
 
         for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter++) {
             packetOut[5 + lidar_counter] = hall_lidar_ranges[lidar_counter];
@@ -191,9 +200,9 @@ class obsValid : public rclcpp::Node {
     }
 
     void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
-
-        // RCLCPP_INFO(this->get_logger(), "Received %zu poses in frame %s", pathMsg->poses.size(),
-        //             pathMsg->header.frame_id.c_str());
+        // With barn should only get called once
+        RCLCPP_INFO(this->get_logger(), "Received %zu poses in frame %s", pathMsg->poses.size(),
+                    pathMsg->header.frame_id.c_str());
 
         // Get transform from map to odom
         geometry_msgs::msg::TransformStamped transform;
@@ -208,8 +217,8 @@ class obsValid : public rclcpp::Node {
         // RCLCPP_INFO(this->get_logger(), "PRE TRANSFORMATION LOCAL GOAL %.3f, %.3f",
         // pathMsg->poses[0].pose.position.x,
         //             pathMsg->poses[0].pose.position.y);
-        map_lg_x = pathMsg->poses[0].pose.position.x;
-        map_lg_y = pathMsg->poses[0].pose.position.y;
+        // map_lg_x = pathMsg->poses[0].pose.position.x;
+        // map_lg_y = pathMsg->poses[0].pose.position.y;
 
         tf2::Quaternion q(pathMsg->poses[0].pose.orientation.x, pathMsg->poses[0].pose.orientation.y,
                           pathMsg->poses[0].pose.orientation.z, pathMsg->poses[0].pose.orientation.w);
@@ -221,7 +230,7 @@ class obsValid : public rclcpp::Node {
         map_lg_yaw = yaw;
         local_goal_manager_.clean_data();
         // translate local goals into odom points
-        for (size_t i = 0; i < pathMsg->poses.size(); i += 8) {
+        for (size_t i = 0; i < pathMsg->poses.size(); i++) {
             // Transform position from map to odom frame
             geometry_msgs::msg::PoseStamped pose_in_map;
             geometry_msgs::msg::PoseStamped pose_in_odom;
@@ -243,18 +252,11 @@ class obsValid : public rclcpp::Node {
                 continue; // Skip this goal and try the next
             }
         }
-
-        // RCLCPP_INFO(this->get_logger(), "Our current Odom position is %f %f", odom_x, odom_y);
-        // add to local goal manager to create obstacles
+        // This code works when you are constantly polling path topic because nav stack is updating,
+        // with BARN, only one plan is used so no need to constiently update
+        //
         if (local_goal_manager_.get_num_lg() > 0) {
-            // RCLCPP_INFO(this->get_logger(), "FIRST GOAL VALUES ARE %f and %f",
-            //             local_goal_manager_.data_vector[0].x_point,
-            //             local_goal_manager_.data_vector[0].y_point);
-            // RCLCPP_INFO(this->get_logger(), "SIZE OF LOCAL_GOAL_VECTOR %d",
-            // local_goal_manager_.get_num_lg());
-            obstacle_manager_.clean_data(); // reset the obstacles array
             obstacle_manager_.local_goals_to_obs(local_goal_manager_);
-            local_goal_manager_.set_distance_vector(odom_x, odom_y);
             path_flag = true;
 
             GOAL.x_point = local_goal_manager_.data_vector.back().x_point;
@@ -266,6 +268,28 @@ class obsValid : public rclcpp::Node {
             RCLCPP_WARN(this->get_logger(), "No local goals were added after transformation");
         }
         return;
+        // //  RCLCPP_INFO(this->get_logger(), "Our current Odom position is %f %f", odom_x, odom_y);
+        // //  add to local goal manager to create obstacles
+        // if (local_goal_manager_.get_num_lg() > 0) {
+        //     // RCLCPP_INFO(this->get_logger(), "FIRST GOAL VALUES ARE %f and %f",
+        //     //             local_goal_manager_.data_vector[0].x_point,
+        //     //             local_goal_manager_.data_vector[0].y_point);
+        //     // RCLCPP_INFO(this->get_logger(), "SIZE OF LOCAL_GOAL_VECTOR %d",
+        //     // local_goal_manager_.get_num_lg());
+        //     obstacle_manager_.clean_data(); // reset the obstacles array
+        //     obstacle_manager_.local_goals_to_obs(local_goal_manager_);
+        //     local_goal_manager_.set_distance_vector(odom_x, odom_y);
+        //     path_flag = true;
+        //
+        //     GOAL.x_point = local_goal_manager_.data_vector.back().x_point;
+        //     GOAL.y_point = local_goal_manager_.data_vector.back().y_point;
+        //     GOAL.yaw = local_goal_manager_.data_vector.back().yaw;
+        //
+        //     std::cout << "GOAL after setting: (" << GOAL.x_point << ", " << GOAL.y_point << ")" << std::endl;
+        // } else {
+        //     RCLCPP_WARN(this->get_logger(), "No local goals were added after transformation");
+        // }
+        // return;
     }
     void processOdomLidar(const std_msgs::msg::Float64MultiArray &packetIn) {
 
@@ -383,8 +407,91 @@ class obsValid : public rclcpp::Node {
             return 0;
         }
     }
-};
+    visualization_msgs::msg::MarkerArray make_local_goal_markers() {
+        visualization_msgs::msg::MarkerArray marker_array;
 
+        // Clear any existing markers first
+        visualization_msgs::msg::Marker delete_marker;
+        delete_marker.header.frame_id = "map"; // Changed to map frame
+        delete_marker.header.stamp = this->now();
+        delete_marker.ns = "local_goals";
+        delete_marker.id = 0;
+        delete_marker.action = visualization_msgs::msg::Marker::DELETEALL;
+        marker_array.markers.push_back(delete_marker);
+
+        // Create markers for each local goal
+        for (size_t i = 0; i < local_goal_manager_.data_vector.size(); ++i) {
+            const Local_Goal &lg = local_goal_manager_.data_vector[i];
+
+            // Transform local goal from odom to map frame
+            geometry_msgs::msg::PoseStamped odom_pose;
+            odom_pose.header.frame_id = "odom";
+            odom_pose.header.stamp = rclcpp::Time(0);
+            odom_pose.pose.position.x = lg.x_point;
+            odom_pose.pose.position.y = lg.y_point;
+            odom_pose.pose.position.z = 0.0;
+
+            tf2::Quaternion q_odom;
+            q_odom.setRPY(0, 0, lg.yaw);
+            odom_pose.pose.orientation = tf2::toMsg(q_odom);
+
+            geometry_msgs::msg::PoseStamped map_pose;
+            try {
+                map_pose = tf_buffer_->transform(odom_pose, "map");
+            } catch (const tf2::TransformException &ex) {
+                RCLCPP_ERROR(this->get_logger(), "Transform failed for local goal %zu: %s", i, ex.what());
+                continue; // Skip this goal if transform fails
+            }
+
+            visualization_msgs::msg::Marker marker;
+            marker.header.frame_id = "map"; // Now using map frame
+            marker.header.stamp = this->now();
+            marker.ns = "local_goals";
+            marker.id = i + 1; // Start from 1 since 0 is used for delete
+            marker.type = visualization_msgs::msg::Marker::ARROW;
+            marker.action = visualization_msgs::msg::Marker::ADD;
+
+            // Position (now in map frame)
+            marker.pose.position.x = map_pose.pose.position.x;
+            marker.pose.position.y = map_pose.pose.position.y;
+            marker.pose.position.z = 0.0;
+
+            // Orientation (now in map frame)
+            marker.pose.orientation = map_pose.pose.orientation;
+
+            // Scale (arrow size)
+            marker.scale.x = 0.3;  // Length
+            marker.scale.y = 0.05; // Width
+            marker.scale.z = 0.05; // Height
+
+            // Color - different colors for different goals
+            if (i == local_goal_manager_.current_local_goal_counter) {
+                // Current goal - bright green
+                marker.color.r = 0.0;
+                marker.color.g = 1.0;
+                marker.color.b = 0.0;
+                marker.color.a = 0.8;
+            } else if (i == local_goal_manager_.data_vector.size() - 1) {
+                // Final goal - blue
+                marker.color.r = 0.0;
+                marker.color.g = 0.0;
+                marker.color.b = 1.0;
+                marker.color.a = 0.8;
+            } else {
+                // Intermediate goals - yellow
+                marker.color.r = 1.0;
+                marker.color.g = 1.0;
+                marker.color.b = 0.0;
+                marker.color.a = 0.4;
+            }
+
+            marker.lifetime = rclcpp::Duration::from_seconds(0.0); // Persistent until replaced
+            marker_array.markers.push_back(marker);
+        }
+
+        return marker_array;
+    }
+};
 int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);
     rclcpp::spin(std::make_shared<obsValid>());
