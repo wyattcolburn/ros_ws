@@ -17,8 +17,6 @@ ARGUMENTS = [
                           description='Ignition World'), DeclareLaunchArgument('model', default_value='standard',
                           choices=['standard', 'lite'],
                           description='Turtlebot4 Model'),
-    DeclareLaunchArgument('rviz', default_value='false',
-                          choices=['true', 'false'], description='Start rviz.'),
     
     DeclareLaunchArgument('map_file', default_value='yaml_0.yaml',
                           description='Map file for localization'),

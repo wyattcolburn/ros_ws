@@ -112,6 +112,8 @@ class BarnOneShot(Node):
         self.world_num = self.get_parameter('world_num').value
         self.prev_distance = 0
         self.distance_remaining = 0
+        self.goal_x = 0
+        self.goal_y = 0
         # Timer for state machine
         self.state_timer = self.create_timer(
             1.0, self.state_machine_callback,
@@ -285,6 +287,10 @@ class BarnOneShot(Node):
             goal_msg.pose.pose.orientation.y = self.gazebo_path.poses[-1].pose.orientation.y
             goal_msg.pose.pose.orientation.z = self.gazebo_path.poses[-1].pose.orientation.z
             goal_msg.pose.pose.orientation.w = self.gazebo_path.poses[-1].pose.orientation.w
+            
+            self.goal_x = goal_msg.pose.pose.position.x 
+            self.goal_y = goal_msg.pose.pose.position.y 
+            
             if not self.is_cmd_vel_subscribed():
                 self.get_logger().warn("cmd_vel has no subscribers — controller likely not active yet")
                 return  # or transition to FAILED if it's unrecoverable
@@ -402,14 +408,13 @@ class BarnOneShot(Node):
         """Records the results of the current trial into a CSV"""
         
         # Fix 1: Properly expand the path and ensure directory exists
-        filepath = Path.home() / 'ros_ws' / 'trial_results.csv'  # Fixed typo: trail -> trial
+        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'trial_results.csv')  # Fixed typo: trail -> trial
         
-        # Fix 2: Create directory if it doesn't exist
-        filepath.parent.mkdir(parents=True, exist_ok=True)
+        print(f" this is filepath {filepath}")
         
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        if filepath.exists():  # Use filepath.exists() instead of os.path.exists()
+        if os.path.exists(filepath):  # Use filepath.exists() instead of os.path.exists()
             print(f"File already exists at {filepath}, appending current trial {self._trial_result}")
             with open(filepath, 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
@@ -418,9 +423,9 @@ class BarnOneShot(Node):
                     self.get_parameter('initial_x').value,    # Fix 4: Add .value
                     self.get_parameter('initial_y').value,
                     self.get_parameter('initial_yaw').value,
-                    self.get_parameter('goal_x').value,
-                    self.get_parameter('goal_y').value,
-                    self.get_parameter('goal_yaw').value,
+                    self.goal_x,
+                    self.goal_y, 
+                    ## add yaw???
                     self._trial_result
                 ])
         else:
