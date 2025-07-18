@@ -67,6 +67,27 @@ class Local_Goal_Manager {
         return;
     }
 
+    int simple_local_goal_update(double odom_x, double odom_y) {
+
+        if (data_vector.empty() || current_local_goal_counter >= data_vector.size()) {
+            std::cout << "No more local goals available" << std::endl;
+            return 0;
+        }
+
+        double dx = odom_x - data_vector[current_local_goal_counter].x_point;
+        double dy = odom_y - data_vector[current_local_goal_counter].y_point;
+        double distance = std::sqrt(dx * dx + dy * dy);
+        std::cout << "Distance from local goal" << distance << std::endl;
+        if (distance < THRESHOLD) {
+            current_local_goal_counter++;
+        }
+
+        else {
+            std::cout << "NOT WITHIN THRESHOLD" << std::endl;
+        }
+        return 0;
+    }
+
     int updateLocalGoal(double odom_x, double odom_y) {
         if (data_vector.empty() || current_local_goal_counter >= data_vector.size()) {
             std::cout << "No more local goals available" << std::endl;

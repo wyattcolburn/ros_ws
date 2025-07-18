@@ -131,7 +131,7 @@ class obsValid : public rclcpp::Node {
         // odom_y,
         //             map_x, map_y, yaw, map_yaw);
 
-        local_goal_manager_.updateLocalGoal(odom_x, odom_y); // local goals have already been converted to odom
+        local_goal_manager_.simple_local_goal_update(odom_x, odom_y); // local goals have already been converted to odom
         obstacle_manager_.update_obstacles(local_goal_manager_);
 
         auto local_goal_markers = make_local_goal_markers();
@@ -172,7 +172,7 @@ class obsValid : public rclcpp::Node {
         packetOut[0] = current_cmd_v;
         packetOut[1] = current_cmd_w;
 
-        Local_Goal currentLG = local_goal_manager_.data_vector[0];
+        Local_Goal currentLG = local_goal_manager_.data_vector[local_goal_manager_.current_local_goal_counter];
         packetOut[2] = currentLG.x_point;
         packetOut[3] = currentLG.y_point;
         packetOut[4] = currentLG.yaw;

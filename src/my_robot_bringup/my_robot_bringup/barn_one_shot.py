@@ -544,7 +544,7 @@ class BarnOneShot(Node):
         path_msg = Path()
         path_msg.header.frame_id = "map"  # or whatever your map frame is
         path_msg.header.stamp = self.get_clock().now().to_msg()
-        for i, element in enumerate(barn_path):
+        for i, element in enumerate(barn_path[5:]):
             gazebo_x, gazebo_y = self.path_coord_to_gazebo_coord(element[0], element[1])
             
             pose_stamped = PoseStamped()
