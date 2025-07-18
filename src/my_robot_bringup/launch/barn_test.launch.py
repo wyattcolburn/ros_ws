@@ -46,9 +46,13 @@ def path_coord_to_gazebo_coord(x, y):
 
 def generate_launch_description():
     
-    
-    starting_location_path = np.load(os.path.expanduser('~/ros_ws/BARN_turtlebot/path_files/path_0.npy'))[0]
+    world_num = int(os.environ.get('WORLD_NUM', '0'))
+    world_name = f'world_{world_num}' 
+    starting_location_path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))[0]
     start_location_gazebo = path_coord_to_gazebo_coord(starting_location_path[0], starting_location_path[1])
+    
+    map_file_path = os.path.expanduser(f'~/ros_ws/BARN_turtlebot/map_files/yaml_{world_num}.yaml')
+    
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')
     pkg_my_robot_bringup = get_package_share_directory(
@@ -67,7 +71,7 @@ def generate_launch_description():
     ignition = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([ignition_launch]),
         launch_arguments=[
-            ('world', LaunchConfiguration('world'))
+            ('world', world_name)
         ]
     )
 
@@ -108,7 +112,7 @@ def generate_launch_description():
     localization = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([localization_launch]),
         launch_arguments=[
-            ('map', LaunchConfiguration('map_file')),
+            ('map', map_file_path),
             ('use_sim_time', 'true')
         ]
     )
@@ -132,7 +136,7 @@ def generate_launch_description():
             'initial_yaw': float(3.14),
             'wait_after_undock': 2.0,
             'pose_init_delay': 1.0,
-            'world_num': 0,
+            'world_num': world_num,
         }]
     )
     publish_features_node = Node(

@@ -247,7 +247,7 @@ class BarnOneShot(Node):
             
             self.get_logger().info(f'Waiting for AMCL: received={self.amcl_pose_received}, elapsed={elapsed:.1f}s/{delay}s')
            
-            if (elapsed >= 30):
+            if (elapsed >= 300):
                 # timeout not working correctly
                 self._trial_result = "AMCL TIMEOUT"
                 self.current_state = SequenceState.FAILED
