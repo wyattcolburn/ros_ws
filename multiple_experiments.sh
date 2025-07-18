@@ -15,7 +15,7 @@ for ((trial=1; trial <= NUM_TRIALS; trial++)); do
     
     # Start the trial - pass world_num as argument
     echo "Starting trial $trial with world $WORLD_NUM..."
-    ros2 launch my_robot_bringup barn_test.launch.py world:="BARN_turtlebot/world_files/world_0" map:="BARN_turtlebot/map_files/yaml_0"
+    ros2 launch my_robot_bringup barn_test.launch.py
 
     echo "=== Trial $trial Completed ==="
     sleep 2
