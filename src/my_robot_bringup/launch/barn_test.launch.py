@@ -71,7 +71,7 @@ def generate_launch_description():
     ignition = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([ignition_launch]),
         launch_arguments=[
-            ('world', world_name)
+            ('world', LaunchConfiguration('world'))
         ]
     )
 
@@ -112,7 +112,7 @@ def generate_launch_description():
     localization = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([localization_launch]),
         launch_arguments=[
-            ('map', map_file_path),
+            ('map', LaunchConfiguration('map_file')),
             ('use_sim_time', 'true')
         ]
     )
