@@ -7,12 +7,14 @@ from launch_ros.actions import Node
 from launch.actions import TimerAction
 import numpy as np
 import os
+import math
 # Declare arguments
 ARGUMENTS = [
     DeclareLaunchArgument('namespace', default_value='',
                           description='Robot namespace'),
     DeclareLaunchArgument('rviz', default_value='false',
                           choices=['true', 'false'], description='Start rviz.'),
+
     DeclareLaunchArgument('world', default_value='barn_world_0',
                           description='Ignition World'), DeclareLaunchArgument('model', default_value='standard',
                           choices=['standard', 'lite'],
@@ -45,14 +47,15 @@ def path_coord_to_gazebo_coord(x, y):
     return (gazebo_x, gazebo_y)
 
 def yaw_calculation(x1, y1, x2, y2):
-    return arctan((y2-y1)/(x2-x1))
+
+    return math.atan2(y2-y1, x2-x1)
 def generate_launch_description():
     
     world_num = int(os.environ.get('WORLD_NUM', '0'))
     path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
-    starting_location_path = path[0]
+    starting_location_path = path[1]
     start_location_gazebo = path_coord_to_gazebo_coord(starting_location_path[0], starting_location_path[1])
-    second_location_gazebo = path_coord_to_gazebo_coord(path[1][0], path[1][1])
+    second_location_gazebo = path_coord_to_gazebo_coord(path[2][0], path[2][1])
     yaw = yaw_calculation(start_location_gazebo[0], start_location_gazebo[1], second_location_gazebo[0], second_location_gazebo[1])
     
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
@@ -82,8 +85,8 @@ def generate_launch_description():
             ('rviz', LaunchConfiguration('rviz')),
             ('x', f'{start_location_gazebo[0]}'),
             ('y', f'{start_location_gazebo[1]}'), 
-            ('z', '0'),
-            ('yaw', yaw)]
+            ('z', LaunchConfiguration('z')),
+            ('yaw', f'{yaw}')]
     )
 
     """
@@ -123,7 +126,7 @@ def generate_launch_description():
         parameters=[{
             'initial_x':  float(start_location_gazebo[0]),
             'initial_y': float(start_location_gazebo[1]),
-            'initial_yaw': float(3.14),
+            'initial_yaw': float(yaw),
             'wait_after_undock': 2.0,
             'pose_init_delay': 1.0,
             'world_num': world_num,
@@ -145,7 +148,13 @@ def generate_launch_description():
         parameters=[],
     )
     
+
     # Add delay for nav2 to start after localization
+    
+    delayed_local = TimerAction(
+            period=3.0, 
+            actions=[localization])
+
     delayed_nav2 = TimerAction(
         period=3.0,  # 3 second delay like your sleep command
         actions=[nav2]
@@ -168,7 +177,7 @@ def generate_launch_description():
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
     # ld.add_action(undock_with_delay)
-    ld.add_action(localization)
+    ld.add_action(delayed_local)
     ld.add_action(delayed_nav2)
     ld.add_action(delayed_publish_node)
     ld.add_action(delayed_middle_man_node)
