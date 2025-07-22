@@ -1,7 +1,7 @@
 #!/bin/bash
 NUM_TRIALS=1
 RESET_DELAY=10
-WORLD_NUM=20  # Add this - specify which world to use
+WORLD_NUM=0  # Add this - specify which world to use
 
 cp "BARN_turtlebot/world_files/world_${WORLD_NUM}.sdf" "src/turtlebot4_ignition_bringup/worlds/"
 cp "BARN_turtlebot/map_files/yaml_${WORLD_NUM}.yaml" .
@@ -17,7 +17,7 @@ for ((trial=1; trial <= NUM_TRIALS; trial++)); do
     
     # Start the trial - pass world_num as argument
     echo "Starting trial $trial with world $WORLD_NUM..."
-    ros2 launch my_robot_bringup dockless.launch.py
+    ros2 launch my_robot_bringup dockless.launch.py world:=world_${WORLD_NUM} map_file:=yaml_${WORLD_NUM}.yaml
 
     echo "=== Trial $trial Completed ==="
     sleep 2

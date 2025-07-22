@@ -110,7 +110,7 @@ std::pair<float, float> modulation_onnx_lidar(float odom_x, float odom_y, float 
     }
     // Equation in the paper is e^(w1-w2(1-P(safety)), where no collisions equals 150 speed up
     // versus 50 percent slow down
-    // std::cout << "num of collisions" << p_safety_counter << std::endl;
+    std::cout << "num of collisions" << p_safety_counter << std::endl;
     float p_safety = float(p_safety_counter) / float(attempt_lim);
     float exponent = (W1 - W2 * (p_safety));
     float mod_factor = std::exp(exponent);

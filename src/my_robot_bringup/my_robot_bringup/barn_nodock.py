@@ -570,7 +570,7 @@ class BarnOneShot(Node):
     # 
     def odom_callback(self, odom_msg):
 
-        if self.current_state == SequenceState.UNDOCKING or self.current_state == SequenceState.UNDOCKING_IN_PROGRESS or self.current_state == SequenceState.WAITING_AFTER_UNDOCK:
+        if self.current_state != SequenceState.NAVIGATING:
             return
         try:
             # Create PoseStamped from odometry message
@@ -648,7 +648,7 @@ class BarnOneShot(Node):
         path_msg.header.frame_id = "map"  # or whatever your map frame is
         path_msg.header.stamp = self.get_clock().now().to_msg()
         
-        path_subset = barn_path[5:] # robot swap
+        path_subset = barn_path[3:] # robot swap
         for i, element in enumerate(path_subset):
             gazebo_x, gazebo_y = self.path_coord_to_gazebo_coord(element[0], element[1])
             

@@ -279,7 +279,7 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     std::pair<float, float> cmds =
         modulation_onnx_lidar(odom_x, odom_y, odom_yaw, predicted_linear, predicted_angular, lidar_pointer, num_lidar);
 
-    // RCLCPP_INFO(logger_, "Final commands after modulation (lin, ang): %.3f, %.3f", cmds.first, cmds.second);
+    RCLCPP_INFO(logger_, "Final commands after modulation (lin, ang): %.3f, %.3f", cmds.first, cmds.second);
 
     // Add safety clamping on final commands too
     cmds.first = std::clamp(cmds.first, min_linear_vel, max_linear_vel);
