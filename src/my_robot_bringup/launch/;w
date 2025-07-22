@@ -82,8 +82,8 @@ def generate_launch_description():
             ('rviz', LaunchConfiguration('rviz')),
             ('x', f'{start_location_gazebo[0]}'),
             ('y', f'{start_location_gazebo[1]}'), 
-            ('z', '0'),
-            ('yaw', yaw)]
+            ('z', LaunchConfiguration('z')),
+            ('yaw', LaunchConfiguration('yaw'))]
     )
 
     """
