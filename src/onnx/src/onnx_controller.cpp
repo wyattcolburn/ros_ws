@@ -167,7 +167,7 @@ void ONNXController::setPlan(const nav_msgs::msg::Path &path) {
 void ONNXController::onnxInputCallback(const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
     // get latest input from model and hallucination node
     latest_onnx_input_ = *msg;
-    RCLCPP_INFO(logger_, "Receiving Input from Middle man...");
+    // RCLCPP_INFO(logger_, "Receiving Input from Middle man...");
 }
 geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const geometry_msgs::msg::PoseStamped &pose,
                                                                          const geometry_msgs::msg::Twist &,
@@ -178,7 +178,7 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     static const float min_angular_vel = -1.4;
     static const float max_angular_vel = 1.4;
 
-    RCLCPP_INFO(logger_, "REACHING COMPUTE VELOCITY");
+    // RCLCPP_INFO(logger_, "REACHING COMPUTE VELOCITY");
 
     // 1) Gather your raw data (doubles) from the Float64MultiArray
     const auto &latest =
@@ -232,7 +232,7 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
             // Clip values to [0,1] range in case of out-of-bound inputs
             input_data_f[i] = std::max(0.0f, std::min(input_data_f[i], 1.0f));
         }
-        RCLCPP_INFO(logger_, "Normalization worked");
+        // RCLCPP_INFO(logger_, "Normalization worked");
     }
 
     for (size_t i = 0; i < 20; i++) {
@@ -271,22 +271,22 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     double predicted_linear = static_cast<double>(out_f[0]);
     double predicted_angular = static_cast<double>(out_f[1]);
 
-    RCLCPP_INFO(logger_, "Predicted (lin, ang): %.3f, %.3f", predicted_linear, predicted_angular);
+    // RCLCPP_INFO(logger_, "Predicted (lin, ang): %.3f, %.3f", predicted_linear, predicted_angular);
 
     // Now we want to modulate the output of the network
 
-    RCLCPP_INFO(logger_, "ODOM X, ODOM_y, odom_yaw, %.3f, %.3f, %.3f", odom_x, odom_y, odom_yaw);
+    // RCLCPP_INFO(logger_, "ODOM X, ODOM_y, odom_yaw, %.3f, %.3f, %.3f", odom_x, odom_y, odom_yaw);
     std::pair<float, float> cmds =
         modulation_onnx_lidar(odom_x, odom_y, odom_yaw, predicted_linear, predicted_angular, lidar_pointer, num_lidar);
 
-    RCLCPP_INFO(logger_, "Final commands after modulation (lin, ang): %.3f, %.3f", cmds.first, cmds.second);
+    // RCLCPP_INFO(logger_, "Final commands after modulation (lin, ang): %.3f, %.3f", cmds.first, cmds.second);
 
     // Add safety clamping on final commands too
     cmds.first = std::clamp(cmds.first, min_linear_vel, max_linear_vel);
     cmds.second = std::clamp(cmds.second, min_angular_vel, max_angular_vel);
 
-    RCLCPP_INFO(logger_, "Final clamped commands (lin, ang): %.3f, %.3f", cmds.first, cmds.second);
-    RCLCPP_INFO(logger_, "LOCAL GOAL DATA: %.3f, %.3f", latest[2], latest[3]);
+    // RCLCPP_INFO(logger_, "Final clamped commands (lin, ang): %.3f, %.3f", cmds.first, cmds.second);
+    // RCLCPP_INFO(logger_, "LOCAL GOAL DATA: %.3f, %.3f", latest[2], latest[3]);
     // 7) Pack into TwistStamped
     geometry_msgs::msg::TwistStamped cmd_vel;
     cmd_vel.header.frame_id = pose.header.frame_id;

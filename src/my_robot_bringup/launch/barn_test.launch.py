@@ -87,15 +87,6 @@ def generate_launch_description():
             ('yaw', LaunchConfiguration('yaw'))]
     )
 
-    undock_command = ExecuteProcess(
-        cmd=['ros2', 'action', 'send_goal', '/undock', 'irobot_create_msgs/action/Undock', '{}'],
-        output='screen'
-    )
-    undock_with_delay = TimerAction(
-        period=25.0,  # Delay in seconds
-        actions=[undock_command]
-    )
-
     """
     The idea is that the bash script will say which trial we are running. This will be decided by world_name number,
     then we need to provide the .yaml for the map file, we also then to grab the path values, and convert them
@@ -151,7 +142,7 @@ def generate_launch_description():
         package='middle_man',
         executable='middle_man_barn',
         name='middle_man',  # Fixed: was 'publish'
-        output='screen',
+        output='log',
         parameters=[],
     )
     

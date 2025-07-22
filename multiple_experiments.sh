@@ -2,8 +2,10 @@
 NUM_TRIALS=1
 RESET_DELAY=10
 WORLD_NUM=0  # Add this - specify which world to use
-WORLD="barn_world_${WORLD_NUM}"  # Make world name dynamic
 
+cp "BARN_turtlebot/world_files/world_${WORLD_NUM}.sdf" "src/turtlebot4_ignition_bringup/worlds/"
+cp "BARN_turtlebot/map_files/yaml_${WORLD_NUM}.yaml" .
+cp "BARN_turtlebot/map_files/map_pgm_${WORLD_NUM}.pgm" .
 export WORLD_NUM=$WORLD_NUM
 echo "Starting multi-trial experiment with $NUM_TRIALS trials using world $WORLD_NUM"
 

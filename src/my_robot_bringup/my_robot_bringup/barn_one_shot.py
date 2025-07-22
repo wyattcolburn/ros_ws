@@ -13,6 +13,7 @@ from rclpy.executors import MultiThreadedExecutor
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
 from irobot_create_msgs.action import Undock, Dock
 from ros_gz_interfaces.msg import Contacts
+from nav_msgs.msg import Odometry
 from nav2_msgs.action import NavigateToPose
 from lifecycle_msgs.srv import ChangeState
 from nav2_msgs.srv import ClearEntireCostmap
@@ -25,6 +26,8 @@ import os
 from pathlib import Path
 from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
 import numpy as np
+import tf2_ros
+import tf2_geometry_msgs
 
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
@@ -42,7 +45,7 @@ class SequenceState(Enum):
 
 class BarnOneShot(Node):
     def __init__(self):
-        super().__init__('One_Shot')
+        super().__init__('Barn_one_shot')
         
         # Use reentrant callback group for concurrent action calls
 
@@ -60,9 +63,11 @@ class BarnOneShot(Node):
         self._nav_timeout_limit = 5
 
         self._nav_feedback_counter = 0
-        self._nav_feedback_limit = 10
+        self._nav_feedback_limit = 30
         self.prev_distance_flag = False
-            
+
+        self.current_lg_counter = 0
+        self.current_lg_xy = (0,0)
         # Action clients
         self.undock_client = ActionClient(
             self, Undock, '/undock', 
@@ -72,7 +77,8 @@ class BarnOneShot(Node):
             self, NavigateToPose, '/navigate_to_pose',
             callback_group=self.callback_group
         )
-        
+       
+        self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
         # Publishers
         self.initial_pose_pub = self.create_publisher(
             PoseWithCovarianceStamped, '/initialpose', 10
@@ -92,7 +98,13 @@ class BarnOneShot(Node):
 
         self.feedback_sub = self.create_subscription(NavigateToPose_FeedbackMessage, '/navigate_to_pose/_action/feedback',
                                                      self.nav_feedback_callback, 10)
-
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        
+        # Current position in map frame
+        self.current_map_x = 0.0
+        self.current_map_y = 0.0
+        
 
         self.amcl_pose_received = False
         self.pose_stable_count = 0
@@ -109,6 +121,7 @@ class BarnOneShot(Node):
         self.declare_parameter('pose_init_delay', 1.0)
         self.declare_parameter('world_num', 0)
 
+        self.collision_detected = False
         self.world_num = self.get_parameter('world_num').value
         self.prev_distance = 0
         self.distance_remaining = 0
@@ -247,7 +260,7 @@ class BarnOneShot(Node):
             
             self.get_logger().info(f'Waiting for AMCL: received={self.amcl_pose_received}, elapsed={elapsed:.1f}s/{delay}s')
            
-            if (elapsed >= 300):
+            if (elapsed >= 30):
                 # timeout not working correctly
                 self._trial_result = "AMCL TIMEOUT"
                 self.current_state = SequenceState.FAILED
@@ -408,7 +421,7 @@ class BarnOneShot(Node):
         """Records the results of the current trial into a CSV"""
         
         # Fix 1: Properly expand the path and ensure directory exists
-        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'trial_results.csv')  # Fixed typo: trail -> trial
+        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'trial_results_with_localgoals.csv')  # Fixed typo: trail -> trial
         
         print(f" this is filepath {filepath}")
         
@@ -426,7 +439,8 @@ class BarnOneShot(Node):
                     self.goal_x,
                     self.goal_y, 
                     ## add yaw???
-                    self._trial_result
+                    self._trial_result,
+                    self.current_lg_counter
                 ])
         else:
             print(f"File {filepath} does not exist, creating file and header")
@@ -434,16 +448,17 @@ class BarnOneShot(Node):
                 writer = csv.writer(csvfile)
                 # Fix 3: Add missing comma
                 writer.writerow(['timestamp', 'initial_x', 'initial_y', 'initial_yaw', 
-                               'goal_x', 'goal_y', 'goal_yaw', 'trial_result'])
+                               'goal_x', 'goal_y', 'goal_yaw', 'trial_result', 'local_goal_reached'])
                 writer.writerow([
                     timestamp,
                     self.get_parameter('initial_x').value,
                     self.get_parameter('initial_y').value,
                     self.get_parameter('initial_yaw').value,
-                    self.get_parameter('goal_x').value,
-                    self.get_parameter('goal_y').value,
-                    self.get_parameter('goal_yaw').value,
-                    self._trial_result
+                    self.goal_x,
+                    self.goal_y, 
+                    self._trial_result, 
+                    self.current_lg_counter
+
                 ])
         return
     def nav_feedback_callback(self, msg):
@@ -452,8 +467,8 @@ class BarnOneShot(Node):
 
             initial_x = self.get_parameter('initial_x').value 
             initial_y = self.get_parameter('initial_y').value
-            goal_x = self.get_parameter('goal_x').value
-            goal_y = self.get_parameter('goal_y').value
+            goal_x = self.goal_x
+            goal_y = self.goal_y
 
             self.get_logger().info(f"Initial pose: ({initial_x}, {initial_y})")
             self.get_logger().info(f"Goal pose: ({goal_x}, {goal_y})")
@@ -464,10 +479,8 @@ class BarnOneShot(Node):
             self.last_progress_check_time = time.time()
             self.progress_check_interval = 1.0  # Check every 1 second
             return
-        if msg.feedback.distance_remaining == 0:
-            return
         
-        self.distance_remaining = msg.feedback.distance_remaining
+        self.distance_remaining = self.local_goal_tracker()
         
         current_time = time.time()
 
@@ -477,8 +490,9 @@ class BarnOneShot(Node):
             if self.distance_remaining > self.prev_distance:
                 self._nav_feedback_counter+=1
                 self.get_logger().info(f'Increasing counter {self._nav_feedback_counter}')
+                self.prev_distance = self.distance_remaining
                 if self._nav_feedback_counter >= self._nav_feedback_limit:
-                    self.get_logger().info('Have not made progress within 10 tries, failure')
+                    self.get_logger().info(f'Have not made progress within {self._nav_feedback_limit} tries, failure')
                     self._trial_result = "FAILURE"
                     self.current_state = SequenceState.FAILED
             else:
@@ -487,7 +501,96 @@ class BarnOneShot(Node):
 
             self.last_progress_check_time = current_time
 
+    def find_closest_ahead_local_goal(self):
+        """
+        Find the closest local goal that is ahead of (or at) current position in the path
+        Returns the index of that goal, or current index if no better goal found
+        """
+        min_distance = float('inf')
+        best_goal_index = self.current_lg_counter
         
+        # Only check goals at current index or ahead (higher indices)
+        for i in range(self.current_lg_counter, len(self.gazebo_path.poses)):
+            goal_x = self.gazebo_path.poses[i].pose.position.x
+            goal_y = self.gazebo_path.poses[i].pose.position.y
+            
+            dx = self.current_map_x - goal_x
+            dy = self.current_map_y - goal_y
+            distance = ((dx*dx) + (dy*dy))**.5
+            
+            if distance < min_distance:
+                min_distance = distance
+                best_goal_index = i
+        
+        return best_goal_index, min_distance
+
+    def local_goal_tracker(self):
+        """ 
+        Takes in map_x, and map_y and records closest local goal
+        """
+        # Check if there's a better local goal ahead
+        best_goal_index, distance_to_best = self.find_closest_ahead_local_goal()
+        
+        if best_goal_index > self.current_lg_counter:
+            # Found a closer goal that's further along the path - robot took shortcut/detour
+            self.get_logger().info(f"Skipping ahead from lg {self.current_lg_counter} to lg {best_goal_index}")
+            self.current_lg_counter = best_goal_index
+            self.current_lg_xy = (self.gazebo_path.poses[self.current_lg_counter].pose.position.x, 
+                                 self.gazebo_path.poses[self.current_lg_counter].pose.position.y)
+            return distance_to_best
+        
+        # Otherwise use current logic
+        dx = self.current_map_x - self.current_lg_xy[0]
+        dy = self.current_map_y - self.current_lg_xy[1]
+        distance_remaining = ((dx*dx) + (dy*dy))**.5
+        
+        if distance_remaining < 0.13:
+            self.get_logger().info(f"Passed local goal {self.current_lg_counter}")
+            self.current_lg_counter += 1
+            if self.current_lg_counter < len(self.gazebo_path.poses):
+                self.current_lg_xy = (self.gazebo_path.poses[self.current_lg_counter].pose.position.x, 
+                                     self.gazebo_path.poses[self.current_lg_counter].pose.position.y)
+            
+        return distance_remaining
+    # def local_goal_tracker(self):
+    #     """ 
+    #     Takes in map_x, and map_y and records closest local goal
+    #     """
+    #     dx = self.current_map_x - self.current_lg_xy[0]
+    #     dy = self.current_map_y - self.current_lg_xy[1]
+    #
+    #     distance_remaining = ((dx*dx) + (dy*dy))**.5
+    #     
+    #     if distance_remaining < .13:
+    #         self.get_logger().info(f"Passed a local goal, now on lg {self.current_lg_counter}")
+    #         self.current_lg_counter+=1
+    #         self.current_lg_xy = (self.gazebo_path.poses[self.current_lg_counter].pose.position.x, self.gazebo_path.poses[self.current_lg_counter].pose.position.y)
+    #         
+    #     return distance_remaining
+    # 
+    def odom_callback(self, odom_msg):
+
+        if self.current_state == SequenceState.UNDOCKING or self.current_state == SequenceState.UNDOCKING_IN_PROGRESS or self.current_state == SequenceState.WAITING_AFTER_UNDOCK:
+            return
+        try:
+            # Create PoseStamped from odometry message
+            pose_stamped = PoseStamped()
+            pose_stamped.header = odom_msg.header
+            pose_stamped.pose = odom_msg.pose.pose
+            
+            # Transform to map frame
+            map_pose = self.tf_buffer.transform(pose_stamped, 'map')
+            
+            # Update current map coordinates
+            self.current_map_x = map_pose.pose.position.x
+            self.current_map_y = map_pose.pose.position.y
+            
+            self.get_logger().info(f'Map position: x={self.current_map_x:.2f}, y={self.current_map_y:.2f}')
+            
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, 
+                tf2_ros.ExtrapolationException) as e:
+            self.get_logger().warn(f'Could not transform odom to map: {str(e)}')
+    
     def terminate(self):
         """Reset the simulation and should kill all the nodes"""
         self.get_logger().info("Terminating function")
@@ -544,7 +647,9 @@ class BarnOneShot(Node):
         path_msg = Path()
         path_msg.header.frame_id = "map"  # or whatever your map frame is
         path_msg.header.stamp = self.get_clock().now().to_msg()
-        for i, element in enumerate(barn_path[5:]):
+        
+        path_subset = barn_path[5:] # robot swap
+        for i, element in enumerate(path_subset):
             gazebo_x, gazebo_y = self.path_coord_to_gazebo_coord(element[0], element[1])
             
             pose_stamped = PoseStamped()
@@ -554,10 +659,10 @@ class BarnOneShot(Node):
             pose_stamped.pose.position.x = float(gazebo_x)
             pose_stamped.pose.position.y = float(gazebo_y)
             pose_stamped.pose.position.z = 0.0
-            
+           
             # Calculate orientation if not the last point
-            if i < len(barn_path) - 1:
-                next_element = barn_path[i + 1]
+            if i < len(path_subset) - 1:
+                next_element = path_subset[i + 1]
                 next_gazebo = self.path_coord_to_gazebo_coord(next_element[0], next_element[1])
                 qx, qy, qz, qw = self.calculate_orientation((gazebo_x, gazebo_y), next_gazebo)
                 
@@ -570,7 +675,7 @@ class BarnOneShot(Node):
                 pose_stamped.pose.orientation.w = 1.0
             
             path_msg.poses.append(pose_stamped)
-
+        self.current_lg_xy = (path_msg.poses[0].pose.position.x, path_msg.poses[0].pose.position.y)
         return path_msg
 
     def calculate_orientation(self, current_point, next_point):

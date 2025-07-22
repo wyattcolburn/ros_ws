@@ -89,11 +89,11 @@ class obsValid : public rclcpp::Node {
     void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
 
         if (path_flag == false) {
-            std::cout << "Have yet to receive a path yet" << std::endl;
+            // std::cout << "Have yet to receive a path yet" << std::endl;
             return;
         }
         processOdomLidar(packetin);
-        std::cout << "**************** yaw value : " << yaw << std::endl;
+        // std::cout << "**************** yaw value : " << yaw << std::endl;
 
         geometry_msgs::msg::PoseStamped odom_pose;
         odom_pose.header.frame_id = "odom";
@@ -159,9 +159,9 @@ class obsValid : public rclcpp::Node {
         for (size_t i = 0; i < packetOut_size; ++i) {
             msg.data[i] = static_cast<double>(packetOut[i]);
         }
-        RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
-        RCLCPP_INFO(this->get_logger(), "LOCAL GOAL VEC SIZE, and current position %zu, %d",
-                    local_goal_manager_.data_vector.size(), local_goal_manager_.current_local_goal_counter);
+        // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
+        // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL VEC SIZE, and current position %zu, %d",
+        // local_goal_manager_.data_vector.size(), local_goal_manager_.current_local_goal_counter);
         // RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
         packetOut_publisher_->publish(msg);
         // reached_goal(odom_x, odom_y);
@@ -263,7 +263,7 @@ class obsValid : public rclcpp::Node {
             GOAL.y_point = local_goal_manager_.data_vector.back().y_point;
             GOAL.yaw = local_goal_manager_.data_vector.back().yaw;
 
-            std::cout << "GOAL after setting: (" << GOAL.x_point << ", " << GOAL.y_point << ")" << std::endl;
+            // std::cout << "GOAL after setting: (" << GOAL.x_point << ", " << GOAL.y_point << ")" << std::endl;
         } else {
             RCLCPP_WARN(this->get_logger(), "No local goals were added after transformation");
         }
@@ -394,16 +394,16 @@ class obsValid : public rclcpp::Node {
         double dy = odom_y - GOAL.y_point;
         double distance = std::sqrt(dx * dx + dy * dy);
 
-        std::cout << "Robot odom pos: (" << odom_x << ", " << odom_y << ")" << std::endl;
-        std::cout << "GOAL values: (" << GOAL.x_point << ", " << GOAL.y_point << ")" << std::endl;
-        std::cout << "dx: " << dx << ", dy: " << dy << std::endl;
+        // std::cout << "Robot odom pos: (" << odom_x << ", " << odom_y << ")" << std::endl;
+        // std::cout << "GOAL values: (" << GOAL.x_point << ", " << GOAL.y_point << ")" << std::endl;
+        // std::cout << "dx: " << dx << ", dy: " << dy << std::endl;
 
         if (distance < GOAL_THRESHOLD) {
-            std::cout << "REACH GOAL POSE" << std::endl;
+            // std::cout << "REACH GOAL POSE" << std::endl;
             goal_flag = true;
             return 1;
         } else {
-            std::cout << "dist to goal is : " << distance << std::endl;
+            // std::cout << "dist to goal is : " << distance << std::endl;
             return 0;
         }
     }
