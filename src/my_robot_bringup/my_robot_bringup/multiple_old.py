@@ -9,9 +9,7 @@ Lets say we are odom_rad (x,y), we need to know yaw, and locations of revalent o
 
 April 29: Currently, this takes odom_csv, and creates the local goals and obstacles to generate ray traces
 
-June 21: This works! Investigating different offsets, reducing offset from 1.0
 """
-import pickle
 import matplotlib.patches as patches
 import numpy as np
 import rosbag2_py
@@ -102,11 +100,7 @@ class Obstacle_Manager():
     def get_active_obstacles_claude(self, global_path=None, current_index=None):
         """Select obstacles based on distance to the current robot position."""
         # Get current robot position
-        if current_index is not None:
-            robot_pos = (self.local_goal_manager_.global_path.poses[current_index].pose.position.x, self.local_goal_manager_.global_path.poses[current_index].pose.position.y)
-        else:
-            robot_pos = self.local_goal_manager_.current_odom
-        #robot_pos = self.local_goal_manager_.current_odom
+        robot_pos = self.local_goal_manager_.current_odom
         print(f"active obstacles reference to where it is {robot_pos}") 
         # Calculate distance to each obstacle
         obstacles_with_distance = []
@@ -508,7 +502,7 @@ class MapTraining(Node):
         
         self.current_odom = (0.0, 0.0)
         
-        self.OFFSET = 0.5
+        self.OFFSET = 1.0
         self.RADIUS = .4
         self.NUM_VALID_OBS = 20
         self.NUM_LIDAR = 1080
@@ -525,7 +519,7 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/wyatt/ros_ws/robot_data_1/"
+        self.input_bag = "/home/wyatt/ros_ws/poc_may15_medium/"
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
@@ -666,16 +660,14 @@ class MapTraining(Node):
    
     def check_tf_and_run(self):
         # Try checking for transform once TF listener has had time to populate
-        self.odom_data()
-        return
-        # if self.tf_buffer.can_transform(
-        #     'map', 'odom', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.5)
-        # ):
-        #     self.get_logger().info("TF transform map → odom is now available. Proceeding with data transformation.")
-        #     self.odom_timer.cancel()  # Stop calling this timer
-        #     self.odom_data()  # Run the conversion/odom
-        # else:
-        #     self.get_logger().warn("TF not ready: waiting for map → odom...")
+        if self.tf_buffer.can_transform(
+            'map', 'odom', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.5)
+        ):
+            self.get_logger().info("TF transform map → odom is now available. Proceeding with data transformation.")
+            self.odom_timer.cancel()  # Stop calling this timer
+            self.odom_data()  # Run the conversion
+        else:
+            self.get_logger().warn("TF not ready: waiting for map → odom...")
 
     def odom_data(self):
         
@@ -688,21 +680,18 @@ class MapTraining(Node):
         df = pd.read_csv(self.odom_csv_file)
         self.odom_x = df['odom_x'].tolist()
         self.odom_y = df['odom_y'].tolist()
-        self.map_x = self.odom_x.copy()
-        self.map_y = self.odom_y.copy()
-        #
-        # for i, (x_odom, y_odom) in enumerate(zip(self.odom_x, self.odom_y)):
-        #     result = odom_to_map(self, x_odom, y_odom)
-        #     if result is not None:
-        #         x_map, y_map = result
-        #         self.map_x.append(x_map)
-        #         self.map_y.append(y_map)
-        #     else:
-        #         self.get_logger().warn(f"Skipping index {i} due to transform failure.")
-        #         self.map_x.append(None)
-        #         self.map_y.append(None)
 
-    
+        for i, (x_odom, y_odom) in enumerate(zip(self.odom_x, self.odom_y)):
+            result = odom_to_map(self, x_odom, y_odom)
+            if result is not None:
+                x_map, y_map = result
+                self.map_x.append(x_map)
+                self.map_y.append(y_map)
+            else:
+                self.get_logger().warn(f"Skipping index {i} due to transform failure.")
+                self.map_x.append(None)
+                self.map_y.append(None)
+
         self.segment_setup()
         #self.setup()
         self.get_logger().info(f"Transformed {len(self.map_x)} points to map frame.")
@@ -766,144 +755,140 @@ class MapTraining(Node):
 
         self.map_points = list(zip(self.map_x, self.map_y))
 
-        # Global stuff for training data
-
         self.global_path = self.create_path_from_points(self.map_points)
-
-        self.local_goal_manager_ = Local_Goal_Manager((self.map_points[0][0], self.map_points[0][1]))
-
+        self.local_goal_manager_ = Local_Goal_Manager(self.current_odom)
         self.local_goal_manager_.global_path = self.global_path
         self.local_goal_manager_.generate_local_goals_claude(self.global_path)
-
-        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output)
+        
+        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output) 
 
         self.current_odom = (self.map_points[0][0], self.map_points[0][1])
         self.segments = self.create_segments(self.map_points)
+        
+        # self.create_excels(self.segments), only do this if not cached
 
-        for i, seg  in enumerate(self.segments):
-            print(f"segment index {seg.start_index} and {seg.end_index}")
-            print(f"len of seg.map_points : {len(seg.map_points)}")
-            self.process_segment(self.segments[i], i)
-        self.debug_segment_obstacles()
-        print("done")
-        self.process_segment(self.segments[0], 0)
-
-
-    def debug_segment_obstacles(self, seg_index=0):  # Use a small segment
-        seg = self.segments[seg_index]
-        
-        plt.figure(figsize=(12, 8))
-        
-        # Plot segment path
-        path_x = [p[0] for p in seg.map_points]
-        path_y = [p[1] for p in seg.map_points]
-        plt.plot(path_x, path_y, 'b-', linewidth=2, label='Segment Path')
-        
-        # Plot local goals for this segment
-        lg_x = [lg.pose.position.x for lg in seg.local_goal_manager_.data]
-        lg_y = [lg.pose.position.y for lg in seg.local_goal_manager_.data]
-        plt.scatter(lg_x, lg_y, c='green', s=50, label='Local Goals')
-        
-        # Plot ALL obstacles for this segment
-        for obs in seg.obstacle_manager_.obstacle_array:
-            circle = plt.Circle((obs.center_x, obs.center_y), obs.radius, 
-                               fill=False, color='red', linewidth=1)
-            plt.gca().add_patch(circle)
-        
-        # Test obstacle filtering at middle of segment
-        mid_index = len(seg.map_points) // 2
-        active_obs = seg.get_obstacles(mid_index)
-        
-        # Highlight active obstacles
-        for obs in active_obs:
-            circle = plt.Circle((obs.center_x, obs.center_y), obs.radius, 
-                               fill=False, color='orange', linewidth=3)
-            plt.gca().add_patch(circle)
-        
-        plt.title(f'Segment {seg_index} - Red=All Obstacles, Orange=Active')
-        plt.legend()
-        plt.axis('equal')
-        plt.grid(True)
-        plt.show()
-        
-        print(f"Total obstacles: {len(seg.obstacle_manager_.obstacle_array)}")
-        print(f"Active obstacles: {len(active_obs)}")
-        #self.process_segment(self.segments[0], 0)
-        
-        #for i, seg in enumerate(self.segments):
-        #    print(f"checking start and end index : {seg.start_index} and {seg.end_index}")
-        #    self.process_segment(seg, i)
+        # Does not work, must do one by one ??, need to fix
+        #self.per_seg_loop_once(self.segments[2], 2)
+        for i, seg in enumerate(self.segments):
+            print(f"checking start and end index : {seg.start_index} and {seg.end_index}")
+            self.per_seg_loop_once(seg, i) 
+            print(f"done with seg : {i}")
         #self.main_loop() 
+    def setup(self):
+        #self.test_obs_700()
+        self.map_points = list(zip(self.map_x, self.map_y))
+        self.global_path = self.create_path_from_points(self.map_points)
 
-    def process_all_segments(self, segments):
-        # but process in one loop and then return then process, 
-        for seg_index, seg in enumerate(segments):
-            self.process_segment(seg, seg_index)
-     
+        self.current_odom = (self.map_points[0][0], self.map_points[0][1])
+        
+        
+        self.local_goal_manager_ = Local_Goal_Manager(self.current_odom)
+        self.local_goal_manager_.global_path = self.global_path
+        self.local_goal_manager_.generate_local_goals_claude(self.global_path)
+        
+        self.local_goal_manager_.upscale_local_goal((self.local_goal_manager_.data[0].pose.position.x, self.local_goal_manager_.data[0].pose.position.y), self.map_points, self.local_goals_output) 
 
-    def process_segment(self, seg, seg_index):
+        self.obstacle_manager_ = Obstacle_Manager(self.OFFSET, self.RADIUS,self.local_goal_manager_)
+        self.obstacle_manager_.create_all_obstacle()
+        #self.validate_obstacles()
+        print("VALIDATED ****************************")
+        print(f"FIRST POINT IS ********************************8 {self.map_points[0]}")
+        
+        print("checking if a local goal exists in map_points")
+        # Check if a specific local goal exists in map pointsp
+        found, matching_point = self.is_pose_in_map_points(self.local_goal_manager_.data[0], self.map_points)
+        if found:
+            print(f"local goal exists within map points at {matching_point}")
+        else:
+            print("error local goal not in map points list")
+
+        output_folder = "obstacle_and_path_2"
+        os.makedirs(output_folder, exist_ok=True)
+        plt.figure(figsize=(8,6))
+
+        plt.clf()  # Clear previous plot
+        ax = plt.gca()
+        ax.set_aspect('equal')
+        # Replot the base elements
+        #plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="Odometry Path")
+        active_obstacle = self.obstacle_manager_.get_active_obstacles_claude()
+        for obstacle in self.obstacle_manager_.obstacle_array:
+            circle = patches.Circle(
+            (obstacle.center_x, obstacle.center_y),
+            radius=obstacle.radius,
+            fill=False,
+            color='red',
+            linewidth=1.5,
+            linestyle='-'
+    )
+            ax.add_patch(circle)
+
+        path_x = [point[0] for point in self.map_points]
+        path_y = [point[1] for point in self.map_points]
+
+        # Plot the entire path
+        plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, color='black', label='odom path')
+
+        frame_path = f"{output_folder}/obst_path.png"
+        plt.savefig(frame_path)
+
+        print("Saved png of obstacles and path")
+        self.visualize_path_with_yaw()
+        #self.segments = self.create_segments(self.map_points, self.global_path)
+        self.per_seg_loop(self.segments)
+        #self.main_loop() 
+    
+
+    def create_excels(self, segments):
+
+        for i, seg in enumerate(segments):
+            output_folder = f"{self.input_bag}/seg_{i}/input_data"
+
+            os.makedirs(output_folder, exist_ok=True)
+
+            odom_all = pd.read_csv(self.odom_csv_file)
+            odom_curr = odom_all[seg.start_index:seg.end_index]
+            odom_curr.to_csv(f"{output_folder}/odom_data.csv")
+            
+            cmd_all = pd.read_csv(self.cmd_output_csv)
+            cmd_curr = cmd_all[seg.start_index:seg.end_index]
+            cmd_curr.to_csv(f"{output_folder}/cmd_vel_output.csv")
+
+            local_goal_all = pd.read_csv(self.local_goals_output)
+            local_goal_curr = local_goal_all[seg.start_index:seg.end_index]
+            local_goal_curr.to_csv(f"{output_folder}/local_goals.csv")
+        
+            print(f"Segment: start_index={seg.start_index}, end_index={seg.end_index}")
+
+        print("created input csvs")
+    def per_seg_loop_once(self, seg, seg_index):
 
         """
         Args: Segment
         Output: Nothing, data just written to CSV
-        Make a dkr
-        First, make odom_data.csv, cmd_vel_output.csv, local_goals.csv just for that section, 
-        ray_trace
+        Only creates lidar data
         """
-        
-        self.lidar_header_flag = True
-        output_folder = f"{self.input_bag}/seg_{seg_index}_test_ind/input_data"
+        output_folder = f"{self.input_bag}/seg_{seg_index}/input_data"
         os.makedirs(output_folder, exist_ok=True)
 
-        odom_all = pd.read_csv(self.odom_csv_file)
-        odom_curr = odom_all[seg.start_index:seg.end_index]
-        odom_curr.to_csv(f"{output_folder}/odom_data.csv")
-        
-        cmd_all = pd.read_csv(self.cmd_output_csv)
-        cmd_curr = cmd_all[seg.start_index:seg.end_index]
-        cmd_curr.to_csv(f"{output_folder}/cmd_vel_output.csv")
 
-        local_goal_all = pd.read_csv(self.local_goals_output)
-        local_goal_curr = local_goal_all[seg.start_index:seg.end_index]
-        local_goal_curr.to_csv(f"{output_folder}/local_goals.csv")
-       
-        if os.path.exists(f"{output_folder}/lidar_data.csv"):
-            os.remove(f"{output_folder}/lidar_data.csv")
-
-        print(f"odom_all length: {len(odom_all)}")
-        print(f"cmd_all length: {len(cmd_all)}")
-        print(f"local_goal_all length: {len(local_goal_all)}")
-        
-        print(f"Reading odom from: {self.odom_csv_file}")
-        print(f"Reading cmd from: {self.cmd_output_csv}")  
-        print(f"Reading local_goals from: {self.local_goals_output}")
-
-        # Add these debug prints in process_segment:
-        odom_all = pd.read_csv(self.odom_csv_file)
-        odom_curr = odom_all[seg.start_index:seg.end_index]
-        print(f"Original odom shape: {odom_all.shape}")
-        print(f"Sliced odom shape: {odom_curr.shape}")
-        print(f"First few rows of sliced odom:")
-        print(odom_curr.head())
-
-        # Same for local_goals
-        local_goal_all = pd.read_csv(self.local_goals_output)
-        local_goal_curr = local_goal_all[seg.start_index:seg.end_index]
-        print(f"Original local_goals shape: {local_goal_all.shape}")
-        print(f"Sliced local_goals shape: {local_goal_curr.shape}")
-        print(f"First few rows of sliced local_goals:")
-        print(local_goal_curr.head())
         self.current_odom_index = 0
         counter = 0
+        
+        self.lidar_header_flag = True
 
-        path_x = [point[0] for point in seg.map_points]
-        path_y = [point[1] for point in seg.map_points]
+        lidar_file = f"{output_folder}/lidar_data.csv"
+        if os.path.exists(lidar_file):
+            os.remove(lidar_file)
+            print("lidar file")
+        #path_x = [point[0] for point in seg.map_points]
+        #path_y = [point[1] for point in seg.map_points]
 
         frames_folder = f"{output_folder}/frames"
         os.makedirs(frames_folder, exist_ok=True)
     
-        for i, map_point in enumerate(seg.map_points[:len(cmd_curr)]):
-            
+        for i, map_point in enumerate(seg.map_points):
+
             self.current_odom = (map_point[0], map_point[1])
             seg.local_goal_manager_.current_odom = self.current_odom
             active_obstacles = seg.get_obstacles(i)
@@ -914,7 +899,7 @@ class MapTraining(Node):
                 counter +=1
                 self.current_odom_index +=1
                 continue
-
+            """
             plt.clf()  # clear previous plot
             ax = plt.gca()
             ax.set_aspect('equal')
@@ -943,138 +928,54 @@ class MapTraining(Node):
             
             frame_path = f"{frames_folder}/frame_{counter:03d}.png"
             counter+=1
-            self.current_odom_index +=1
             plt.savefig(frame_path)
     
         plt.close()
+            """
+            self.current_odom_index +=1
         print("done with main loop")
                 
-                
 
-    def main_loop(self):
-   
-        """
-        I want to take in a list of segments, I want to create data sets for each of them
-        """
-        output_folder = "may14_test"
-        os.makedirs(output_folder, exist_ok=True)
-        plt.figure(figsize=(8, 6))
-        counter = 0
-
-        path_x = [point[0] for point in self.map_points]
-        path_y = [point[1] for point in self.map_points]
-        for j, segment in enumerate(self.segments):
-            self.current_odom_index = 0
-            for i, map_point in enumerate(segment.map_points):
-                self.current_odom = (map_point[0], map_point[1])
-
-                segment.local_goal_manager_.current_odom = self.current_odom
-                active_obstacle = segment.get_obstacles(i)
-                local_data = self.ray_tracing(segment.global_path.poses[i].pose,segment, active_obstacle) # get ray tracining values, now need to store them correctly with 
-
-                self.ray_data_append()
-                if i % 50 != 0:
-                    counter +=1
-                    self.current_odom_index +=1
-                    continue
-
-                plt.clf()  # clear previous plot
-                ax = plt.gca()
-                ax.set_aspect('equal')
-                # replot the base elements
-                plt.plot(self.current_odom[0], self.current_odom[1], marker='o', linestyle='-', markersize=3, color='blue', label="odometry path")
-
-
-                print("local goal count") 
-                for obstacle in active_obstacle:
-                    circle = patches.Circle(
-                    (obstacle.center_x, obstacle.center_y),
-                    radius=obstacle.radius,
-                    fill=False,
-                    color='red',
-                    linewidth=1.5,
-                    linestyle='-'
-                )
-                    ax.add_patch(circle)
-
-                plt.scatter(self.current_odom[0], self.current_odom[1], color='cyan', s=200, label='robot')
-
-                # plot the entire path
-                plt.plot(path_x, path_y, marker='o', linestyle='-', markersize=3, color='black', label='odom path')
-                self.draw_rays_claude_2(self.current_odom[0], self.current_odom[1], local_data, segment)
-                # save the frame
-                
-                frame_path = f"{output_folder}/frame_{counter:03d}.png"
-                counter+=1
-                self.current_odom_index +=1
-                plt.savefig(frame_path)
-        
-            plt.close()
-            print("done with main loop")
-
-
-    def save_segments_to_csv(self, segments, filename="segments_cache.csv"):
-        """Save segment information to a CSV file"""
-        print(f"Saving {len(segments)} segments to {filename}...")
-        with open(filename, 'w', newline='') as f:
-            writer = csv.writer(f)
-            # Write header row
-            writer.writerow(["segment_id", "start_index", "end_index"])
-            # Write data for each segment
-            for i, segment in enumerate(segments):
-                writer.writerow([f"seg_{i}", segment.start_index, segment.end_index])
-        print("Segments saved successfully")
     def create_segments(self, map_points):
         """
         Create segments which act like little global paths, so need to create obstacles for just that segment
 
         """
         print("starting create_segments")
-        segments_data = [] 
-        if os.path.exists(f"{self.input_bag}/segments_cache.csv"):
-            print("values already calcualted")
-            
-            with open(f"{self.input_bag}/segments_cache.csv", 'r') as file:
+        segments = []
+        current_segment = [map_points[0]]
+        start_index = 0
+        end_index = 0
+        threshold = .15
+        cache_filename = f"{self.input_bag}/segments_cache.csv"
+        if os.path.exists(cache_filename):
+            with open(cache_filename, 'r') as file:
                 csv_reader = csv.reader(file)
-                
-                # Skip the header row
+
                 header = next(csv_reader)
-                
-                # Read each row and append to list
+                print(f"header: {header}")
+
                 for row in csv_reader:
+                    
                     start_index = int(row[1])
                     end_index = int(row[2])
-                    curr_seg_ = Segment(self.map_points[start_index:end_index],self, self.RADIUS, self.OFFSET)
-                    curr_seg_.start_index = start_index
-                    curr_seg_.end_index = end_index
-                    curr_seg_.init()
-                    
-                    # Add the row data as a tuple or list to segments_data
-                    segments_data.append(curr_seg_)
-
-            for seg in segments_data:
-                print(f"seg {seg.start_index} end {seg.end_index}")
+                    curr_seg = Segment(self.map_points[start_index:end_index+1], self, self.RADIUS, self.OFFSET, start_index, end_index)
+                    curr_seg.init()
+                    segments.append(curr_seg)
 
         else:
-            # Or if you prefer a dictionary:
-            # segments_data.append({'segment_id': segment_id, 'start_index': start_index, 'end_index': end_index})
-            print("values not cached already")
-            current_segment = [map_points[0]]
-            start_index = 0
-            end_index = 0
-            threshold = .15
+            print("values not cached yet")
             for i in range(1, len(map_points)):
 
                 current_segment.append(map_points[i])
-                start_index 
 
                 for j in range(len(current_segment) - 200):
                     if self.distance_between_points(current_segment[j], map_points[i]) < threshold:
-                        end_index = i - 1
+                        end_index = i
                         curr_seg_ = Segment(current_segment, self, self.RADIUS, self.OFFSET, start_index, end_index)
                         curr_seg_.init()
                         start_index = i
-                        segments_data.append(curr_seg_)
+                        segments.append(curr_seg_)
                         current_segment = [map_points[i]]
                         
                         break
@@ -1084,12 +985,21 @@ class MapTraining(Node):
                 print("*************************************")
                 curr_seg_ = Segment(current_segment, self, self.RADIUS, self.OFFSET, start_index, (len(map_points)-1))
                 curr_seg_.init()
-                segments_data.append(curr_seg_)
-                
-            self.save_segments_to_csv(segments_data, f"{self.input_bag}/segments_cache.csv")
-        self.plot_segments(segments_data)
+                segments.append(curr_seg_)
+            
+            with open(cache_filename, 'w') as file:
+                csv_writer = csv.writer(file)
 
-        return segments_data
+                csv_writer.writerow(["seg_id", "start_index", "end_index"])
+                for i, seg in enumerate(segments):
+                    csv_writer.writerow([f"seg_{i}",seg.start_index, seg.end_index])
+
+                print(f"finish caching results at {cache_filename}")
+                self.create_excels(segments)
+        self.plot_segments(segments)
+
+
+        return segments
     def plot_segments(self, segments):
         plt.figure(figsize=(10, 8))
         

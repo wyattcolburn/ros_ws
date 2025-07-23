@@ -66,7 +66,7 @@ def generate_launch_description():
         cmd=['ros2', 'bag', 'record', 
              '/scan', '/scan_spoofed', '/tf', '/tf_static', 
              '/odom', '/cmd_vel', '/clock',
-             '-o', 'robot_data'],  # Output bag name
+             '-o', 'robot_data_1'],  # Output bag name
         output='screen'
     )
 

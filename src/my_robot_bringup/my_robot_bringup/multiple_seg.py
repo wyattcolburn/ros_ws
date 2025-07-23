@@ -525,8 +525,8 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/wyatt/ros_ws/may15_medium/"
-        self.frame_dkr = f"{self.input_bag}/input_data/"
+        self.input_bag = "/home/wyatt/ros_ws/poc_may15_medium/"
+        self.frame_dkr = f"{self.input_bag}/raw_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
         self.cmd_csv = os.path.join(self.frame_dkr, "cmd_vel.csv")
@@ -776,12 +776,12 @@ class MapTraining(Node):
         self.current_odom = (self.map_points[0][0], self.map_points[0][1])
         self.segments = self.create_segments(self.map_points)
 
-        for seg in self.segments:
+        for i, seg in enumerate(self.segments):
             print(f"segment index {seg.start_index} and {seg.end_index}")
             print(f"len of seg.map_points : {len(seg.map_points)}")
+            self.process_segment(self.segments[i], i)
         self.debug_segment_obstacles()
         print("done")
-        self.process_segment(self.segments[0], 0)
 
 
     def debug_segment_obstacles(self, seg_index=0):  # Use a small segment

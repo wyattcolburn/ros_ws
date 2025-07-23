@@ -12,10 +12,12 @@ ARGUMENTS = [
                           description='Robot namespace'),
     DeclareLaunchArgument('rviz', default_value='false',
                           choices=['true', 'false'], description='Start rviz.'),
-    DeclareLaunchArgument('world', default_value='maze',
+    DeclareLaunchArgument('world', default_value='sandbox',
                           description='Ignition World'), DeclareLaunchArgument('model', default_value='standard',
                           choices=['standard', 'lite'],
                           description='Turtlebot4 Model'),
+    DeclareLaunchArgument('map_file', default_value='sandbox.yaml',
+                          description='Map file for localization'),
 ]
 
 for pose_element in ['x', 'y', 'z', 'yaw']:
@@ -27,8 +29,7 @@ def generate_launch_description():
     # Directories
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')
-    pkg_my_robot_bringup = get_package_share_directory(
-        'my_robot_bringup')
+    pkg_turtlebot4_navigation = get_package_share_directory('turtlebot4_navigation')
     # Paths
     ignition_launch = PathJoinSubstitution(
         [pkg_turtlebot4_ignition_bringup, 'launch', 'ignition.launch.py'])
@@ -41,6 +42,10 @@ def generate_launch_description():
         ]
     )
 
+    localization_launch = PathJoinSubstitution(
+        [pkg_turtlebot4_navigation, 'launch', 'localization.launch.py'])
+    nav2_launch = PathJoinSubstitution(
+        [pkg_turtlebot4_navigation, 'launch', 'nav2.launch.py'])
     
     robot_spawn = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([robot_spawn_launch]),
@@ -53,6 +58,29 @@ def generate_launch_description():
             ('yaw', LaunchConfiguration('yaw'))]
     )
 
+    localization = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([localization_launch]),
+        launch_arguments=[
+            ('map', LaunchConfiguration('map_file')),
+            ('use_sim_time', 'true')
+        ]
+    )
+
+    # Include nav2 with delay
+    nav2 = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([nav2_launch]),
+        launch_arguments=[
+            ('use_sim_time', 'true')
+        ]
+    )
+    delayed_local = TimerAction(
+            period=10.0, 
+            actions=[localization])
+
+    delayed_nav2 = TimerAction(
+        period=10.0,  # 3 second delay like your sleep command
+        actions=[nav2]
+    )
     #undock_and_record = Node(
     #    package='my_robot_bringup',  # Replace with your package name
     #    executable='undock_and_record.py',  # Name of the Python script
@@ -121,8 +149,10 @@ def generate_launch_description():
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
     # ld.add_action(init_command)
-    ld.add_action(undock_with_delay)
-    #ld.add_action(goal_command)
+    # ld.add_action(undock_with_delay)
+    ld.add_action(delayed_local)
+    ld.add_action(delayed_nav2)
+    # ld.add_action(goal_command)
     return ld
 
 

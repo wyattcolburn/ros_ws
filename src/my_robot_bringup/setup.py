@@ -24,6 +24,7 @@ setup(
             'random_motor= my_robot_bringup.random_motor:main',
             'undock_node= my_robot_bringup.undock_node:main',
             'multiple=my_robot_bringup.multiple_seg:main',
+            'old_multiple=my_robot_bringup.multiple_old:main',
             'validate=my_robot_bringup.experiment_validation_node:main',
             'create_training=my_robot_bringup.create_training:main',
             'one_shot= my_robot_bringup.one_shot_trial:main',

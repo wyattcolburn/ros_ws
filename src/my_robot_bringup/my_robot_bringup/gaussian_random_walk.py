@@ -50,7 +50,7 @@ class randomMotor(Node):
 
         msg = Twist()
         msg.linear.x = truncated_gaussian(0, .4, .2, .0000001)
-        new_angular = prev_based_gaussian(-1.4, 1.4, self.prev_mu, .2)
+        new_angular = prev_based_gaussian(-1.4, 1.4, self.prev_mu, .1)
         msg.angular.z = new_angular
         self.prev_mu = new_angular
         self.publisher_.publish(msg)
