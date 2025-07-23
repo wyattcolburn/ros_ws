@@ -1,7 +1,7 @@
 #!/bin/bash
 NUM_TRIALS=1
 RESET_DELAY=10
-WORLD_NUM=0  # Add this - specify which world to use
+WORLD_NUM=50  # Add this - specify which world to use
 
 cp "BARN_turtlebot/world_files/world_${WORLD_NUM}.sdf" "src/turtlebot4_ignition_bringup/worlds/"
 cp "BARN_turtlebot/map_files/yaml_${WORLD_NUM}.yaml" .

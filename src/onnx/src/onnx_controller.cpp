@@ -241,6 +241,8 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     // 3) Define your input shape
     std::vector<int64_t> inputShape = {1, static_cast<int64_t>(1085)};
 
+    float current_v = latest[0];
+    float current_w = latest[1];
     float odom_x = latest[1085];
     float odom_y = latest[1086];
     float odom_yaw = latest[1087];
@@ -275,7 +277,7 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
 
     // Now we want to modulate the output of the network
 
-    // RCLCPP_INFO(logger_, "ODOM X, ODOM_y, odom_yaw, %.3f, %.3f, %.3f", odom_x, odom_y, odom_yaw);
+    RCLCPP_INFO(logger_, "current_x, current_W, , %.3f, %.3f", current_v, current_w);
     std::pair<float, float> cmds =
         modulation_onnx_lidar(odom_x, odom_y, odom_yaw, predicted_linear, predicted_angular, lidar_pointer, num_lidar);
 

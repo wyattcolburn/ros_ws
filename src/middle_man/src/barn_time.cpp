@@ -159,7 +159,7 @@ class obsValid : public rclcpp::Node {
         for (size_t i = 0; i < packetOut_size; ++i) {
             msg.data[i] = static_cast<double>(packetOut[i]);
         }
-        // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
+        RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
         // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL VEC SIZE, and current position %zu, %d",
         // local_goal_manager_.data_vector.size(), local_goal_manager_.current_local_goal_counter);
         // RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
@@ -319,7 +319,7 @@ class obsValid : public rclcpp::Node {
         hall_msg.range_min = scanMsg->range_min;
         hall_msg.range_max = scanMsg->range_max;
         std::vector<float> hall_lidar_publish;
-        min_hall_lidar(real_lidar_ranges, hall_lidar_ranges, 1080);
+        // min_hall_lidar(real_lidar_ranges, hall_lidar_ranges, 1080);
         for (int i = 0; i < LIDAR_COUNT; i++) {
             hall_lidar_publish.push_back(static_cast<float>(hall_lidar_ranges[i]));
             // RCLCPP_INFO(this->get_logger(), "Lidar value : %f",

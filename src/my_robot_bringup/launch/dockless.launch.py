@@ -152,15 +152,15 @@ def generate_launch_description():
     # Add delay for nav2 to start after localization
     
     delayed_local = TimerAction(
-            period=3.0, 
+            period=10.0, 
             actions=[localization])
 
     delayed_nav2 = TimerAction(
-        period=3.0,  # 3 second delay like your sleep command
+        period=10.0,  # 3 second delay like your sleep command
         actions=[nav2]
     )
     delayed_barn= TimerAction(
-        period=25.0,  # 3 second delay like your sleep command
+        period=35.0,  # 3 second delay like your sleep command
         actions=[barn_one_shot]
     )
     delayed_publish_node = TimerAction(
