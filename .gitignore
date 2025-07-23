@@ -21,4 +21,4 @@ may*
 *.csv
 input_data/
 **/input_data/
-
+robot_data/

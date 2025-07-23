@@ -5,14 +5,14 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch.actions import TimerAction
-
+import subprocess
 # Declare arguments
 ARGUMENTS = [
     DeclareLaunchArgument('namespace', default_value='',
                           description='Robot namespace'),
     DeclareLaunchArgument('rviz', default_value='true',
                           choices=['true', 'false'], description='Start rviz.'),
-    DeclareLaunchArgument('world', default_value='one_obstacle',
+    DeclareLaunchArgument('world', default_value='sandbox',
                           description='Ignition World'),
     DeclareLaunchArgument('model', default_value='standard',
                           choices=['standard', 'lite'],
@@ -54,22 +54,34 @@ def generate_launch_description():
             ('yaw', LaunchConfiguration('yaw'))]
     )
 
-    undock_node = TimerAction(
+    random_walk_node = TimerAction(
         period=15.0,
         actions=[Node(
         package='my_robot_bringup',
-        executable='undock_node',  # You need to create this
+        executable='gaussian',  # You need to create this
         output='screen')]
 
     )
+    bag_record = ExecuteProcess(
+        cmd=['ros2', 'bag', 'record', 
+             '/scan', '/scan_spoofed', '/tf', '/tf_static', 
+             '/odom', '/cmd_vel', '/clock',
+             '-o', 'robot_data'],  # Output bag name
+        output='screen'
+    )
 
+    # Add delay if needed
+    delayed_bag_record = TimerAction(
+        period=5.0,  # Start recording after robot is ready
+        actions=[bag_record]
+    )
+        
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
     ld.add_action(robot_spawn)
-    ld.add_action(undock_node)
-    #ld.add_action(undock_with_delay)
-    #ld.add_action(bag_record)
+    ld.add_action(random_walk_node)
+    ld.add_action(delayed_bag_record)
     return ld
 
 

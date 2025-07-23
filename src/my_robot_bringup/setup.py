@@ -29,6 +29,7 @@ setup(
             'one_shot= my_robot_bringup.one_shot_trial:main',
             'barn_one_shot = my_robot_bringup.barn_one_shot:main',
             'barn_nodock= my_robot_bringup.barn_nodock:main',
+            'gaussian= my_robot_bringup.gaussian_random_walk:main',
         ]
     },
 )
