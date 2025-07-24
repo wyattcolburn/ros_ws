@@ -49,7 +49,7 @@ class randomMotor(Node):
         ## .2 with 10
 
         msg = Twist()
-        msg.linear.x = truncated_gaussian(0, .4, .2, .0000001)
+        msg.linear.x = truncated_gaussian(0, .4, .2, .08)
         new_angular = prev_based_gaussian(-1.4, 1.4, self.prev_mu, .1)
         msg.angular.z = new_angular
         self.prev_mu = new_angular

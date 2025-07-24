@@ -218,15 +218,38 @@ class BarnOneShot(Node):
         
         self.current_state = SequenceState.WAITING_AFTER_UNDOCK
         self._wait_start_time = time.time()
-
     def handle_pose_initialization(self):
-        """Handle initial pose setting"""
-        if not hasattr(self, '_pose_sent') or not self._pose_sent:
+        """Handle initial pose setting with retry mechanism"""
+        
+        # Initialize retry variables if not already done
+        if not hasattr(self, '_pose_retry_count'):
+            self._pose_retry_count = 0
+            self._max_retries = 5
+            self._retry_interval = 5.0  # seconds between retries
+            self._pose_sent = False
+            self._pose_init_time = None
             # Reset AMCL flags when starting pose initialization
             self.amcl_pose_received = False
             self.pose_stable_count = 0
+        
+        # Check if we should send/retry the pose
+        should_send_pose = (
+            not self._pose_sent or  # First attempt
+            (self._pose_sent and 
+             self._pose_init_time and 
+             time.time() - self._pose_init_time >= self._retry_interval and
+             not self.amcl_pose_received and
+             self._pose_retry_count < self._max_retries)
+        )
+        
+        if should_send_pose:
+            self._pose_retry_count += 1
             
-            self.get_logger().info('Setting initial pose...')
+            self.get_logger().info(f'Setting initial pose (attempt {self._pose_retry_count}/{self._max_retries})...')
+            
+            # Reset AMCL flags for this attempt
+            self.amcl_pose_received = False
+            self.pose_stable_count = 0
             
             initial_pose = PoseWithCovarianceStamped()
             initial_pose.header.frame_id = 'map'
@@ -244,31 +267,52 @@ class BarnOneShot(Node):
             initial_pose.pose.pose.orientation.z = math.sin(yaw/2)
             initial_pose.pose.pose.orientation.w = math.cos(yaw/2)
             
-            # Set covariance
+            # Set covariance (slightly increase for retries to help AMCL accept)
+            covariance_multiplier = 1.0 + (self._pose_retry_count - 1) * 0.5
             initial_pose.pose.covariance = [0.0] * 36
-            initial_pose.pose.covariance[0] = 0.25   # x
-            initial_pose.pose.covariance[7] = 0.25   # y
-            initial_pose.pose.covariance[35] = 0.068 # yaw
+            initial_pose.pose.covariance[0] = 0.25 * covariance_multiplier   # x
+            initial_pose.pose.covariance[7] = 0.25 * covariance_multiplier   # y
+            initial_pose.pose.covariance[35] = 0.068 * covariance_multiplier # yaw
             
             self.initial_pose_pub.publish(initial_pose)
             self._pose_sent = True
             self._pose_init_time = time.time()
             
-        elif hasattr(self, '_pose_init_time'):
-            delay = 20.0
+        elif self._pose_sent and self._pose_init_time:
+            # Monitor the current attempt
+            delay = 20.0  # Wait time after sending pose
             elapsed = time.time() - self._pose_init_time
             
-            self.get_logger().info(f'Waiting for AMCL: received={self.amcl_pose_received}, elapsed={elapsed:.1f}s/{delay}s')
-           
-            if (elapsed >= 30):
-                # timeout not working correctly
-                self._trial_result = "AMCL TIMEOUT"
-                self.current_state = SequenceState.FAILED
+            self.get_logger().info(
+                f'Waiting for AMCL (attempt {self._pose_retry_count}/{self._max_retries}): '
+                f'received={self.amcl_pose_received}, elapsed={elapsed:.1f}s/{delay}s'
+            )
+            
+            # Check for success
             if self.amcl_pose_received and elapsed >= delay:
-                self.get_logger().info('AMCL pose confirmed, proceeding to navigation...')
+                self.get_logger().info(f'AMCL pose confirmed after {self._pose_retry_count} attempts, proceeding to navigation...')
                 self.current_state = SequenceState.CREATE_PATH
-                self._pose_sent = False
+                # Reset retry variables for next time
+                self._reset_pose_retry_vars()
+                
+            # Check for timeout on current attempt (triggers retry if retries left)
+            elif elapsed >= 30.0:
+                if self._pose_retry_count >= self._max_retries:
+                    self.get_logger().error(f'AMCL pose initialization failed after {self._max_retries} attempts')
+                    self._trial_result = "AMCL TIMEOUT - MAX RETRIES EXCEEDED"
+                    self.current_state = SequenceState.FAILED
+                    self._reset_pose_retry_vars()
+                else:
+                    self.get_logger().warn(f'Attempt {self._pose_retry_count} timed out, will retry...')
+                    # Reset for next attempt (will trigger retry on next call)
+                    self._pose_sent = False
+                    self._pose_init_time = None
 
+    def _reset_pose_retry_vars(self):
+        """Reset all pose retry related variables"""
+        self._pose_retry_count = 0
+        self._pose_sent = False
+        self._pose_init_time = None
     def handle_navigation(self):
         """Handle navigation to goal pose"""
         if not hasattr(self, '_nav_sent') or not self._nav_sent:
