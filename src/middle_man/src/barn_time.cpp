@@ -131,7 +131,7 @@ class obsValid : public rclcpp::Node {
         // odom_y,
         //             map_x, map_y, yaw, map_yaw);
 
-        local_goal_manager_.updateLocalGoal(odom_x, odom_y); // local goals have already been converted to odom
+        local_goal_manager_.simple_local_goal_update(odom_x, odom_y); // local goals have already been converted to odom
         obstacle_manager_.update_obstacles(local_goal_manager_);
 
         auto local_goal_markers = make_local_goal_markers();

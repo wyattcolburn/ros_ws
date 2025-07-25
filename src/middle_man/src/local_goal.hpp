@@ -77,6 +77,7 @@ class Local_Goal_Manager {
         double dx = odom_x - data_vector[current_local_goal_counter].x_point;
         double dy = odom_y - data_vector[current_local_goal_counter].y_point;
         double distance = std::sqrt(dx * dx + dy * dy);
+
         std::cout << "Distance from local goal" << distance << std::endl;
         if (distance < THRESHOLD) {
             current_local_goal_counter++;
