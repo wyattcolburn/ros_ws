@@ -42,7 +42,7 @@ class SequenceState(Enum):
     NAVIGATING = 6
     COMPLETED = 7
     FAILED = 8
-
+    RESTART = 0
 class BarnOneShot(Node):
     def __init__(self):
         super().__init__('Barn_one_shot')
@@ -56,8 +56,6 @@ class BarnOneShot(Node):
         
         # State management
         self.current_state = SequenceState.IDLE
-        self.num_trials = 10 
-        self.current_trial = 0
 
         self._nav_timeout_counter = 0
         self._nav_timeout_limit = 5
@@ -66,8 +64,10 @@ class BarnOneShot(Node):
         self._nav_feedback_limit = 30
         self.prev_distance_flag = False
 
+        self.total_lg = 0
         self.current_lg_counter = 0
         self.current_lg_xy = (0,0)
+
         # Action clients
         self.undock_client = ActionClient(
             self, Undock, '/undock', 
@@ -105,6 +105,10 @@ class BarnOneShot(Node):
         self.current_map_x = 0.0
         self.current_map_y = 0.0
         
+        self.final_goal_x = None
+        self.final_goal_y = None
+
+        self.goal_tolerance_xy = 1
 
         self.amcl_pose_received = False
         self.pose_stable_count = 0
@@ -146,7 +150,7 @@ class BarnOneShot(Node):
 
     def state_machine_callback(self):
         """Main state machine callback with debug logging"""
-        self.get_logger().info(f"State machine tick: current_state = {self.current_state} on trial {self.current_trial}")
+        self.get_logger().info(f"State machine tick: current_state = {self.current_state}")
         
         if self.current_state == SequenceState.IDLE:
             # IDLE state should transition to UNDOCKING
@@ -181,6 +185,9 @@ class BarnOneShot(Node):
                 self._failed_logged = True
                 self.record_results()
                 self.terminate()
+        elif self.current_state == SequenceState.RESTART:
+            self.restart_trial()
+
     def handle_undocking(self):
         """Handle undocking phase - only sends command once"""
         if not self.undock_client.wait_for_server(timeout_sec=5.0):
@@ -358,6 +365,7 @@ class BarnOneShot(Node):
             self._nav_sent = True
             self._nav_start_time = time.time()
 
+
         elif time.time() - self._nav_start_time > 120.0:
             self.get_logger().warn('Navigation action timed out')
             if self._nav_goal_handle:
@@ -365,6 +373,8 @@ class BarnOneShot(Node):
             self._trial_result = "TIMEOUT"
             self.current_state = SequenceState.FAILED
             self._nav_sent = False
+        print("have not timed out _______________________")
+        self.final_goal_tracker()
         ## method get_feeedback from navigate client, distance remaining
     def nav_goal_response_callback(self, future):
         """Callback for navigation goal response"""
@@ -411,7 +421,7 @@ class BarnOneShot(Node):
                 self._trial_result = "SUCCESS"
 
             elif status == 5: # ABORTED - This is the key detection for planning failures and other aborts
-                self.get_logger().error(f'Navigation aborted for trial {self.current_trial + 1}. This often means no valid path could be found by the planner or the controller failed to follow.')
+                self.get_logger().error(f'Navigation aborted: This often means no valid path could be found by the planner or the controller failed to follow.')
                 # Check collision_detected if it's an aborted case due to bumper
                 if self.collision_detected:
                     self._trial_result = "COLLISIONS"
@@ -420,12 +430,12 @@ class BarnOneShot(Node):
                     self._trial_result = "NAV_ABORTED_PLANNING_FAIL" # More specific for planning/controller issues
                     self.get_logger().error("Navigation aborted, likely planning or controller failure (no collision detected).")
             elif status == 6: # CANCELED - This happens if you explicitly cancel it, e.g., due to timeout.
-                self.get_logger().warn(f"Navigation was cancelled for trial {self.current_trial + 1}.")
+                self.get_logger().warn(f"Navigation was cancelled for trial")
                 # If _trial_result was already set to "TIMEOUT", keep it. Otherwise, set to CANCELLED.
                 if self._trial_result != "TIMEOUT":
                     self._trial_result = "FAILURE" 
             else:
-                self.get_logger().error(f'Navigation failed for trial {self.current_trial + 1} with unknown status: {status}.')
+                self.get_logger().error(f'Navigation failed for trial  with unknown status: {status}.')
                 self._trial_result = "NAV_UNKNOWN_FAILURE"
 
 
@@ -465,7 +475,7 @@ class BarnOneShot(Node):
         """Records the results of the current trial into a CSV"""
         
         # Fix 1: Properly expand the path and ensure directory exists
-        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'trial_results_with_localgoals.csv')  # Fixed typo: trail -> trial
+        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'trial_results_world_num.csv')  # Fixed typo: trail -> trial
         
         print(f" this is filepath {filepath}")
         
@@ -491,17 +501,19 @@ class BarnOneShot(Node):
             with open(filepath, 'w', newline='') as csvfile:  # Use 'w' for new file
                 writer = csv.writer(csvfile)
                 # Fix 3: Add missing comma
-                writer.writerow(['timestamp', 'initial_x', 'initial_y', 'initial_yaw', 
-                               'goal_x', 'goal_y', 'goal_yaw', 'trial_result', 'local_goal_reached'])
+                writer.writerow(['timestamp', 'world_num', 'initial_x', 'initial_y', 'initial_yaw', 
+                               'goal_x', 'goal_y', 'goal_yaw', 'trial_result', 'local_goal_reached', 'num_lg'])
                 writer.writerow([
                     timestamp,
+                    self.world_num,
                     self.get_parameter('initial_x').value,
                     self.get_parameter('initial_y').value,
                     self.get_parameter('initial_yaw').value,
                     self.goal_x,
                     self.goal_y, 
                     self._trial_result, 
-                    self.current_lg_counter
+                    self.current_lg_counter,
+                    self.total_lg
 
                 ])
         return
@@ -525,7 +537,7 @@ class BarnOneShot(Node):
             return
         
         self.distance_remaining = self.local_goal_tracker()
-        
+        self.final_goal_tracker() 
         current_time = time.time()
 
         if current_time - self.last_progress_check_time >= self.progress_check_interval:
@@ -586,7 +598,7 @@ class BarnOneShot(Node):
         # Otherwise use current logic
         dx = self.current_map_x - self.current_lg_xy[0]
         dy = self.current_map_y - self.current_lg_xy[1]
-        distance_remaining = ((dx*dx) + (dy*dy))**.5
+        distance_remaining = ((dx*dx) + (dy*dy)**.5)
         
         if distance_remaining < 0.13:
             self.get_logger().info(f"Passed local goal {self.current_lg_counter}")
@@ -596,6 +608,23 @@ class BarnOneShot(Node):
                                      self.gazebo_path.poses[self.current_lg_counter].pose.position.y)
             
         return distance_remaining
+
+    def final_goal_tracker(self):
+        if self.final_goal_x == None and self.gazebo_path:
+            self.final_goal_x = self.gazebo_path.poses[-1].pose.position.x
+            self.final_goal_y = self.gazebo_path.poses[-1].pose.position.y
+
+        dx = self.current_map_x - self.final_goal_x
+        dy = self.current_map_y - self.final_goal_y
+        final_distance = ((dx*dx) + (dy*dy)**.5)
+        print("*******************************************")
+        print(f"final distance {final_distance}")
+        if final_distance < self.goal_tolerance_xy:
+            self._trial_result = "SUCCESS"
+            self.current_state = SequenceState.COMPLETED
+
+
+
     # def local_goal_tracker(self):
     #     """ 
     #     Takes in map_x, and map_y and records closest local goal
@@ -693,6 +722,7 @@ class BarnOneShot(Node):
         path_msg.header.stamp = self.get_clock().now().to_msg()
         
         path_subset = barn_path[3:] # robot swap
+        self.total_lg = len(path_subset)
         for i, element in enumerate(path_subset):
             gazebo_x, gazebo_y = self.path_coord_to_gazebo_coord(element[0], element[1])
             
