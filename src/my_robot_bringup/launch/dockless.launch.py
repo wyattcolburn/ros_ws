@@ -144,7 +144,7 @@ def generate_launch_description():
         package='middle_man',
         executable='middle_man_barn',
         name='middle_man',  # Fixed: was 'publish'
-        output='log',
+        output='screen',
         parameters=[],
     )
     
@@ -169,7 +169,7 @@ def generate_launch_description():
     )
     
     delayed_middle_man_node = TimerAction(
-        period=15.0,
+        period=25.0,
         actions=[middle_man_node]
     )
     # Create launch description and add actions

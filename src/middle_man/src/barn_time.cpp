@@ -319,7 +319,7 @@ class obsValid : public rclcpp::Node {
         hall_msg.range_min = scanMsg->range_min;
         hall_msg.range_max = scanMsg->range_max;
         std::vector<float> hall_lidar_publish;
-        // min_hall_lidar(real_lidar_ranges, hall_lidar_ranges, 1080);
+        min_hall_lidar(real_lidar_ranges, hall_lidar_ranges, 1080);
         for (int i = 0; i < LIDAR_COUNT; i++) {
             hall_lidar_publish.push_back(static_cast<float>(hall_lidar_ranges[i]));
             // RCLCPP_INFO(this->get_logger(), "Lidar value : %f",

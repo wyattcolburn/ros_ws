@@ -42,7 +42,7 @@ class SequenceState(Enum):
     NAVIGATING = 6
     COMPLETED = 7
     FAILED = 8
-    RESTART = 0
+    RESTART = 9
 class BarnOneShot(Node):
     def __init__(self):
         super().__init__('Barn_one_shot')
@@ -179,12 +179,14 @@ class BarnOneShot(Node):
                 self._failed_logged = True
                 self.record_results()
                 self.terminate()
+                self.current_state = SequenceState.RESTART
         elif self.current_state == SequenceState.FAILED:
             if not hasattr(self, '_failed_logged'):
                 self.get_logger().info("Node failed - staying alive")
                 self._failed_logged = True
                 self.record_results()
                 self.terminate()
+                self.current_state = SequenceState.RESTART
         elif self.current_state == SequenceState.RESTART:
             self.restart_trial()
 
@@ -487,6 +489,7 @@ class BarnOneShot(Node):
                 writer = csv.writer(csvfile)
                 writer.writerow([
                     timestamp, 
+                    f"world {self.world_num}",
                     self.get_parameter('initial_x').value,    # Fix 4: Add .value
                     self.get_parameter('initial_y').value,
                     self.get_parameter('initial_yaw').value,
@@ -494,7 +497,8 @@ class BarnOneShot(Node):
                     self.goal_y, 
                     ## add yaw???
                     self._trial_result,
-                    self.current_lg_counter
+                    self.current_lg_counter,
+                    self.total_lg
                 ])
         else:
             print(f"File {filepath} does not exist, creating file and header")
@@ -567,9 +571,8 @@ class BarnOneShot(Node):
         
         # Only check goals at current index or ahead (higher indices)
         for i in range(self.current_lg_counter, len(self.gazebo_path.poses)):
-            goal_x = self.gazebo_path.poses[i].pose.position.x
-            goal_y = self.gazebo_path.poses[i].pose.position.y
-            
+            goal_x = self.gazebo_path.poses[i].pose.position.x 
+            goal_y = self.gazebo_path.poses[i].pose.position.y 
             dx = self.current_map_x - goal_x
             dy = self.current_map_y - goal_y
             distance = ((dx*dx) + (dy*dy))**.5
@@ -763,6 +766,43 @@ class BarnOneShot(Node):
         qw = math.cos(yaw / 2.0)
         
         return (0.0, 0.0, qz, qw)  # (qx, qy, qz, qw)
+
+    def restart_trial(self):
+        """Cleanly restart the Nav stack and simulation for a retry"""
+        if self._restart_in_progress:
+            return
+
+        self._restart_in_progress = True
+
+        # Optional: kill and relaunch nav2, clear costmaps, reset pose, etc.
+        self.get_logger().info("Clearing costmaps...")
+        try:
+            subprocess.run([
+                'ros2', 'service', 'call',
+                '/global_costmap/clear_entirely_global_costmap',
+                'std_srvs/srv/Empty', '{}'
+            ], timeout=5)
+
+            subprocess.run([
+                'ros2', 'service', 'call',
+                '/local_costmap/clear_entirely_local_costmap',
+                'std_srvs/srv/Empty', '{}'
+            ], timeout=5)
+
+        except Exception as e:
+            self.get_logger().error(f"Error clearing costmaps: {e}")
+
+        self.get_logger().info("Resetting Gazebo world...")
+        try:
+            subprocess.run([
+                'ign', 'service', '-s', f'/world/world_50/reset',
+                '--reqtype', 'ignition.msgs.WorldControl',
+                '--reptype', 'ignition.msgs.Boolean',
+                '--timeout', '3000',
+                '--req', 'reset_all: true'
+            ])
+        except Exception as e:
+            self.get_logger().error(f"Error resetting sim: {e}")
 
 def main():
     rclpy.init()
