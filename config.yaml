@@ -1,0 +1,7 @@
+---
+# This is stuff regarding the c++ poriton of the project, robot configurations
+NUM_VALID_OBSTACLES : 20 
+OFFSET : 1.0
+RADIUS : .4
+
+

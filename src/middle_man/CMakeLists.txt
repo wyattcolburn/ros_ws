@@ -11,6 +11,7 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(yaml-cpp REQUIRED)
 # Create an executable from the source file
 add_executable(${PROJECT_NAME}_node src/main.cpp src/mpc.cpp src/obstacles.cpp src/raytracing.cpp)
 add_executable(${PROJECT_NAME}_valid src/obs_validation.cpp src/obstacles.cpp src/raytracing.cpp)
@@ -45,9 +46,10 @@ ament_target_dependencies(${PROJECT_NAME}_barn
   tf2_geometry_msgs
   visualization_msgs
   geometry_msgs
+  yaml-cpp
 )
-# Link against raylib
-target_link_libraries(${PROJECT_NAME}_node)
+
+target_link_libraries(${PROJECT_NAME}_barn yaml-cpp)
 
 install(TARGETS 
   ${PROJECT_NAME}_node

@@ -7,29 +7,36 @@
 #include <iostream>
 #include <utility>
 #include <vector>
-const float RADIUS = .4;
-const int NUM_VALID_OBSTACLES = 20;
+// parameters from config.yaml
+
+const int MAX_OBSTACLES = 100;
+
 class Obstacle {
   public:
     double center_x, center_y, radius;
 };
 // function prototypes
 std::pair<Obstacle, Obstacle> create_obstacle(double current_lg_x, double current_lg_y, double next_lg_x,
-                                              double next_lg_y);
-const int MAX_OBSTACLES = 100;
-
-const float OFFSET = 1.0;
+                                              double next_lg_y, float OFFSET, float RADIUS);
 struct ObstacleManager {
 
     Obstacle obstacle_array[MAX_OBSTACLES];
     bool is_active[MAX_OBSTACLES];
+    float RADIUS;
+    int NUM_VALID_OBSTACLES;
+    float OFFSET;
     int obstacle_count; // num of obstacles current in array
-
-    // init function
-    ObstacleManager() : obstacle_count(0) {
+    ObstacleManager() : RADIUS(0.4f), NUM_VALID_OBSTACLES(20), OFFSET(1.0f), obstacle_count(0) {
         for (int i = 0; i < MAX_OBSTACLES; i++) {
             is_active[i] = false;
         }
+    }
+
+    void set_params(float radius, int num_valid, float offset) {
+    //init values from config.yaml
+        RADIUS = radius;
+        NUM_VALID_OBSTACLES = num_valid;
+        OFFSET = offset;
     }
     // function for creating obstacles
     int add_obstacle(const Obstacle &obs) {
@@ -62,7 +69,7 @@ struct ObstacleManager {
             Local_Goal next_lg = local_goal_vec[lg_counter + 1];
 
             std::pair<Obstacle, Obstacle> obs_pair =
-                create_obstacle(current_lg.x_point, current_lg.y_point, next_lg.x_point, next_lg.y_point);
+                create_obstacle(current_lg.x_point, current_lg.y_point, next_lg.x_point, next_lg.y_point, OFFSET, RADIUS);
             add_obstacle(obs_pair.first);
             add_obstacle(obs_pair.second);
 

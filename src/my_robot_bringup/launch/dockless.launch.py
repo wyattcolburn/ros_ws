@@ -55,8 +55,12 @@ def generate_launch_description():
     path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
     starting_location_path = path[1]
     start_location_gazebo = path_coord_to_gazebo_coord(starting_location_path[0], starting_location_path[1])
+
+    # we dont start the path until path[3:0], so maybe starting orientation should be based on that?
     second_location_gazebo = path_coord_to_gazebo_coord(path[2][0], path[2][1])
-    yaw = yaw_calculation(start_location_gazebo[0], start_location_gazebo[1], second_location_gazebo[0], second_location_gazebo[1])
+    third_location_gazebo = path_coord_to_gazebo_coord(path[3][0], path[3][1])
+    # yaw = yaw_calculation(start_location_gazebo[0], start_location_gazebo[1], second_location_gazebo[0], second_location_gazebo[1])
+    yaw = yaw_calculation(second_location_gazebo[0], second_location_gazebo[1], third_location_gazebo[0], third_location_gazebo[1])
     
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')
@@ -145,7 +149,9 @@ def generate_launch_description():
         executable='middle_man_barn',
         name='middle_man',  # Fixed: was 'publish'
         output='screen',
-        parameters=[],
+        parameters=[
+        {'obstacle_config': '/home/mobrob/ros_ws/config.yaml'}
+    ],
     )
     
 

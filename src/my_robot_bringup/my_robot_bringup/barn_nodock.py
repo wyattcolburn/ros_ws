@@ -28,7 +28,7 @@ from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
 import numpy as np
 import tf2_ros
 import tf2_geometry_msgs
-
+import yaml
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from builtin_interfaces.msg import Time
@@ -115,6 +115,9 @@ class BarnOneShot(Node):
         self._nav_goal_handle = None  # Track navigation goal handle for cancellationrestart
         self._restart_in_progress = False  # Prevent restart loops
        
+        self.config_radius = None
+        self.config_num_valid_obstacles = None
+        self.config_offset = None
         # gazebo path
         self.gazebo_path = None
         # Parameters
@@ -473,12 +476,25 @@ class BarnOneShot(Node):
         """Check if any node is subscribed to /cmd_vel."""
         info = self.get_publishers_info_by_topic('/cmd_vel')
         return len(info) > 0
+
+    def yaml_reader(self):
+        """Read the configs from config.yaml"""
+        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'config.yaml')  # Fixed typo: trail -> trial
+        with open(filepath, "r") as file:
+            config = yaml.safe_load(file)
+
+                # Example access
+            self.config_radius = config["RADIUS"]
+            self.config_num_valid_obstacles = config["NUM_VALID_OBSTACLES"]
+            self.config_offset = config["OFFSET"]
+
+            print(f"Loaded: RADIUS={self.config_radius}, NUM={self.config_num_valid_obstacles}, OFFSET={self.config_offset}")
     def record_results(self):
         """Records the results of the current trial into a CSV"""
         
         # Fix 1: Properly expand the path and ensure directory exists
         filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'trial_results_world_num.csv')  # Fixed typo: trail -> trial
-        
+        self.yaml_reader() 
         print(f" this is filepath {filepath}")
         
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -498,7 +514,10 @@ class BarnOneShot(Node):
                     ## add yaw???
                     self._trial_result,
                     self.current_lg_counter,
-                    self.total_lg
+                    self.total_lg,
+                    self.config_radius,
+                    self.config_num_valid_obstacles,
+                    self.config_offset
                 ])
         else:
             print(f"File {filepath} does not exist, creating file and header")
@@ -506,7 +525,7 @@ class BarnOneShot(Node):
                 writer = csv.writer(csvfile)
                 # Fix 3: Add missing comma
                 writer.writerow(['timestamp', 'world_num', 'initial_x', 'initial_y', 'initial_yaw', 
-                               'goal_x', 'goal_y', 'goal_yaw', 'trial_result', 'local_goal_reached', 'num_lg'])
+                               'goal_x', 'goal_y', 'goal_yaw', 'trial_result', 'local_goal_reached', 'num_lg', 'RADIUS', 'NUM_VALID_OBSTACLES', 'OFFSET'])
                 writer.writerow([
                     timestamp,
                     self.world_num,
@@ -517,8 +536,10 @@ class BarnOneShot(Node):
                     self.goal_y, 
                     self._trial_result, 
                     self.current_lg_counter,
-                    self.total_lg
-
+                    self.total_lg,
+                    self.config_radius,
+                    self.config_num_valid_obstacles,
+                    self.config_offset
                 ])
         return
     def nav_feedback_callback(self, msg):

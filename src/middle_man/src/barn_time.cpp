@@ -19,11 +19,23 @@
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
+//yaml 
+#include <yaml-cpp/yaml.h>
+
+//global so that yaml works
 // Want to add halucinating obstacles
 class obsValid : public rclcpp::Node {
   public:
     obsValid() : Node("obs_valid") {
-
+    std::string config_path = this->declare_parameter<std::string>("obstacle_config", "/home/mobrob/ros_ws/config.yaml");
+RCLCPP_INFO(this->get_logger(), "Loading config file: %s", config_path.c_str());
+    try {
+        load_obstacle_params(config_path);
+        obstacle_manager_.set_params(RADIUS, NUM_VALID_OBSTACLES, OFFSET);
+    } catch (const std::exception& e) {
+        RCLCPP_FATAL(this->get_logger(), "Failed to load obstacle params: %s", e.what());
+        throw;
+    }
         data_subscriber_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
             "/packetOut", 10, std::bind(&obsValid::data_callback, this, std::placeholders::_1));
 
@@ -63,7 +75,6 @@ class obsValid : public rclcpp::Node {
     static constexpr size_t LOCAL_GOAL_COUNT = 3; // local goal x, y, yaw
     static constexpr size_t LIDAR_COUNT = 1080;
     static constexpr size_t CURRENT_ODOM = 3; // x, y, yaw:wq
-
     bool path_flag = false;
     bool goal_flag = false;
     double
@@ -83,6 +94,13 @@ class obsValid : public rclcpp::Node {
     double map_lg_y = 0;
     double map_lg_yaw = 0;
     Local_Goal GOAL;
+
+
+    float RADIUS;
+    float OFFSET;
+    int NUM_VALID_OBSTACLES;
+
+
 
     static constexpr double GOAL_THRESHOLD = .5;
 
@@ -382,7 +400,7 @@ class obsValid : public rclcpp::Node {
         // Takes the real_lidar from /scan and compares to hall_lidar, want to have lowest possible values incase
         // close to obstacle
         for (size_t lidar_counter = 0; lidar_counter < array_size; lidar_counter++) {
-            if ((hall_lidar[lidar_counter] > 0) && (real_lidar[lidar_counter] > 0)) {
+            if ((hall_lidar[lidar_counter] > 0) && (real_lidar[lidar_counter] > .164)) { //first portion might always hit, if no intersection is max range
                 if (real_lidar[lidar_counter] < hall_lidar[lidar_counter]) {
                     hall_lidar[lidar_counter] = real_lidar[lidar_counter];
                 }
@@ -490,6 +508,24 @@ class obsValid : public rclcpp::Node {
         }
 
         return marker_array;
+    }
+
+    //function to read obstacle paramaters in a yaml
+    
+    void load_obstacle_params(const std::string& yaml_path) {
+        YAML::Node config = YAML::LoadFile(yaml_path);
+
+        if (!config["RADIUS"] || !config["OFFSET"] || !config["NUM_VALID_OBSTACLES"]) {
+            throw std::runtime_error("Missing required obstacle parameters in YAML.");
+        }
+        RADIUS = config["RADIUS"].as<float>();
+        NUM_VALID_OBSTACLES = config["NUM_VALID_OBSTACLES"].as<int>();
+        OFFSET = config["OFFSET"].as<float>();
+
+        std::cout << "Loaded obstacle parameters from YAML:\n";
+        std::cout << "  RADIUS = " << RADIUS << "\n";
+        std::cout << "  NUM_VALID_OBSTACLES = " << NUM_VALID_OBSTACLES << "\n";
+        std::cout << "  OFFSET = " << OFFSET << "\n";
     }
 };
 int main(int argc, char *argv[]) {

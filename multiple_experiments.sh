@@ -1,7 +1,7 @@
 #!/bin/bash
 NUM_TRIALS=10
 RESET_DELAY=10
-WORLD_NUM=100  # Add this - specify which world to use
+WORLD_NUM=150  # Add this - specify which world to use
 source /opt/ros/humble/setup.bash
 source ~/ros_ws/install/setup.bash
 cp "BARN_turtlebot/world_files/world_${WORLD_NUM}.sdf" "src/turtlebot4_ignition_bringup/worlds/"

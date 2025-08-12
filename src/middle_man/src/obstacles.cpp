@@ -10,7 +10,7 @@ using namespace std;
 //	Still want to use the perpidicular approach with requires a offset value
 //
 //
-std::pair<Obstacle, Obstacle> create_obstacle(double current_lg_x, double current_lg_y, double next_lg_x, double next_lg_y) {
+std::pair<Obstacle, Obstacle> create_obstacle(double current_lg_x, double current_lg_y, double next_lg_x, double next_lg_y, float OFFSET, float RADIUS) {
     float mx = current_lg_x;
     float my = current_lg_y;
 
