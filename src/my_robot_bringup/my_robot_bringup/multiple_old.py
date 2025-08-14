@@ -121,7 +121,7 @@ class Obstacle_Manager():
                 path_points.append((pose.pose.position.x, pose.pose.position.y))
             
             valid_obs = []
-            THRESHOLD = .6
+            THRESHOLD = 1.5 * self.RADIUS
             for obs in active_obstacles:
                 min_dist =  self.calculate_min_distance_to_path(obs.center_x, obs.center_y, path_points)
                 if min_dist > THRESHOLD:
@@ -502,8 +502,8 @@ class MapTraining(Node):
         
         self.current_odom = (0.0, 0.0)
         
-        self.OFFSET = 1.0
-        self.RADIUS = .4
+        self.OFFSET = 0.5
+        self.RADIUS = .2
         self.NUM_VALID_OBS = 20
         self.NUM_LIDAR = 1080
         self.Obstacle_list = []
@@ -519,7 +519,7 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/mobrob/ros_ws/poc_may15/"
+        self.input_bag = "/home/mobrob/ros_ws/may19_large/"
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
