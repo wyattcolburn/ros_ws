@@ -60,3 +60,6 @@ ros2 launch turtlebot4_navigation nav2.launch.py use_sim_time:=true
 **Worlds for TurleBot:** All worlds need exist within turtlebot4_ignition_bringup/worlds directory. There is a weird bug where only the present names
 work for live topics
 
+Metric values
+The metrics_files folder contains the 5 difficulty metrics calculated on the path in this order: distance to closest obstacle, average visibility, dispersion, characteristic dimension, and tortuosity
+

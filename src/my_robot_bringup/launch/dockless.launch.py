@@ -59,8 +59,9 @@ def generate_launch_description():
     # we dont start the path until path[3:0], so maybe starting orientation should be based on that?
     second_location_gazebo = path_coord_to_gazebo_coord(path[2][0], path[2][1])
     third_location_gazebo = path_coord_to_gazebo_coord(path[3][0], path[3][1])
+    fourth_location_gazebo = path_coord_to_gazebo_coord(path[4][0], path[4][1])
     # yaw = yaw_calculation(start_location_gazebo[0], start_location_gazebo[1], second_location_gazebo[0], second_location_gazebo[1])
-    yaw = yaw_calculation(second_location_gazebo[0], second_location_gazebo[1], third_location_gazebo[0], third_location_gazebo[1])
+    yaw = yaw_calculation(third_location_gazebo[0], third_location_gazebo[1], fourth_location_gazebo[0], fourth_location_gazebo[1])
     
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')

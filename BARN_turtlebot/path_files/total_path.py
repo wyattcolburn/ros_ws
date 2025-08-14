@@ -12,10 +12,16 @@ def path_coord_to_gazebo_coord(x, y):
     gazebo_y = y * (RADIUS * 2) + c_shift
 
     return (gazebo_x, gazebo_y)
-
-path = np.load('path_0.npy')
+print("path 100")
+path = np.load('path_100.npy')
 path_gazebo = []
 for element in path:
     path_gazebo.append(path_coord_to_gazebo_coord(element[0], element[1]))
 
+print(path_gazebo)
+print("path 12")
+path = np.load('path_12.npy')
+path_gazebo = []
+for element in path:
+    path_gazebo.append(path_coord_to_gazebo_coord(element[0], element[1]))
 print(path_gazebo)

@@ -292,7 +292,7 @@ class BarnOneShot(Node):
             
         elif self._pose_sent and self._pose_init_time:
             # Monitor the current attempt
-            delay = 20.0  # Wait time after sending pose
+            delay = 13.0  # Wait time after sending pose
             elapsed = time.time() - self._pose_init_time
             
             self.get_logger().info(
@@ -380,6 +380,9 @@ class BarnOneShot(Node):
             self._nav_sent = False
         print("have not timed out _______________________")
         self.final_goal_tracker()
+        if self.collision_detected:
+            self.trial_result = COLLISION
+            self.current_state = SequeneceState.FAILED
         ## method get_feeedback from navigate client, distance remaining
     def nav_goal_response_callback(self, future):
         """Callback for navigation goal response"""
@@ -468,8 +471,44 @@ class BarnOneShot(Node):
             for i, contact in enumerate(msg.contacts):
                 self.get_logger().info(f"Collision {i} {contact.collision1.name} hit {contact.collision2.name}")
                 self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
+                self.get_logger().info(f"This collision occured at {contact.positions}")
 
             self.collision_detected = True
+            self._trial_result = "COLLISION"
             self.current_state = SequenceState.FAILED
     
     def is_cmd_vel_subscribed(self):
@@ -493,7 +532,7 @@ class BarnOneShot(Node):
         """Records the results of the current trial into a CSV"""
         
         # Fix 1: Properly expand the path and ensure directory exists
-        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'trial_results_world_num.csv')  # Fixed typo: trail -> trial
+        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'baseline_random.csv')  # Fixed typo: trail -> trial
         self.yaml_reader() 
         print(f" this is filepath {filepath}")
         
@@ -736,46 +775,159 @@ class BarnOneShot(Node):
         gazebo_y = y * (RADIUS * 2) + c_shift
 
         return (gazebo_x, gazebo_y)
-    def load_barn_path(self, world_num):
+    def load_barn_path(self, world_num, resample_step=0.12, smooth_window=5):
+        """
+        Load BARN path, convert to Gazebo/map coordinates, resample, smooth,
+        compute robust yaw, and build a nav_msgs/Path message.
+        """
+        import numpy as np
+        import math
+        from nav_msgs.msg import Path
+        from geometry_msgs.msg import PoseStamped
 
-        # Load path and convert to gazebo coordinates       
-        barn_path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
+        # --- helpers ---
+        def arc_lengths(xy):
+            d = np.diff(xy, axis=0)
+            seg = np.hypot(d[:, 0], d[:, 1])
+            s = np.concatenate([[0.0], np.cumsum(seg)])
+            return s, seg
 
-        path_msg = Path()
-        path_msg.header.frame_id = "map"  # or whatever your map frame is
-        path_msg.header.stamp = self.get_clock().now().to_msg()
-        
-        path_subset = barn_path[3:] # robot swap
-        self.total_lg = len(path_subset)
-        for i, element in enumerate(path_subset):
-            gazebo_x, gazebo_y = self.path_coord_to_gazebo_coord(element[0], element[1])
-            
-            pose_stamped = PoseStamped()
-            pose_stamped.header.frame_id = "map"
-            pose_stamped.header.stamp = path_msg.header.stamp
-            
-            pose_stamped.pose.position.x = float(gazebo_x)
-            pose_stamped.pose.position.y = float(gazebo_y)
-            pose_stamped.pose.position.z = 0.0
-           
-            # Calculate orientation if not the last point
-            if i < len(path_subset) - 1:
-                next_element = path_subset[i + 1]
-                next_gazebo = self.path_coord_to_gazebo_coord(next_element[0], next_element[1])
-                qx, qy, qz, qw = self.calculate_orientation((gazebo_x, gazebo_y), next_gazebo)
-                
-                pose_stamped.pose.orientation.x = qx
-                pose_stamped.pose.orientation.y = qy
-                pose_stamped.pose.orientation.z = qz
-                pose_stamped.pose.orientation.w = qw
+        def resample_by_arclen(xy, step=0.12):
+            # Remove exact duplicates first
+            keep = [0]
+            for i in range(1, len(xy)):
+                if not np.allclose(xy[i], xy[keep[-1]], atol=1e-8):
+                    keep.append(i)
+            xy = xy[keep]
+            if len(xy) < 2:
+                return xy
+            s, _ = arc_lengths(xy)
+            if s[-1] < step:
+                return xy
+            s_new = np.arange(0.0, s[-1] + 1e-6, step)
+            x = np.interp(s_new, s, xy[:, 0])
+            y = np.interp(s_new, s, xy[:, 1])
+            return np.stack([x, y], axis=1)
+
+        def smooth_xy(xy, window=5):
+            if window < 3 or window % 2 == 0 or len(xy) < window:
+                return xy
+            k = window // 2
+            pad = np.pad(xy, ((k, k), (0, 0)), mode='edge')
+            kern = np.ones((window, 1)) / window
+            xs = np.convolve(pad[:, 0], kern[:, 0], mode='valid')
+            ys = np.convolve(pad[:, 1], kern[:, 0], mode='valid')
+            return np.stack([xs, ys], axis=1)
+
+        def yaw_from_diffs(dx, dy, last_yaw=None):
+            if abs(dx) < 1e-9 and abs(dy) < 1e-9:
+                return last_yaw if last_yaw is not None else 0.0
+            return math.atan2(dy, dx)
+
+        def yaw_to_quat(yaw):
+            qz = math.sin(yaw / 2.0)
+            qw = math.cos(yaw / 2.0)
+            return 0.0, 0.0, qz, qw
+
+        # --- main body ---
+        # 1) Load BARN path
+        barn_path = np.load(
+            os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy')
+        ).astype(float)
+
+        # 2) Optional: skip first few points if needed by your setup
+        barn_path = barn_path[2:]  # same as before
+
+        # 3) Convert to Gazebo/map coordinates
+        xy = np.array([self.path_coord_to_gazebo_coord(x, y) for x, y in barn_path], dtype=float)
+
+        # 4) Resample by arc length for stable spacing
+        xy = resample_by_arclen(xy, step=resample_step)
+
+        # 5) Light smoothing to reduce heading jitter
+        xy = smooth_xy(xy, window=smooth_window)
+
+        # 6) Compute robust yaw
+        yaws = []
+        last_yaw = None
+        for i in range(len(xy)):
+            if i == len(xy) - 1:
+                yaw = last_yaw if last_yaw is not None else 0.0
             else:
-                # Last point, use previous orientation or default
-                pose_stamped.pose.orientation.w = 1.0
-            
-            path_msg.poses.append(pose_stamped)
-        self.current_lg_xy = (path_msg.poses[0].pose.position.x, path_msg.poses[0].pose.position.y)
-        return path_msg
+                dx = xy[i + 1, 0] - xy[i, 0]
+                dy = xy[i + 1, 1] - xy[i, 1]
+                yaw = yaw_from_diffs(dx, dy, last_yaw)
+            yaws.append(yaw)
+            last_yaw = yaw
 
+        # 7) Build Path message
+        path_msg = Path()
+        path_msg.header.frame_id = "map"
+        now = self.get_clock().now().to_msg()
+
+        for (x, y), yaw in zip(xy, yaws):
+            ps = PoseStamped()
+            ps.header.frame_id = "map"
+            ps.header.stamp = now
+            ps.pose.position.x = float(x)
+            ps.pose.position.y = float(y)
+            ps.pose.position.z = 0.0
+            qx, qy, qz, qw = yaw_to_quat(yaw)
+            ps.pose.orientation.x = qx
+            ps.pose.orientation.y = qy
+            ps.pose.orientation.z = qz
+            ps.pose.orientation.w = qw
+            path_msg.poses.append(ps)
+
+        # 8) Set initial local goal position
+        if path_msg.poses:
+            self.current_lg_xy = (
+                path_msg.poses[0].pose.position.x,
+                path_msg.poses[0].pose.position.y
+            )
+        
+        self.total_lg = len(path_msg.poses)
+        return path_msg
+    # def load_barn_path(self, world_num):
+    #
+    #     # Load path and convert to gazebo coordinates       
+    #     barn_path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
+    #
+    #     path_msg = Path()
+    #     path_msg.header.frame_id = "map"  # or whatever your map frame is
+    #     path_msg.header.stamp = self.get_clock().now().to_msg()
+    #     
+    #     path_subset = barn_path[3:] # robot swap
+    #     self.total_lg = len(path_subset)
+    #     for i, element in enumerate(path_subset):
+    #         gazebo_x, gazebo_y = self.path_coord_to_gazebo_coord(element[0], element[1])
+    #         
+    #         pose_stamped = PoseStamped()
+    #         pose_stamped.header.frame_id = "map"
+    #         pose_stamped.header.stamp = path_msg.header.stamp
+    #         
+    #         pose_stamped.pose.position.x = float(gazebo_x)
+    #         pose_stamped.pose.position.y = float(gazebo_y)
+    #         pose_stamped.pose.position.z = 0.0
+    #        
+    #         # Calculate orientation if not the last point
+    #         if i < len(path_subset) - 1:
+    #             next_element = path_subset[i + 1]
+    #             next_gazebo = self.path_coord_to_gazebo_coord(next_element[0], next_element[1])
+    #             qx, qy, qz, qw = self.calculate_orientation((gazebo_x, gazebo_y), next_gazebo)
+    #             
+    #             pose_stamped.pose.orientation.x = qx
+    #             pose_stamped.pose.orientation.y = qy
+    #             pose_stamped.pose.orientation.z = qz
+    #             pose_stamped.pose.orientation.w = qw
+    #         else:
+    #             # Last point, use previous orientation or default
+    #             pose_stamped.pose.orientation.w = 1.0
+    #         
+    #         path_msg.poses.append(pose_stamped)
+    #     self.current_lg_xy = (path_msg.poses[0].pose.position.x, path_msg.poses[0].pose.position.y)
+    #     return path_msg
+    #
     def calculate_orientation(self, current_point, next_point):
         """Calculate quaternion orientation from current point to next point"""
         dx = next_point[0] - current_point[0]
