@@ -564,7 +564,7 @@ class BarnOneShot(Node):
                 writer = csv.writer(csvfile)
                 # Fix 3: Add missing comma
                 writer.writerow(['timestamp', 'world_num', 'initial_x', 'initial_y', 'initial_yaw', 
-                               'goal_x', 'goal_y', 'goal_yaw', 'trial_result', 'local_goal_reached', 'num_lg', 'RADIUS', 'NUM_VALID_OBSTACLES', 'OFFSET'])
+                               'goal_x', 'goal_y', 'trial_result', 'local_goal_reached', 'num_lg', 'RADIUS', 'NUM_VALID_OBSTACLES', 'OFFSET'])
                 writer.writerow([
                     timestamp,
                     self.world_num,
