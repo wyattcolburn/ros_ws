@@ -17,7 +17,8 @@ class Trial:
         self.total_lg = int(total_lg)
 
 # get all the world_nums and data
-with open('baseline_random_5_trials.csv', 'r') as file:
+filename = 'baseline_half_radius.csv'
+with open(filename, 'r') as file:
     csv_reader = csv.DictReader(file)
     for row in csv_reader:
         data.append(row)
@@ -90,7 +91,7 @@ plt.xlabel('World')
 plt.ylabel('# Successes')
 plt.xticks(rotation=45, ha='right')
 plt.tight_layout()
-# plt.savefig('successes_per_world.png', dpi=200)
+plt.savefig(f'{filename}_successes_per_world.png', dpi=200)
 plt.show()
 
 # ---- 2) Stacked: successes vs failures ----
@@ -103,7 +104,7 @@ plt.ylabel('# Trials')
 plt.xticks(rotation=45, ha='right')
 plt.legend()
 plt.tight_layout()
-# plt.savefig('success_vs_failure_per_world.png', dpi=200)
+plt.savefig(f'{filename}_success_vs_failure_per_world.png', dpi=200)
 plt.show()
 
 # ---- 3) “How far they go”: average fraction of LG reached ----
@@ -115,7 +116,7 @@ plt.ylabel('Average fraction (0–1)')
 plt.ylim(0, 1)
 plt.xticks(rotation=45, ha='right')
 plt.tight_layout()
-# plt.savefig('avg_fraction_per_world.png', dpi=200)
+plt.savefig(f'{filename}_avg_fraction_per_world.png', dpi=200)
 plt.show()
 
 # ---- 4) Max fraction (optional) ----
@@ -127,7 +128,7 @@ plt.ylabel('Max fraction (0–1)')
 plt.ylim(0, 1)
 plt.xticks(rotation=45, ha='right')
 plt.tight_layout()
-# plt.savefig('max_fraction_per_world.png', dpi=200)
+plt.savefig(f'{filename}_max_fraction_per_world.png', dpi=200)
 plt.show()
 
 

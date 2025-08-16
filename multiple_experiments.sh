@@ -31,7 +31,7 @@ for WORLD_NUM in "${WORLD_NUMS[@]}"; do
         ros2 launch my_robot_bringup dockless.launch.py world:=world_${WORLD_NUM} map_file:=yaml_${WORLD_NUM}.yaml
 
         echo "=== Trial $trial Completed ==="
-        LAST_LINE=$(tac ~/ros_ws/baseline_random.csv | grep -m1 .)
+        LAST_LINE=$(tac ~/ros_ws/baseline_half_radius.csv | grep -m1 .)
         TRIAL_RESULT=$(echo "$LAST_LINE" | tr -d '\r\n' | cut -d',' -f8)
 
         echo "Last line: '$LAST_LINE'"

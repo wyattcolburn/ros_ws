@@ -421,7 +421,7 @@ class BarnOneShot(Node):
         """Records the results of the current trial into a CSV"""
         
         # Fix 1: Properly expand the path and ensure directory exists
-        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'trial_results_with_localgoals.csv')  # Fixed typo: trail -> trial
+        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'baseline_carlos.csv')  # Fixed typo: trail -> trial
         
         print(f" this is filepath {filepath}")
         
@@ -448,7 +448,7 @@ class BarnOneShot(Node):
                 writer = csv.writer(csvfile)
                 # Fix 3: Add missing comma
                 writer.writerow(['timestamp', 'initial_x', 'initial_y', 'initial_yaw', 
-                               'goal_x', 'goal_y', 'goal_yaw', 'trial_result', 'local_goal_reached'])
+                               'goal_x', 'goal_y', 'trial_result', 'local_goal_reached'])
                 writer.writerow([
                     timestamp,
                     self.get_parameter('initial_x').value,

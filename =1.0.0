@@ -1,0 +1,4 @@
+Requirement already satisfied: numpy==1.26.4 in ./.venv310/lib/python3.10/site-packages (1.26.4)
+Requirement already satisfied: transforms3d==0.4.2 in ./.venv310/lib/python3.10/site-packages (0.4.2)
+Requirement already satisfied: tf-transformations in /opt/ros/humble/lib/python3.10/site-packages (1.1.0)
+Requirement already satisfied: setuptools in ./.venv310/lib/python3.10/site-packages (from tf-transformations) (80.9.0)

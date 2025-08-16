@@ -532,7 +532,7 @@ class BarnOneShot(Node):
         """Records the results of the current trial into a CSV"""
         
         # Fix 1: Properly expand the path and ensure directory exists
-        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'baseline_random.csv')  # Fixed typo: trail -> trial
+        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'baseline_half_radius.csv')  # Fixed typo: trail -> trial
         self.yaml_reader() 
         print(f" this is filepath {filepath}")
         

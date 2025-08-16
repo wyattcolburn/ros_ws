@@ -1,0 +1,6 @@
+[colcon_core.event_handler]
+parallel_status = colcon_parallel_executor.event_handler.parallel_status:ParallelStatusEventHandler
+
+[colcon_core.executor]
+parallel = colcon_parallel_executor.executor.parallel:ParallelExecutorExtension
+

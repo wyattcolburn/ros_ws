@@ -78,31 +78,50 @@ struct ObstacleManager {
         return;
     }
     void update_obstacles(Local_Goal_Manager &local_manager_) {
+        if (obstacle_count <= 0) return;
 
-        // current goal is local_goal_counter,
-        //  sliding window is, local_goal_counter ------------ +10
+        // Current segment index (which local goal we're on)
+        int g = local_manager_.get_local_goal_counter();
 
-        int local_goal_counter = local_manager_.get_local_goal_counter(); // returns which local goal we are
-                                                                          // on, if we are on local goal 0, we
-                                                                          // are on obstacle 0,1
-        std::cout << "local goal counter" << local_goal_counter << std::endl;
-        std::cout << "sliding window bounds are: " << local_goal_counter << "   to   "
-                  << std::min(NUM_VALID_OBSTACLES - 1 + local_goal_counter, obstacle_count) << std::endl;
+        // Map segment index -> obstacle index range (2 obstacles per segment)
+        int start = 2 * g; // first obstacle for this segment
+        int end   = std::min(start + NUM_VALID_OBSTACLES - 1, obstacle_count - 1);
 
-        for (int counter = 0; counter < obstacle_count; counter++) {
-            // std::cout << "counter for loop" << counter << std::endl;
-            if ((counter >= local_goal_counter) &&
-                (counter <= std::min(local_goal_counter + NUM_VALID_OBSTACLES - 1, obstacle_count))) {
-                is_active[counter] = true;
-            }
+        // Log (obstacle indices, not goal indices)
+        std::cout << "goal/segment index: " << g
+                  << "  -> active obstacle window: [" << start << ", " << end
+                  << "]  of " << obstacle_count << std::endl;
 
-            else {
-                is_active[counter] = false;
-            }
+        for (int i = 0; i < obstacle_count; ++i) {
+            is_active[i] = (i >= start && i <= end);
         }
-        std::cout << "have arrived to the end of update obstacle function" << std::endl;
-        return;
     }
+    // void update_obstacles(Local_Goal_Manager &local_manager_) {
+    //
+    //     // current goal is local_goal_counter,
+    //     //  sliding window is, local_goal_counter ------------ +10
+    //
+    //     int local_goal_counter = local_manager_.get_local_goal_counter(); // returns which local goal we are
+    //                                                                       // on, if we are on local goal 0, we
+    //                                                                       // are on obstacle 0,1
+    //     std::cout << "local goal counter" << local_goal_counter << std::endl;
+    //     std::cout << "sliding window bounds are: " << local_goal_counter << "   to   "
+    //               << std::min(NUM_VALID_OBSTACLES - 1 + local_goal_counter, obstacle_count) << std::endl;
+    //
+    //     for (int counter = 0; counter < obstacle_count; counter++) {
+    //         // std::cout << "counter for loop" << counter << std::endl;
+    //         if ((counter >= local_goal_counter) &&
+    //             (counter <= std::min(local_goal_counter + NUM_VALID_OBSTACLES - 1, obstacle_count))) {
+    //             is_active[counter] = true;
+    //         }
+    //
+    //         else {
+    //             is_active[counter] = false;
+    //         }
+    //     }
+    //     std::cout << "have arrived to the end of update obstacle function" << std::endl;
+    //     return;
+    // }
 
     // Get array of active obstacles for passing to functions
     const Obstacle *get_active_obstacles(int &out_count) { // pass by reference

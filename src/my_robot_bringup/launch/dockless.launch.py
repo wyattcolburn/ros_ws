@@ -88,8 +88,8 @@ def generate_launch_description():
         launch_arguments=[
             ('namespace', LaunchConfiguration('namespace')),
             ('rviz', LaunchConfiguration('rviz')),
-            ('x', f'{start_location_gazebo[0]}'),
-            ('y', f'{start_location_gazebo[1]}'), 
+            ('x', f'{third_location_gazebo[0]}'),
+            ('y', f'{third_location_gazebo[1]}'), 
             ('z', LaunchConfiguration('z')),
             ('yaw', f'{yaw}')]
     )
@@ -129,8 +129,8 @@ def generate_launch_description():
         name='one_shot_trial',
         output='screen',
         parameters=[{
-            'initial_x':  float(start_location_gazebo[0]),
-            'initial_y': float(start_location_gazebo[1]),
+            'initial_x':  float(third_location_gazebo[0]),
+            'initial_y': float(third_location_gazebo[1]),
             'initial_yaw': float(yaw),
             'wait_after_undock': 2.0,
             'pose_init_delay': 1.0,
