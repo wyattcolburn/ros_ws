@@ -39,7 +39,8 @@ from sensor_msgs.msg import LaserScan
 from tf_transformations import euler_from_quaternion
 from geometry_msgs.msg import Pose
 import pandas as pd
-
+import yaml
+import time
 class Segment():
 
     def __init__(self, map_points, node, RADIUS, OFFSET, start_index=None,end_index=None):
@@ -501,9 +502,8 @@ class MapTraining(Node):
         self.global_path = None
         
         self.current_odom = (0.0, 0.0)
-        
-        self.OFFSET = 0.5
-        self.RADIUS = .2
+        self.OFFSET = 0 
+        self.RADIUS = 0 
         self.NUM_VALID_OBS = 20
         self.NUM_LIDAR = 1080
         self.Obstacle_list = []
@@ -519,7 +519,9 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/mobrob/ros_ws/may19_large/"
+        self.input_bag = "/home/mobrob/ros_ws/august_16_pt2"
+        self.yaml_reader() 
+        self.write_meta_data()
         self.frame_dkr = f"{self.input_bag}/input_data/"
         os.makedirs(self.frame_dkr, exist_ok=True)
         self.odom_csv_file = os.path.join(self.frame_dkr, "odom_data.csv")
@@ -1341,7 +1343,30 @@ class MapTraining(Node):
         merged_df.to_csv(output_csv, index=False)
         return merged_df
 
+    def yaml_reader(self):
+        """Read the configs from config.yaml"""
+        filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'config.yaml')  # Fixed typo: trail -> trial
+        with open(filepath, "r") as file:
+            config = yaml.safe_load(file)
 
+                # Example access
+            self.RADIUS = config["RADIUS"]
+            self.OFFSET = config["OFFSET"]
+
+            print(f"Loaded: RADIUS={self.RADIUS}, OFFSET={self.OFFSET}")
+    def write_meta_data(self):
+
+        filepath = os.path.join(self.input_bag, 'config_meta_data.yaml')
+        meta = {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S%z"),
+            "OFFSET": self.OFFSET,
+            "RADIUS": self.RADIUS,
+        }
+        with open(filepath, "w") as f:
+            yaml.safe_dump(meta, f)
+        self.get_logger().info(
+            f"Wrote OFFSET={self.OFFSET}, RADIUS={self.RADIUS} at {meta['timestamp']} to {filepath}"
+        )
 def main(args=None):
     rclpy.init(args=args)
     test_node = MapTraining()
