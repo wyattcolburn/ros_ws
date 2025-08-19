@@ -4,6 +4,7 @@
 **/install/
 **/log/
 
+ros_bag/
 may15_medium/
 may19_large/
 # Ignore ROS 2 bag files
@@ -22,3 +23,7 @@ may*
 input_data/
 **/input_data/
 robot_data/
+
+# .venv stuff
+.venv*
+

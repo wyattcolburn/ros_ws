@@ -17,9 +17,10 @@ ARGUMENTS = [
 
     DeclareLaunchArgument('world', default_value='barn_world_0',
                           description='Ignition World'), DeclareLaunchArgument('model', default_value='standard',
-                          choices=['standard', 'lite'],
-                          description='Turtlebot4 Model'),
-    
+                                                                               choices=[
+                                                                                   'standard', 'lite'],
+                                                                               description='Turtlebot4 Model'),
+
     DeclareLaunchArgument('map_file', default_value='yaml_0.yaml',
                           description='Map file for localization'),
     DeclareLaunchArgument('world_num', default_value='0',
@@ -33,11 +34,10 @@ for pose_element in ['x', 'y', 'z', 'yaw']:
     ARGUMENTS.append(DeclareLaunchArgument(pose_element, default_value='0.0',
                      description=f'{pose_element} component of the robot pose.'))
 
-    
 
 def path_coord_to_gazebo_coord(x, y):
     # Tis is from the jackal_timer github repo from dperille (UT-AUSTIN LAB)
-    RADIUS=.075
+    RADIUS = .075
     r_shift = -RADIUS - (30 * RADIUS * 2)
     c_shift = RADIUS + 5
 
@@ -46,27 +46,34 @@ def path_coord_to_gazebo_coord(x, y):
 
     return (gazebo_x, gazebo_y)
 
+
 def yaw_calculation(x1, y1, x2, y2):
 
     return math.atan2(y2-y1, x2-x1)
+
+
 def generate_launch_description():
-    
+
     world_num = int(os.environ.get('WORLD_NUM', '0'))
-    path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
+    path = np.load(os.path.expanduser(
+        f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
     starting_location_path = path[1]
-    start_location_gazebo = path_coord_to_gazebo_coord(starting_location_path[0], starting_location_path[1])
+    start_location_gazebo = path_coord_to_gazebo_coord(
+        starting_location_path[0], starting_location_path[1])
 
     # we dont start the path until path[3:0], so maybe starting orientation should be based on that?
     second_location_gazebo = path_coord_to_gazebo_coord(path[2][0], path[2][1])
     third_location_gazebo = path_coord_to_gazebo_coord(path[3][0], path[3][1])
     fourth_location_gazebo = path_coord_to_gazebo_coord(path[4][0], path[4][1])
     # yaw = yaw_calculation(start_location_gazebo[0], start_location_gazebo[1], second_location_gazebo[0], second_location_gazebo[1])
-    yaw = yaw_calculation(third_location_gazebo[0], third_location_gazebo[1], fourth_location_gazebo[0], fourth_location_gazebo[1])
-    
+    yaw = yaw_calculation(third_location_gazebo[0], third_location_gazebo[1],
+                          fourth_location_gazebo[0], fourth_location_gazebo[1])
+
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')
     # Paths
-    pkg_turtlebot4_navigation = get_package_share_directory('turtlebot4_navigation')
+    pkg_turtlebot4_navigation = get_package_share_directory(
+        'turtlebot4_navigation')
     ignition_launch = PathJoinSubstitution(
         [pkg_turtlebot4_ignition_bringup, 'launch', 'ignition.launch.py'])
     robot_spawn_launch = PathJoinSubstitution(
@@ -75,7 +82,7 @@ def generate_launch_description():
         [pkg_turtlebot4_navigation, 'launch', 'localization.launch.py'])
     nav2_launch = PathJoinSubstitution(
         [pkg_turtlebot4_navigation, 'launch', 'nav2.launch.py'])
-    
+
     ignition = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([ignition_launch]),
         launch_arguments=[
@@ -89,7 +96,7 @@ def generate_launch_description():
             ('namespace', LaunchConfiguration('namespace')),
             ('rviz', LaunchConfiguration('rviz')),
             ('x', f'{third_location_gazebo[0]}'),
-            ('y', f'{third_location_gazebo[1]}'), 
+            ('y', f'{third_location_gazebo[1]}'),
             ('z', LaunchConfiguration('z')),
             ('yaw', f'{yaw}')]
     )
@@ -122,7 +129,7 @@ def generate_launch_description():
             ('use_sim_time', 'true')
         ]
     )
-    
+
     barn_one_shot = Node(
         package='my_robot_bringup',
         executable='barn_nodock',
@@ -144,29 +151,28 @@ def generate_launch_description():
         output='log',
         parameters=[],
     )
-    
+
     middle_man_node = Node(
         package='middle_man',
         executable='middle_man_barn',
         name='middle_man',  # Fixed: was 'publish'
         output='screen',
         parameters=[
-        {'obstacle_config': '/home/mobrob/ros_ws/config.yaml'}
-    ],
+            {'obstacle_config': '/home/mobrob/ros_ws/config.yaml'}
+        ],
     )
-    
 
     # Add delay for nav2 to start after localization
-    
+
     delayed_local = TimerAction(
-            period=10.0, 
-            actions=[localization])
+        period=10.0,
+        actions=[localization])
 
     delayed_nav2 = TimerAction(
         period=10.0,  # 3 second delay like your sleep command
         actions=[nav2]
     )
-    delayed_barn= TimerAction(
+    delayed_barn = TimerAction(
         period=35.0,  # 3 second delay like your sleep command
         actions=[barn_one_shot]
     )
@@ -174,7 +180,7 @@ def generate_launch_description():
         period=15.0,
         actions=[publish_features_node]
     )
-    
+
     delayed_middle_man_node = TimerAction(
         period=25.0,
         actions=[middle_man_node]
@@ -190,4 +196,3 @@ def generate_launch_description():
     ld.add_action(delayed_middle_man_node)
     ld.add_action(delayed_barn)
     return ld
-

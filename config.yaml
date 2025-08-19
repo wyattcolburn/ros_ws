@@ -1,7 +1,11 @@
 ---
 # This is stuff regarding the c++ poriton of the project, robot configurations
 NUM_VALID_OBSTACLES :  30
-OFFSET : 0.5
-RADIUS : .2
+OFFSET : 1.0
+RADIUS : .4
+CSV_FILE : "august18_100/august18_baseline.csv"
 
-
+# Bash script parameters
+WORLD_NUMS: [12, 36, 75, 125, 203, 210, 69, 187, 266]
+NUM_TRIALS: 5
+RESET_DELAY: 10

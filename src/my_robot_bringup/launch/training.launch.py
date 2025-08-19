@@ -6,6 +6,8 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch.actions import TimerAction
 import subprocess
+import os
+from datetime import datetime
 # Declare arguments
 ARGUMENTS = [
     DeclareLaunchArgument('namespace', default_value='',
@@ -42,7 +44,6 @@ def generate_launch_description():
         ]
     )
 
-    
     robot_spawn = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([robot_spawn_launch]),
         launch_arguments=[
@@ -57,16 +58,23 @@ def generate_launch_description():
     random_walk_node = TimerAction(
         period=15.0,
         actions=[Node(
-        package='my_robot_bringup',
-        executable='gaussian',  # You need to create this
-        output='screen')]
+            package='my_robot_bringup',
+            executable='gaussian',  # You need to create this
+            output='screen')]
 
     )
+    base_dir = os.path.join(os.path.expanduser('~'), 'ros_ws', 'ros_bag')
+    os.makedirs(base_dir, exist_ok=True)
+    ts = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    bag_output = os.path.join(base_dir, f'{ts}_gaus')
+
     bag_record = ExecuteProcess(
-        cmd=['ros2', 'bag', 'record', 
-             '/scan', '/scan_spoofed', '/tf', '/tf_static', 
-             '/odom', '/cmd_vel', '/clock',
-             '-o', 'robot_data_1'],  # Output bag name
+        cmd=[
+            'ros2', 'bag', 'record',
+            '/scan', '/scan_spoofed', '/tf', '/tf_static',
+            '/odom', '/cmd_vel', '/clock',
+            '-o', bag_output
+        ],
         output='screen'
     )
 
@@ -75,7 +83,7 @@ def generate_launch_description():
         period=5.0,  # Start recording after robot is ready
         actions=[bag_record]
     )
-        
+
     # Create launch description and add actions
     ld = LaunchDescription(ARGUMENTS)
     ld.add_action(ignition)
@@ -83,5 +91,3 @@ def generate_launch_description():
     ld.add_action(random_walk_node)
     ld.add_action(delayed_bag_record)
     return ld
-
-

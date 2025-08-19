@@ -1,74 +1,109 @@
+
 """
-This is the node which is used to create the random walks that facilites training
-There are things to investigate here: how random is created, what kind of random?
-                                                   
+This node creates random walks to facilitate training.
+Small improvements:
+ - Prevent persistent circling by steering toward a near-zero angular target that changes every ~1–2 s.
+ - Smoothly slew toward that target and add tiny zero-mean jitter.
+ - Keep linear speed near-constant with slight variability.
 """
 
-
-import rclpy 
+import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-import random
-import time
-import argparse
 import numpy as np
 from scipy.stats import truncnorm
-v_min = 0
-v_max = .4
 
+# Bounds
+v_min = 0.0
+v_max = 0.4
 w_min = -1.4
 w_max = 1.4
 
+
 def truncated_gaussian(min_val, max_val, mu, sigma):
-    #mu is the mean?, sigma is the spread of the numbers from the mean
-    a, b = (min_val - mu) / sigma, (max_val - mu) / sigma  # Normalized range
-    return truncnorm.rvs(a, b, loc=mu, scale=sigma)  # Sample from truncated distribution
+    # Sample from a truncated normal distribution within [min_val, max_val]
+    a, b = (min_val - mu) / sigma, (max_val - mu) / sigma
+    return float(truncnorm.rvs(a, b, loc=mu, scale=sigma))
+
 
 def prev_based_gaussian(min_val, max_val, prev_mu, sigma):
+    # Same idea as your original helper (kept for compatibility if you want it)
+    a, b = (min_val - prev_mu) / sigma, (max_val - prev_mu) / sigma
+    return float(truncnorm.rvs(a, b, loc=prev_mu, scale=sigma))
 
-    a, b = (min_val - prev_mu) / sigma, (max_val - prev_mu) / sigma  # normalized range
-    return truncnorm.rvs(a, b, loc=prev_mu, scale=sigma)  # sample from truncated distribution
 
-    
 class randomMotor(Node):
     def __init__(self):
         super().__init__('random_motor_node')
+        self.get_logger().info('Random motor node started')
 
-        self.get_logger().info('Random motor node has started **************************************************************')
         self.publisher_ = self.create_publisher(Twist, '/cmd_vel', 10)
-        self.timer_period = .05#isnt this convolted? 
-        self.random_type = type
-        self.timer = self.create_timer(self.timer_period, self.publish_random_vel)
-        self.start_mu = 0
-        self.prev_mu = 0
-        self.current_mu = 0
-        
+        self.timer_period = 0.05  # 20 Hz
+        self.timer = self.create_timer(
+            self.timer_period, self.publish_random_vel)
+
+        # --- Angular state (minimal additions) ---
+        self.prev_mu = 0.0                  # current angular command (rad/s)
+        self.omega_set = 0.0                # small, near-zero target (rad/s)
+        self.target_ticks = 0               # countdown until we resample target
+        self.target_ticks_min = int(1.0 / self.timer_period)   # ~1 s
+        self.target_ticks_max = int(2.0 / self.timer_period)   # ~2 s
+        self.omega_bound = 0.45             # keep turns gentle: [-0.35, 0.35]
+
+        self.slew = 0.12                    # per-tick blend toward target
+        self.decay = 0.08                   # mild pull-to-zero each tick
+        self.noise_sigma = 0.04             # tiny angular jitter
+
+        # (Kept from your original; not strictly required now)
+        self.angular_counter = 0
+        self.angular_limit = 5
+
     def publish_random_vel(self):
-
-
-        ## .2 with 10
-
         msg = Twist()
-        msg.linear.x = truncated_gaussian(0, .4, .2, .08)
-        new_angular = prev_based_gaussian(-1.4, 1.4, self.prev_mu, .1)
-        msg.angular.z = new_angular
-        self.prev_mu = new_angular
-        self.publisher_.publish(msg)
 
-        self.get_logger().info('Publishing motor movement')
+        # --- Linear speed: near-constant with small variability (your original idea) ---
+        # Mean ~0.2 m/s, sigma ~0.08, clipped to [0, 0.4]
+        msg.linear.x = truncated_gaussian(v_min, v_max, 0.2, 0.08)
+
+        # --- Angular speed: small changes, no circles ---
+        # Occasionally resample a small near-zero target (every ~1–2 s)
+        if self.target_ticks <= 0:
+            # Normal around 0, clipped to gentle range
+            self.omega_set = float(np.clip(np.random.normal(
+                0.0, 0.25), -self.omega_bound, self.omega_bound))
+            self.target_ticks = np.random.randint(
+                self.target_ticks_min, self.target_ticks_max + 1)
+        self.target_ticks -= 1
+
+        # Optional: keep your older refresh path (low influence now)
+        if self.angular_counter >= self.angular_limit:
+            self.angular_counter = 0
+            # Re-sample around current value (kept from your code)
+            self.prev_mu = prev_based_gaussian(
+                w_min, w_max, self.prev_mu, 0.10)
+        self.angular_counter += 1
+
+        # Slew toward target + mild decay + tiny noise (prevents constant ω and big circles)
+        self.prev_mu += self.slew * (self.omega_set - self.prev_mu)
+        self.prev_mu = (1.0 - self.decay) * self.prev_mu + \
+            float(np.random.normal(0.0, self.noise_sigma))
+        self.prev_mu = float(np.clip(self.prev_mu, w_min, w_max))
+
+        msg.angular.z = self.prev_mu
+
+        self.publisher_.publish(msg)
+        # Uncomment if you want to watch values:
+        # self.get_logger().info(f'v={msg.linear.x:.2f}, omega={msg.angular.z:.2f}, target={self.omega_set:.2f}')
 
 
 def main(args=None):
-
-# Initialize the rclpy library
-    rclpy.init()
-# Create and spin the node
-    random_motor_node = randomMotor()
-    rclpy.spin(random_motor_node)
-
-# Shutdown the node when exiting
-    random_motor_node.destroy_node()
-    rclpy.shutdown()
+    rclpy.init(args=args)
+    node = randomMotor()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':

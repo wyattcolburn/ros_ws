@@ -112,8 +112,8 @@ void ONNXController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr &p
     node->get_parameter(plugin_name_ + ".max_linear_vel", max_linear_vel_);
     node->get_parameter(plugin_name_ + ".max_angular_vel", max_angular_vel_);
 
-    feature_mins_ = readCSVToFloats("/home/mobrob/ros_ws/src/onnx/src/scaler_mins.txt");
-    feature_maxs_ = readCSVToFloats("/home/mobrob/ros_ws/src/onnx/src/scaler_max.txt");
+    feature_mins_ = readCSVToFloats("/home/mobrob/ros_ws/src/onnx/src/2025_08_18_13_19_scaler_mins.txt");
+    feature_maxs_ = readCSVToFloats("/home/mobrob/ros_ws/src/onnx/src/2025_08_18_13_19_scaler_maxs.txt");
 
     // Load ONNX Model
     Ort::Env env;
