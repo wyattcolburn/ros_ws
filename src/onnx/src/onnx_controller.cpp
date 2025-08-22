@@ -112,8 +112,8 @@ void ONNXController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr &p
     node->get_parameter(plugin_name_ + ".max_linear_vel", max_linear_vel_);
     node->get_parameter(plugin_name_ + ".max_angular_vel", max_angular_vel_);
 
-    feature_mins_ = readCSVToFloats("/home/mobrob/ros_ws/src/onnx/src/2025_08_18_13_19_scaler_mins.txt");
-    feature_maxs_ = readCSVToFloats("/home/mobrob/ros_ws/src/onnx/src/2025_08_18_13_19_scaler_maxs.txt");
+    feature_mins_ = readCSVToFloats("/home/mobrob/ros_ws/created_models/gauss_1/2025_08_21_18_42_scaler_mins.txt");
+    feature_maxs_ = readCSVToFloats("/home/mobrob/ros_ws/created_models/gauss_1/2025_08_21_18_42_scaler_maxs.txt");
 
     // Load ONNX Model
     Ort::Env env;
@@ -173,7 +173,7 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
                                                                          const geometry_msgs::msg::Twist &,
                                                                          nav2_core::GoalChecker *) {
 
-    static const float min_linear_vel = 0;
+    static const float min_linear_vel = 0.003;
     static const float max_linear_vel = .3;
     static const float min_angular_vel = -1.4;
     static const float max_angular_vel = 1.4;

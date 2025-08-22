@@ -551,7 +551,7 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/mobrob/ros_ws/poc_august_16_pt2"
+        self.input_bag = "/home/mobrob/ros_ws/ros_bag/2025-08-21_19-38-54_gaus"
         self.yaml_reader()
         self.write_meta_data()
         self.frame_dkr = f"{self.input_bag}/input_data/"
@@ -564,10 +564,6 @@ class MapTraining(Node):
             self.frame_dkr, "local_goals.csv")
         self.cmd_output_csv = os.path.join(
             self.frame_dkr, "cmd_vel_output.csv")
-
-        training_output = os.path.join(self.frame_dkr, "big_csv.csv")
-        path_output = os.path.join(self.frame_dkr, "odom_path")
-        obstacles_output = os.path.join(self.frame_dkr, "obactles.csv")
 
     def validate_obstacles(self):
         output_folder = "obstacle_validation"

@@ -1,0 +1,23 @@
+run:
+  timestamp: '2025_08_21_18_42'
+  output_dir: data_set/2025_08_21_18_42
+datasets:
+- name: 2025-08-21_18-14-54_gaus
+  path: /home/mobrob/ros_ws/ros_bag/2025-08-21_18-14-54_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/2025-08-21_18-14-54_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/2025-08-21_18-14-54_gaus/combined_labels.csv
+  features_shape:
+    rows: 7224
+    cols: 1085
+  labels_shape:
+    rows: 7224
+    cols: 2
+combined:
+  features_shape:
+    rows: 7224
+    cols: 1085
+  labels_shape:
+    rows: 7224
+    cols: 2
+  num_datasets: 1
+  total_rows: 7224

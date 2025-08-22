@@ -8,6 +8,7 @@ from launch.actions import TimerAction
 import subprocess
 import os
 from datetime import datetime
+import yaml
 # Declare arguments
 ARGUMENTS = [
     DeclareLaunchArgument('namespace', default_value='',
@@ -63,7 +64,16 @@ def generate_launch_description():
             output='screen')]
 
     )
-    base_dir = os.path.join(os.path.expanduser('~'), 'ros_ws', 'ros_bag')
+
+    bag_dkr = "default_bags"  # Default fallback
+    filepath = os.path.join(os.path.expanduser('~'), 'ros_ws', 'config.yaml')
+    with open(filepath, "r") as file:
+        config = yaml.safe_load(file)
+
+        bag_dkr = config["BAG_DKR"]  # Example access
+
+    base_dir = os.path.join(os.path.expanduser(
+        '~'), 'ros_ws', 'ros_bag', bag_dkr)
     os.makedirs(base_dir, exist_ok=True)
     ts = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     bag_output = os.path.join(base_dir, f'{ts}_gaus')

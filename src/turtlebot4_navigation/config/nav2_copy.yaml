@@ -100,7 +100,7 @@ controller_server:
     # DWB parameters
     FollowPath:
       plugin: "onnx_controller::ONNXController"
-      model_path: "/home/mobrob/ros_ws/src/onnx/src/august18_100.onnx"
+      model_path: "/home/mobrob/ros_ws/created_models/gauss_1/2025_08_21_18_42.onnx"
 
 
 local_costmap:
