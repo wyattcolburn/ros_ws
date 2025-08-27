@@ -634,7 +634,7 @@ class BarnOneShot(Node):
                                  'goal_x', 'goal_y', 'trial_result', 'local_goal_reached', 'num_lg', 'RADIUS', 'NUM_VALID_OBSTACLES', 'OFFSET'])
                 writer.writerow([
                     timestamp,
-                    self.world_num,
+                    f'world {self.world_num}',
                     self.get_parameter('initial_x').value,
                     self.get_parameter('initial_y').value,
                     self.get_parameter('initial_yaw').value,

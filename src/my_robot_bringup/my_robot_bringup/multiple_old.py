@@ -551,7 +551,7 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/mobrob/ros_ws/ros_bag/2025-08-21_19-38-54_gaus"
+        self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_trial_3/2025-08-23_15-52-34_gaus"
         self.yaml_reader()
         self.write_meta_data()
         self.frame_dkr = f"{self.input_bag}/input_data/"
@@ -1094,8 +1094,8 @@ class MapTraining(Node):
         plt.grid(True)
         plt.legend(loc='best')
         plt.tight_layout()
-        plt.show()
         plt.savefig(os.path.join(self.input_bag, "odom_plot.png"))
+        plt.show()
         return plt.gcf()  # Return the figure if you want to save it later
 
     def draw_rays_claude_2(self, odom_x, odom_y, lidar_readings, segment):
