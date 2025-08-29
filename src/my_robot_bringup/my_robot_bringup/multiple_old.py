@@ -36,16 +36,37 @@ from scipy.spatial.transform import Rotation as R
 from visualization_msgs.msg import Marker
 
 from sensor_msgs.msg import LaserScan
-from tf_transformations import euler_from_quaternion
+# from tf_transformations import euler_from_quaternion
 from geometry_msgs.msg import Pose
 import pandas as pd
 import yaml
 import time
+import random
 
+BASE_SEED = 12345
+def euler_from_quaternion(x, y, z, w):
+    # Roll (x-axis rotation)
+    sinr_cosp = 2 * (w * x + y * z)
+    cosr_cosp = 1 - 2 * (x * x + y * y)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
+    
+    # Pitch (y-axis rotation)
+    sinp = 2 * (w * y - z * x)
+    if abs(sinp) >= 1:
+        pitch = math.copysign(math.pi / 2, sinp)
+    else:
+        pitch = math.asin(sinp)
+    
+    # Yaw (z-axis rotation)
+    siny_cosp = 2 * (w * z + x * y)
+    cosy_cosp = 1 - 2 * (y * y + z * z)
+    yaw = math.atan2(siny_cosp, cosy_cosp)
+    
+    return roll, pitch, yaw
 
 class Segment():
 
-    def __init__(self, map_points, node, RADIUS, OFFSET, start_index=None, end_index=None):
+    def __init__(self, map_points, node, RADIUS, OFFSET, start_index=None, end_index=None, seg_seed =42):
 
         self.map_points = map_points
         self.node = node
@@ -53,19 +74,27 @@ class Segment():
         self.OFFSET = OFFSET
         self.start_index = start_index
         self.end_index = end_index
+        self.seg_seed = seg_seed
 
     def init(self):
-        print("ininting")
+        print("ininting") 
         print(f"len of map points {len(self.map_points)}")
-        self.local_goal_manager_ = Local_Goal_Manager(self.map_points)
+        start_xy = self.map_points[0] if self.map_points else (0.0, 0.0)
+        self.local_goal_manager_ = Local_Goal_Manager(start_xy)
+        # self.local_goal_manager_ = Local_Goal_Manager(self.map_points)
         self.obstacle_manager_ = Obstacle_Manager(
-            self.OFFSET, self.RADIUS, self.local_goal_manager_)
+            self.OFFSET, self.RADIUS, self.local_goal_manager_,seed=self.seg_seed)
         self.global_path = self.create_path()
         self.local_goal_manager_.global_path = self.global_path
 
         print(f"len of global path {len(self.global_path.poses)}")
         self.create_local_goals()
         self.create_obstacles()
+        self.obstacle_manager_.prune_overlapping_with_path(
+            self.global_path,
+            clearance_extra=0.02,  # ~2cm buffer
+            radius_mult=1.1        # require center ≥ 1.1*radius away from path
+        )
 
     def create_path(self):
         return self.node.create_path_from_points(self.map_points)
@@ -92,13 +121,40 @@ class Obstacle():
 
 
 class Obstacle_Manager():
-    def __init__(self, OFFSET, RADIUS, local_goal_manager=None):
+    def __init__(self, OFFSET, RADIUS, local_goal_manager=None,
+                 seed=42,
+                 # realism knobs:
+                 offset_range=(0.85, 1.30),   # width multiplier per segment
+                 radius_range=(0.90, 1.15),   # radius multiplier per obstacle
+                 jitter_std=0.05,             # XY noise (m)
+                 along_std=0.04,              # slide along segment (m)
+                 drop_prob=0.08,              # drop obstacle (gaps)
+                 single_side_prob=0.12,       # only one side sometimes
+                 pinch_prob=0.06,             # extra narrowing event
+                 pinch_scale=(0.45, 0.75),    # pinch multiplier for width
+                 clutter_prob=0.04,           # add free obstacle near corridor
+                 clutter_rad=1.2):            # radius (m) from mid for clutter:
         self.obstacle_array = []
         self.local_goal_manager_ = local_goal_manager
         self.OFFSET = OFFSET
         self.RADIUS = RADIUS
         self.prev_dir_x = 0
         self.prev_dir_y = 0
+
+        self._rng = random.Random(seed)
+        self._offset_range = offset_range
+        self._radius_range = radius_range
+        self._jitter_std = jitter_std
+        self._along_std = along_std
+        self._drop_prob = drop_prob
+        self._single_side_prob = single_side_prob
+        self._pinch_prob = pinch_prob
+        self._pinch_scale = pinch_scale
+        self._clutter_prob = clutter_prob
+        self._clutter_rad = clutter_rad
+        
+
+
 
     def get_active_obstacles(self):
         current_local_goal_count = self.local_goal_manager_.get_local_goal_counter()
@@ -149,22 +205,43 @@ class Obstacle_Manager():
         else:
             return active_obstacles
 
+    def prune_overlapping_with_path(self, global_path, clearance_extra=0.02, radius_mult=1.1):
+        """
+        Remove obstacles whose center is too close to the path polyline.
+        For each obstacle, require:
+            min_dist(center, path) >= max(radius * radius_mult, self.RADIUS * radius_mult) + clearance_extra
+        """
+        # build path points
+        path_points = [(ps.pose.position.x, ps.pose.position.y) for ps in global_path.poses]
+
+        kept = []
+        dropped = 0
+        for ob in self.obstacle_array:
+            # dynamic clearance: scale with this obstacle's actual radius + small extra margin
+            min_clear = max(ob.radius * radius_mult, self.RADIUS * radius_mult) + clearance_extra
+            d = self.calculate_min_distance_to_path(ob.center_x, ob.center_y, path_points)
+            if d >= min_clear:
+                kept.append(ob)
+            else:
+                dropped += 1
+        self.obstacle_array = kept
+        print(f"[Obstacle prune] kept {len(kept)}, dropped {dropped} (too close to path)")
     def calculate_min_distance_to_path(self, x, y, path_points):
-        """Calculate minimum distance from point (x,y) to the path."""
-        min_dist = float('inf')
+            """Calculate minimum distance from point (x,y) to the path."""
+            min_dist = float('inf')
 
-        for i in range(len(path_points) - 1):
-            # Get points for this path segment
-            x1, y1 = path_points[i]
-            x2, y2 = path_points[i + 1]
+            for i in range(len(path_points) - 1):
+                # Get points for this path segment
+                x1, y1 = path_points[i]
+                x2, y2 = path_points[i + 1]
 
-            # Calculate distance to this segment
-            dist = self.point_to_segment_distance(x, y, x1, y1, x2, y2)
+                # Calculate distance to this segment
+                dist = self.point_to_segment_distance(x, y, x1, y1, x2, y2)
 
-            # Update minimum distance
-            min_dist = min(min_dist, dist)
+                # Update minimum distance
+                min_dist = min(min_dist, dist)
 
-        return min_dist
+            return min_dist
 
     def point_to_segment_distance(self, px, py, x1, y1, x2, y2):
         """Calculate distance from point to line segment."""
@@ -199,40 +276,114 @@ class Obstacle_Manager():
             self.obstacle_creation(current, next)
         print("All obstacles created")
         return
-
     def obstacle_creation(self, current_local_goal, next_local_goal):
+        # mid-point
+        x1 = current_local_goal.pose.position.x
+        y1 = current_local_goal.pose.position.y
+        x2 = next_local_goal.pose.position.x
+        y2 = next_local_goal.pose.position.y
 
-        mid_x = (current_local_goal.pose.position.x +
-                 next_local_goal.pose.position.x) / 2
-        mid_y = (current_local_goal.pose.position.y +
-                 next_local_goal.pose.position.y) / 2
-        dir_x = next_local_goal.pose.position.x - current_local_goal.pose.position.x
-        dir_y = next_local_goal.pose.position.y - current_local_goal.pose.position.y
-        # Normalize
-        length = math.sqrt(dir_x * dir_x + dir_y * dir_y)
+        mx = (x1 + x2) / 2.0
+        my = (y1 + y2) / 2.0
 
-        if (length > 0):
-            dir_x /= length
-            dir_y /= length
+        # direction (unit tangent)
+        dx = x2 - x1
+        dy = y2 - y1
+        L = math.sqrt(dx*dx + dy*dy)
+        if L == 0.0:
+            return
+        dx /= L
+        dy /= L
 
-        perp_x = -dir_y
-        perp_y = dir_x
+        # unit perpendicular
+        px = -dy
+        py = dx
 
-        offset_x = perp_x * self.OFFSET
-        offset_y = perp_y * self.OFFSET
+        # --- width modulation ---
+        lo, hi = self._offset_range
+        width_scale = lo + (hi - lo) * self._rng.random()
+        off = self.OFFSET * width_scale
 
-        ob1 = Obstacle()
-        ob1.center_x = mid_x + offset_x
-        ob1.center_y = mid_y + offset_y
-        ob1.radius = self.RADIUS
+        # occasional pinch (extra narrowing)
+        if self._rng.random() < self._pinch_prob:
+            p_lo, p_hi = self._pinch_scale
+            off *= p_lo + (p_hi - p_lo) * self._rng.random()
 
-        ob2 = Obstacle()
-        ob2.center_x = mid_x - offset_x
-        ob2.center_y = mid_y - offset_y
-        ob2.radius = self.RADIUS
+        # choose sides (both or single)
+        keep_both = (self._rng.random() > self._single_side_prob)
+        sides = [+1, -1] if keep_both else [self._rng.choice([+1, -1])]
 
-        self.obstacle_array.append(ob1)
-        self.obstacle_array.append(ob2)
+        def sample_radius():
+            r_lo, r_hi = self._radius_range
+            return self.RADIUS * (r_lo + (r_hi - r_lo) * self._rng.random())
+
+        def normal(std):
+            # Box–Muller for a quick normal from uniform RNG
+            u1 = max(1e-9, self._rng.random())
+            u2 = self._rng.random()
+            z = math.sqrt(-2.0 * math.log(u1)) * math.cos(2*math.pi*u2)
+            return z * std
+
+        # create 1–2 wall obstacles
+        for s in sides:
+            # base center on the perpendicular
+            cx = mx + s * off * px
+            cy = my + s * off * py
+
+            # jitter (XY) and along-path slide
+            cx += normal(self._jitter_std) + normal(self._along_std) * dx
+            cy += normal(self._jitter_std) + normal(self._along_std) * dy
+
+            r = sample_radius()
+
+            # random drop to create gaps
+            if self._rng.random() < self._drop_prob:
+                continue
+
+            ob = Obstacle(center_x=cx, center_y=cy, radius=r)
+            self.obstacle_array.append(ob)
+
+        # occasional clutter near (not exactly on) the corridor
+        if self._rng.random() < self._clutter_prob:
+            ang = 2 * math.pi * self._rng.random()
+            rad = 0.2 + (self._clutter_rad - 0.2) * self._rng.random()
+            cx = mx + rad * math.cos(ang)
+            cy = my + rad * math.sin(ang)
+            r  = sample_radius()
+            self.obstacle_array.append(Obstacle(center_x=cx, center_y=cy, radius=r))
+    # def obstacle_creation(self, current_local_goal, next_local_goal):
+    #
+    #     mid_x = (current_local_goal.pose.position.x +
+    #              next_local_goal.pose.position.x) / 2
+    #     mid_y = (current_local_goal.pose.position.y +
+    #              next_local_goal.pose.position.y) / 2
+    #     dir_x = next_local_goal.pose.position.x - current_local_goal.pose.position.x
+    #     dir_y = next_local_goal.pose.position.y - current_local_goal.pose.position.y
+    #     # Normalize
+    #     length = math.sqrt(dir_x * dir_x + dir_y * dir_y)
+    #
+    #     if (length > 0):
+    #         dir_x /= length
+    #         dir_y /= length
+    #
+    #     perp_x = -dir_y
+    #     perp_y = dir_x
+    #
+    #     offset_x = perp_x * self.OFFSET
+    #     offset_y = perp_y * self.OFFSET
+    #
+    #     ob1 = Obstacle()
+    #     ob1.center_x = mid_x + offset_x
+    #     ob1.center_y = mid_y + offset_y
+    #     ob1.radius = self.RADIUS
+    #
+    #     ob2 = Obstacle()
+    #     ob2.center_x = mid_x - offset_x
+    #     ob2.center_y = mid_y - offset_y
+    #     ob2.radius = self.RADIUS
+    #
+    #     self.obstacle_array.append(ob1)
+    #     self.obstacle_array.append(ob2)
 
 
 class Local_Goal_Manager():
@@ -480,7 +631,8 @@ class Local_Goal_Manager():
     def get_yaw(self, pose: Pose) -> float:
         quat = (pose.orientation.x, pose.orientation.y, pose.orientation.z,
                 pose.orientation.w)
-        _, _, yaw = euler_from_quaternion(quat)
+        # _, _, yaw = euler_from_quaternion(quat)
+        _, _, yaw = euler_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
         return yaw
 
 
@@ -551,7 +703,7 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_trial_3/2025-08-23_15-52-34_gaus"
+        self.input_bag = "/home/mobrob/ros_ws/gauss_2_noisy/2025-08-21_19-38-54_gaus"
         self.yaml_reader()
         self.write_meta_data()
         self.frame_dkr = f"{self.input_bag}/input_data/"
@@ -1036,8 +1188,9 @@ class MapTraining(Node):
                 for j in range(len(current_segment) - 200):
                     if self.distance_between_points(current_segment[j], map_points[i]) < threshold:
                         end_index = i
+                        seg_seed = end_index + BASE_SEED
                         curr_seg_ = Segment(
-                            current_segment, self, self.RADIUS, self.OFFSET, start_index, end_index)
+                            current_segment, self, self.RADIUS, self.OFFSET, start_index, end_index, seg_seed)
                         curr_seg_.init()
                         start_index = i
                         segments.append(curr_seg_)
@@ -1049,8 +1202,12 @@ class MapTraining(Node):
                 print(
                     f"last segment : start index {start_index} and end {len(map_points)-1}")
                 print("*************************************")
+                end_index = len(map_points) - 1
+                seg_seed = BASE_SEED + end_index
                 curr_seg_ = Segment(
-                    current_segment, self, self.RADIUS, self.OFFSET, start_index, (len(map_points)-1))
+                    current_segment, self, self.RADIUS, self.OFFSET,
+                    start_index, end_index, seg_seed
+                )
                 curr_seg_.init()
                 segments.append(curr_seg_)
 
@@ -1087,6 +1244,16 @@ class MapTraining(Node):
             plt.plot(path_x[0], path_y[0], 'go', markersize=6)
             plt.plot(path_x[-1], path_y[-1], 'ro',
                      markersize=6)  # End point (red)
+
+            # would also like to add the obstacles of this segment
+            for obstacle in segment.obstacle_manager_.obstacle_array:
+                circle = plt.Circle((obstacle.center_x, obstacle.center_y),
+                                    radius = obstacle.radius,
+                                    fill = False,
+                                    color='red',
+                                    linewidth=1)
+                plt.gca().add_patch(circle)
+                        
 
         plt.title('Path Segments')
         plt.xlabel('X')
@@ -1296,68 +1463,121 @@ class MapTraining(Node):
         df.to_csv(output_csv, index=False)
         print(f"Saved {len(df)} messages to {output_csv}")
 
+    # def ray_tracing(self, pose, segment, active_obstacles):
+    #     """
+    #     Args: Takes the yaw, and the obstacle data
+    #     Output: Lidar data with 1080 values
+    #     """
+    #     local_data = [0] * self.NUM_LIDAR
+    #     # active_obstacles = self.test_seg.obstacle_manager_.get_active_obstacles_claude(self.global_path, self.current_odom_index)
+    #
+    #     print(f"I am located at {(pose.position.x, pose.position.y)}")
+    #     # print(f" len of active obstacles {len(active_obstacles)}")
+    #     yaw = self.get_yaw(pose)
+    #     incrementor = (2 * math.pi) / self.NUM_LIDAR
+    #     lidar_offset = -math.pi/2
+    #     for index in range(self.NUM_LIDAR):
+    #         # Calculate direction vector for this ray
+    #         theta_prev = incrementor * index
+    #         theta = yaw + lidar_offset + theta_prev
+    #         theta = self.normalize_angle(theta)
+    #         dx = math.cos(theta)
+    #         dy = math.sin(theta)
+    #
+    #         # Initialize to max distance to find closest
+    #         min_distance = float('inf')
+    #
+    #         # Test against each obstacle
+    #         for obs in active_obstacles:
+    #             # Get obstacle data
+    #             Cx = obs.center_x
+    #             Cy = obs.center_y
+    #             radius = obs.radius
+    #
+    #             # Compute ray-circle intersection
+    #             mx = pose.position.x - Cx
+    #             my = pose.position.y - Cy
+    #
+    #             a = dx * dx + dy * dy
+    #             b = 2.0 * (mx * dx + my * dy)
+    #             c = mx * mx + my * my - radius * radius
+    #
+    #             # Compute discriminant
+    #             discriminant = b * b - 4.0 * a * c
+    #
+    #             if discriminant >= 0.0:
+    #                 # Has intersection(s)
+    #                 sqrt_discriminant = math.sqrt(discriminant)
+    #                 t1 = (-b - sqrt_discriminant) / (2.0 * a)
+    #                 t2 = (-b + sqrt_discriminant) / (2.0 * a)
+    #
+    #                 # Find closest valid intersection
+    #                 if t1 > 0.0 and t1 < min_distance:
+    #                     min_distance = t1
+    #
+    #                 if t2 > 0.0 and t2 < min_distance:
+    #                     min_distance = t2
+    #
+    #         # If we found an intersection, update the distances array
+    #         if min_distance != float('inf'):
+    #             self.distances[index] = min_distance
+    #             local_data[index] = min_distance
+    #     self.get_logger().info("Calculated distances")
+    #     return local_data
     def ray_tracing(self, pose, segment, active_obstacles):
         """
-        Args: Takes the yaw, and the obstacle data
-        Output: Lidar data with 1080 values
+        Return one LiDAR scan (len = self.NUM_LIDAR) with circle intersections.
+        Distances are clamped to [MIN_R, MAX_R].
         """
-        local_data = [0] * self.NUM_LIDAR
-        # active_obstacles = self.test_seg.obstacle_manager_.get_active_obstacles_claude(self.global_path, self.current_odom_index)
+        MIN_R = 0.164
+        MAX_R = 12.0   # set to your sensor's max
+        EPS   = 1e-9
 
-        print(f"I am located at {(pose.position.x, pose.position.y)}")
-        # print(f" len of active obstacles {len(active_obstacles)}")
+        # fresh scan; default = "no hit"
+        distances = [MAX_R] * self.NUM_LIDAR
+
+        x0 = pose.position.x
+        y0 = pose.position.y
         yaw = self.get_yaw(pose)
-        incrementor = (2 * math.pi) / self.NUM_LIDAR
-        lidar_offset = -math.pi/2
-        for index in range(self.NUM_LIDAR):
-            # Calculate direction vector for this ray
-            theta_prev = incrementor * index
-            theta = yaw + lidar_offset + theta_prev
-            theta = self.normalize_angle(theta)
-            dx = math.cos(theta)
-            dy = math.sin(theta)
+        lidar_offset = -math.pi / 2.0
+        inc = (2 * math.pi) / self.NUM_LIDAR
 
-            # Initialize to max distance to find closest
-            min_distance = float('inf')
+        for i in range(self.NUM_LIDAR):
+            theta = self.normalize_angle(yaw + lidar_offset + i * inc)
+            dx, dy = math.cos(theta), math.sin(theta)
 
-            # Test against each obstacle
+            # search nearest positive intersection
+            best = MAX_R
             for obs in active_obstacles:
-                # Get obstacle data
-                Cx = obs.center_x
-                Cy = obs.center_y
-                radius = obs.radius
+                Cx, Cy, r = obs.center_x, obs.center_y, obs.radius
 
-                # Compute ray-circle intersection
-                mx = pose.position.x - Cx
-                my = pose.position.y - Cy
+                # Ray-circle intersection in param t: (x0, y0) + t*(dx, dy), t>=0
+                mx = x0 - Cx
+                my = y0 - Cy
+                a = dx*dx + dy*dy                 # == 1, but keep for clarity
+                b = 2.0 * (mx*dx + my*dy)
+                c = mx*mx + my*my - r*r
+                disc = b*b - 4.0*a*c
+                if disc < 0.0:
+                    continue
 
-                a = dx * dx + dy * dy
-                b = 2.0 * (mx * dx + my * dy)
-                c = mx * mx + my * my - radius * radius
+                sqrt_disc = math.sqrt(disc)
+                t1 = (-b - sqrt_disc) / (2.0*a)
+                t2 = (-b + sqrt_disc) / (2.0*a)
 
-                # Compute discriminant
-                discriminant = b * b - 4.0 * a * c
+                # Keep the closest positive t
+                if t1 > EPS and t1 < best:
+                    best = t1
+                if t2 > EPS and t2 < best:
+                    best = t2
 
-                if discriminant >= 0.0:
-                    # Has intersection(s)
-                    sqrt_discriminant = math.sqrt(discriminant)
-                    t1 = (-b - sqrt_discriminant) / (2.0 * a)
-                    t2 = (-b + sqrt_discriminant) / (2.0 * a)
+            # Clamp to sensor limits
+            distances[i] = max(MIN_R, min(best, MAX_R))
 
-                    # Find closest valid intersection
-                    if t1 > 0.0 and t1 < min_distance:
-                        min_distance = t1
-
-                    if t2 > 0.0 and t2 < min_distance:
-                        min_distance = t2
-
-            # If we found an intersection, update the distances array
-            if min_distance != float('inf'):
-                self.distances[index] = min_distance
-                local_data[index] = min_distance
+        # store + return
+        self.distances = distances
         self.get_logger().info("Calculated distances")
-        return local_data
-
+        return distances
     def ray_data_append(self, filename=None):
 
         if filename is None:
@@ -1379,7 +1599,8 @@ class MapTraining(Node):
     def get_yaw(self, pose: Pose) -> float:
         quat = (pose.orientation.x, pose.orientation.y, pose.orientation.z,
                 pose.orientation.w)
-        _, _, yaw = euler_from_quaternion(quat)
+        # _, _, yaw = euler_from_quaternion(quat)
+        _, _, yaw = euler_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
         return yaw
 
     def normalize_angle(self, value):

@@ -1,0 +1,90 @@
+run:
+  timestamp: '2025_08_22_12_36'
+  output_dir: data_set/2025_08_22_12_36
+datasets:
+- name: 2025-08-21_20-25-27_gaus
+  path: /home/mobrob/model/gauss_trial_2/2025-08-21_20-25-27_gaus
+  features_csv: /home/mobrob/model/gauss_trial_2/2025-08-21_20-25-27_gaus/combined_features.csv
+  labels_csv: /home/mobrob/model/gauss_trial_2/2025-08-21_20-25-27_gaus/combined_labels.csv
+  features_shape:
+    rows: 10664
+    cols: 1085
+  labels_shape:
+    rows: 10664
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-08-22_12-00-53_gaus
+  path: /home/mobrob/model/gauss_trial_2/2025-08-22_12-00-53_gaus
+  features_csv: /home/mobrob/model/gauss_trial_2/2025-08-22_12-00-53_gaus/combined_features.csv
+  labels_csv: /home/mobrob/model/gauss_trial_2/2025-08-22_12-00-53_gaus/combined_labels.csv
+  features_shape:
+    rows: 10141
+    cols: 1085
+  labels_shape:
+    rows: 10141
+    cols: 2
+  seg_directories_processed: 1
+- name: 2025-08-22_11-55-41_gaus
+  path: /home/mobrob/model/gauss_trial_2/2025-08-22_11-55-41_gaus
+  features_csv: /home/mobrob/model/gauss_trial_2/2025-08-22_11-55-41_gaus/combined_features.csv
+  labels_csv: /home/mobrob/model/gauss_trial_2/2025-08-22_11-55-41_gaus/combined_labels.csv
+  features_shape:
+    rows: 9084
+    cols: 1085
+  labels_shape:
+    rows: 9084
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-08-21_19-38-54_gaus
+  path: /home/mobrob/model/gauss_trial_2/2025-08-21_19-38-54_gaus
+  features_csv: /home/mobrob/model/gauss_trial_2/2025-08-21_19-38-54_gaus/combined_features.csv
+  labels_csv: /home/mobrob/model/gauss_trial_2/2025-08-21_19-38-54_gaus/combined_labels.csv
+  features_shape:
+    rows: 9037
+    cols: 1085
+  labels_shape:
+    rows: 9037
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-08-22_11-58-38_gaus
+  path: /home/mobrob/model/gauss_trial_2/2025-08-22_11-58-38_gaus
+  features_csv: /home/mobrob/model/gauss_trial_2/2025-08-22_11-58-38_gaus/combined_features.csv
+  labels_csv: /home/mobrob/model/gauss_trial_2/2025-08-22_11-58-38_gaus/combined_labels.csv
+  features_shape:
+    rows: 6571
+    cols: 1085
+  labels_shape:
+    rows: 6571
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-08-21_20-28-53_gaus
+  path: /home/mobrob/model/gauss_trial_2/2025-08-21_20-28-53_gaus
+  features_csv: /home/mobrob/model/gauss_trial_2/2025-08-21_20-28-53_gaus/combined_features.csv
+  labels_csv: /home/mobrob/model/gauss_trial_2/2025-08-21_20-28-53_gaus/combined_labels.csv
+  features_shape:
+    rows: 8140
+    cols: 1085
+  labels_shape:
+    rows: 8140
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-08-22_11-49-09_gaus
+  path: /home/mobrob/model/gauss_trial_2/2025-08-22_11-49-09_gaus
+  features_csv: /home/mobrob/model/gauss_trial_2/2025-08-22_11-49-09_gaus/combined_features.csv
+  labels_csv: /home/mobrob/model/gauss_trial_2/2025-08-22_11-49-09_gaus/combined_labels.csv
+  features_shape:
+    rows: 21188
+    cols: 1085
+  labels_shape:
+    rows: 21188
+    cols: 2
+  seg_directories_processed: 5
+combined:
+  features_shape:
+    rows: 74825
+    cols: 1085
+  labels_shape:
+    rows: 74825
+    cols: 2
+  num_datasets: 7
+  total_rows: 74825
