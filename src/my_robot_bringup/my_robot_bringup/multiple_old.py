@@ -35,6 +35,7 @@ from visualization_msgs.msg import MarkerArray
 from scipy.spatial.transform import Rotation as R
 from visualization_msgs.msg import Marker
 
+import sys
 from sensor_msgs.msg import LaserScan
 # from tf_transformations import euler_from_quaternion
 from geometry_msgs.msg import Pose
@@ -83,7 +84,7 @@ class Segment():
         self.local_goal_manager_ = Local_Goal_Manager(start_xy)
         # self.local_goal_manager_ = Local_Goal_Manager(self.map_points)
         self.obstacle_manager_ = Obstacle_Manager(
-            self.OFFSET, self.RADIUS, self.local_goal_manager_,seed=self.seg_seed)
+            self.OFFSET, self.RADIUS, self.local_goal_manager_,seed=self.seg_seed, clean_mode=True)
         self.global_path = self.create_path()
         self.local_goal_manager_.global_path = self.global_path
 
@@ -133,7 +134,8 @@ class Obstacle_Manager():
                  pinch_prob=0.06,             # extra narrowing event
                  pinch_scale=(0.45, 0.75),    # pinch multiplier for width
                  clutter_prob=0.04,           # add free obstacle near corridor
-                 clutter_rad=1.2):            # radius (m) from mid for clutter:
+                 clutter_rad=1.2, 
+                 clean_mode = True):            # radius (m) from mid for clutter:
         self.obstacle_array = []
         self.local_goal_manager_ = local_goal_manager
         self.OFFSET = OFFSET
@@ -142,20 +144,73 @@ class Obstacle_Manager():
         self.prev_dir_y = 0
 
         self._rng = random.Random(seed)
-        self._offset_range = offset_range
-        self._radius_range = radius_range
-        self._jitter_std = jitter_std
-        self._along_std = along_std
-        self._drop_prob = drop_prob
-        self._single_side_prob = single_side_prob
-        self._pinch_prob = pinch_prob
-        self._pinch_scale = pinch_scale
-        self._clutter_prob = clutter_prob
-        self._clutter_rad = clutter_rad
-        
+        # self._offset_range = offset_range
+        # self._radius_range = radius_range
+        # self._jitter_std = jitter_std
+        # self._along_std = along_std
+        # self._drop_prob = drop_prob
+        # self._single_side_prob = single_side_prob
+        # self._pinch_prob = pinch_prob
+        # self._pinch_scale = pinch_scale
+        # self._clutter_prob = clutter_prob
+        # self._clutter_rad = clutter_rad
+
+        # values for assymetric obstacle creation
+        self.skew_s_max = 0.50     # max fractional skew 0..1
+        self.skew_gain  = 4.0      # curvature → skew growth (bigger = more skew)
+        self.widen_out  = 0.7      # outside widening relative to inside shrinking
+        self.min_inside = 0.40     # floor for inside (as fraction of OFFSET)
+        self.max_outmul = 1.80     # cap for outside (as multiple of OFFSET)
+
+        # No noise added to obstacle
+        self.clean_mode = clean_mode
+        if self.clean_mode:
+            # deterministic geometry
+            self._offset_range   = (1.0, 1.0)   # no width scaling
+            self._radius_range   = (1.0, 1.0)   # exact base radius
+            self._jitter_std     = 0.0
+            self._along_std      = 0.0
+            self._drop_prob      = 0.0
+            self._single_side_prob = 0.0
+            self._pinch_prob     = 0.0
+            self._clutter_prob   = 0.0
+
+              # also disable curvature skew in clean mode
+            self.skew_s_max = 0.3
+            self.widen_out  = 0.5
+        else:
+            # keep the user-specified values (your current code)
+            self._offset_range = offset_range
+            self._radius_range = radius_range
+            self._jitter_std   = jitter_std
+            self._along_std    = along_std
+            self._drop_prob    = drop_prob
+            self._single_side_prob = single_side_prob
+            self._pinch_prob   = pinch_prob
+            self._clutter_prob = clutter_prob
 
 
 
+    def _signed_curvature(self, i):
+        """Signed curvature at local-goal index i (left turn +, right turn -)."""
+        data = self.local_goal_manager_.data
+        n = len(data)
+        if n < 3:
+            return 0.0
+        # clamp neighbors
+        i0 = max(0, i-1)
+        i2 = min(n-1, i+1)
+        p0 = data[i0].pose.position
+        p1 = data[i].pose.position
+        p2 = data[i2].pose.position
+        # headings
+        h0 = math.atan2(p1.y - p0.y, p1.x - p0.x)
+        h1 = math.atan2(p2.y - p1.y, p2.x - p1.x)
+        # unwrap turn
+        d = (h1 - h0 + math.pi) % (2*math.pi) - math.pi
+        # use segment length as arc length
+        L = math.hypot(p2.x - p1.x, p2.y - p1.y) + 1e-6
+        return d / L
     def get_active_obstacles(self):
         current_local_goal_count = self.local_goal_manager_.get_local_goal_counter()
         total_goals = len(self.local_goal_manager_.data)
@@ -267,90 +322,196 @@ class Obstacle_Manager():
         return math.sqrt((px - closest_x)**2 + (py - closest_y)**2)
 
     def create_all_obstacle(self):
-
-        for i, goal in enumerate(self.local_goal_manager_.data):
-            current = self.local_goal_manager_.data[i]
-            if i + 1 >= len(self.local_goal_manager_.data):
-                return
-            next = self.local_goal_manager_.data[i+1]
-            self.obstacle_creation(current, next)
+        data = self.local_goal_manager_.data
+        for i in range(len(data)-1):
+            self.obstacle_creation(data[i], data[i+1], i=i)
         print("All obstacles created")
-        return
-    def obstacle_creation(self, current_local_goal, next_local_goal):
-        # mid-point
+    # def create_all_obstacle(self):
+    #
+    #     for i, goal in enumerate(self.local_goal_manager_.data):
+    #         current = self.local_goal_manager_.data[i]
+    #         if i + 1 >= len(self.local_goal_manager_.data):
+    #             return
+    #         next = self.local_goal_manager_.data[i+1]
+    #         self.obstacle_creation(current, next)
+    #     print("All obstacles created")
+    #     return
+    def obstacle_creation(self, current_local_goal, next_local_goal, i=None):
+        """
+        Curvature-aware corridor: 
+        - Inside wall is pulled in, outside wall is pushed out depending on curvature.
+        - Adds optional jitter/variation for realism.
+        - Enforces a minimum clearance from the path (so obstacles don't overlap with it).
+        """
+
+        # --- positions along this path segment ---
         x1 = current_local_goal.pose.position.x
         y1 = current_local_goal.pose.position.y
         x2 = next_local_goal.pose.position.x
         y2 = next_local_goal.pose.position.y
 
-        mx = (x1 + x2) / 2.0
-        my = (y1 + y2) / 2.0
-
-        # direction (unit tangent)
-        dx = x2 - x1
-        dy = y2 - y1
-        L = math.sqrt(dx*dx + dy*dy)
+        # compute tangent (dx,dy) and perpendicular (px,py)
+        dx, dy = x2 - x1, y2 - y1
+        L = math.hypot(dx, dy)                 # segment length
         if L == 0.0:
-            return
-        dx /= L
-        dy /= L
+            return                             # degenerate case (no movement)
+        dx, dy = dx / L, dy / L                # unit tangent along path
+        px, py = -dy, dx                       # unit normal (left side)
+        mx, my = (x1 + x2) / 2.0, (y1 + y2) / 2.0  # segment midpoint
 
-        # unit perpendicular
-        px = -dy
-        py = dx
+        # --- curvature at this segment ---
+        if i is None:
+            # fallback: find index of current_local_goal in the list
+            i = max(1, min(len(self.local_goal_manager_.data) - 2,
+                           self.local_goal_manager_.data.index(current_local_goal)))
+        kappa = self._signed_curvature(i)      # signed curvature (+ left, - right)
 
-        # --- width modulation ---
-        lo, hi = self._offset_range
-        width_scale = lo + (hi - lo) * self._rng.random()
-        off = self.OFFSET * width_scale
+        # --- skew factor determines asymmetry between inside/outside walls ---
+        # grows smoothly with |curvature| up to self.skew_s_max
+        skew = self.skew_s_max * (1.0 - math.exp(-self.skew_gain * abs(kappa)))
 
-        # occasional pinch (extra narrowing)
-        if self._rng.random() < self._pinch_prob:
-            p_lo, p_hi = self._pinch_scale
-            off *= p_lo + (p_hi - p_lo) * self._rng.random()
+        # --- nominal offsets for walls ---
+        BASE = self.OFFSET                     # baseline corridor half-width
+        # inside wall shrinks with skew, but not below min_inside*BASE
+        off_in  = max(self.min_inside * BASE, BASE * (1.0 - skew))
+        # outside wall widens with skew, capped at max_outmul*BASE
+        off_out = min(self.max_outmul * BASE, BASE * (1.0 + self.widen_out * skew))
 
-        # choose sides (both or single)
-        keep_both = (self._rng.random() > self._single_side_prob)
-        sides = [+1, -1] if keep_both else [self._rng.choice([+1, -1])]
+        # choose which side is "inside" based on curvature sign
+        inside_s  = +1 if kappa > 0.0 else -1
+        outside_s = -inside_s
 
-        def sample_radius():
-            r_lo, r_hi = self._radius_range
-            return self.RADIUS * (r_lo + (r_hi - r_lo) * self._rng.random())
-
+        # --- helper: Gaussian noise generator for jitter ---
         def normal(std):
-            # Box–Muller for a quick normal from uniform RNG
+            # Box-Muller transform to sample from N(0,std^2)
             u1 = max(1e-9, self._rng.random())
             u2 = self._rng.random()
-            z = math.sqrt(-2.0 * math.log(u1)) * math.cos(2*math.pi*u2)
-            return z * std
+            return math.sqrt(-2.0 * math.log(u1)) * math.cos(2 * math.pi * u2) * std
 
-        # create 1–2 wall obstacles
-        for s in sides:
-            # base center on the perpendicular
-            cx = mx + s * off * px
-            cy = my + s * off * py
+        # --- radii for the two obstacles (varied slightly) ---
+        r_lo, r_hi = self._radius_range
+        rad_in  = self.RADIUS * (r_lo + (r_hi - r_lo) * self._rng.random())
+        rad_out = self.RADIUS * (r_lo + (r_hi - r_lo) * self._rng.random())
 
-            # jitter (XY) and along-path slide
-            cx += normal(self._jitter_std) + normal(self._along_std) * dx
-            cy += normal(self._jitter_std) + normal(self._along_std) * dy
+        # --- obstacle centers (apply offset, plus jitter & along-track shift) ---
+        cx_in  = mx + inside_s  * off_in  * px + normal(self._jitter_std) + normal(self._along_std) * dx
+        cy_in  = my + inside_s  * off_in  * py + normal(self._jitter_std) + normal(self._along_std) * dy
+        cx_out = mx + outside_s * off_out * px + normal(self._jitter_std) + normal(self._along_std) * dx
+        cy_out = my + outside_s * off_out * py + normal(self._jitter_std) + normal(self._along_std) * dy
 
-            r = sample_radius()
+        # ------------------------------------------------------------------
+        # ENFORCE MINIMUM CLEARANCE FROM THE PATH
+        # (so obstacle centers don’t get too close to the path polyline)
+        path_points = [(ps.pose.position.x, ps.pose.position.y)
+                       for ps in self.local_goal_manager_.global_path.poses]
 
-            # random drop to create gaps
-            if self._rng.random() < self._drop_prob:
-                continue
+        def enforce_clearance(cx, cy, radius, mx, my, px, py):
+            # Clearance rule: at least ~1.1–1.2× radius plus 3cm buffer
+            min_clear = max(radius * 1.10, self.RADIUS * 1.20) + 0.03
+            d = self.calculate_min_distance_to_path(cx, cy, path_points)
+            need = min_clear - d
+            if need > 0.0:
+                # if too close, push outward along ±normal
+                sign = math.copysign(1.0, (px * (cx - mx) + py * (cy - my)))
+                cx += sign * need * px
+                cy += sign * need * py
+            return cx, cy
 
-            ob = Obstacle(center_x=cx, center_y=cy, radius=r)
-            self.obstacle_array.append(ob)
+        # enforce clearance for both inside and outside
+        cx_in,  cy_in  = enforce_clearance(cx_in,  cy_in,  rad_in,  mx, my, px, py)
+        cx_out, cy_out = enforce_clearance(cx_out, cy_out, rad_out, mx, my, px, py)
+        # ------------------------------------------------------------------
 
-        # occasional clutter near (not exactly on) the corridor
+        # --- probabilistic dropouts (to create corridor gaps) ---
+        if self._rng.random() >= self._drop_prob * 0.5:
+            self.obstacle_array.append(Obstacle(cx_in,  cy_in,  rad_in))
+        if self._rng.random() >= self._drop_prob:
+            self.obstacle_array.append(Obstacle(cx_out, cy_out, rad_out))
+
+        # --- occasional clutter near corridor (random extra obstacle) ---
         if self._rng.random() < self._clutter_prob:
             ang = 2 * math.pi * self._rng.random()
             rad = 0.2 + (self._clutter_rad - 0.2) * self._rng.random()
-            cx = mx + rad * math.cos(ang)
-            cy = my + rad * math.sin(ang)
-            r  = sample_radius()
-            self.obstacle_array.append(Obstacle(center_x=cx, center_y=cy, radius=r))
+            self.obstacle_array.append(
+                Obstacle(mx + rad * math.cos(ang),
+                         my + rad * math.sin(ang),
+                         self.RADIUS * (r_lo + (r_hi - r_lo) * self._rng.random()))
+            )
+    # def obstacle_creation(self, current_local_goal, next_local_goal):
+    #     # mid-point
+    #     x1 = current_local_goal.pose.position.x
+    #     y1 = current_local_goal.pose.position.y
+    #     x2 = next_local_goal.pose.position.x
+    #     y2 = next_local_goal.pose.position.y
+    #
+    #     mx = (x1 + x2) / 2.0
+    #     my = (y1 + y2) / 2.0
+    #
+    #     # direction (unit tangent)
+    #     dx = x2 - x1
+    #     dy = y2 - y1
+    #     L = math.sqrt(dx*dx + dy*dy)
+    #     if L == 0.0:
+    #         return
+    #     dx /= L
+    #     dy /= L
+    #
+    #     # unit perpendicular
+    #     px = -dy
+    #     py = dx
+    #
+    #     # --- width modulation ---
+    #     lo, hi = self._offset_range
+    #     width_scale = lo + (hi - lo) * self._rng.random()
+    #     off = self.OFFSET * width_scale
+    #
+    #     # occasional pinch (extra narrowing)
+    #     if self._rng.random() < self._pinch_prob:
+    #         p_lo, p_hi = self._pinch_scale
+    #         off *= p_lo + (p_hi - p_lo) * self._rng.random()
+    #
+    #     # choose sides (both or single)
+    #     keep_both = (self._rng.random() > self._single_side_prob)
+    #     sides = [+1, -1] if keep_both else [self._rng.choice([+1, -1])]
+    #
+    #     def sample_radius():
+    #         r_lo, r_hi = self._radius_range
+    #         return self.RADIUS * (r_lo + (r_hi - r_lo) * self._rng.random())
+    #
+    #     def normal(std):
+    #         # Box–Muller for a quick normal from uniform RNG
+    #         u1 = max(1e-9, self._rng.random())
+    #         u2 = self._rng.random()
+    #         z = math.sqrt(-2.0 * math.log(u1)) * math.cos(2*math.pi*u2)
+    #         return z * std
+    #
+    #     # create 1–2 wall obstacles
+    #     for s in sides:
+    #         # base center on the perpendicular
+    #         cx = mx + s * off * px
+    #         cy = my + s * off * py
+    #
+    #         # jitter (XY) and along-path slide
+    #         cx += normal(self._jitter_std) + normal(self._along_std) * dx
+    #         cy += normal(self._jitter_std) + normal(self._along_std) * dy
+    #
+    #         r = sample_radius()
+    #
+    #         # random drop to create gaps
+    #         if self._rng.random() < self._drop_prob:
+    #             continue
+    #
+    #         ob = Obstacle(center_x=cx, center_y=cy, radius=r)
+    #         self.obstacle_array.append(ob)
+    #
+    #     # occasional clutter near (not exactly on) the corridor
+    #     if self._rng.random() < self._clutter_prob:
+    #         ang = 2 * math.pi * self._rng.random()
+    #         rad = 0.2 + (self._clutter_rad - 0.2) * self._rng.random()
+    #         cx = mx + rad * math.cos(ang)
+    #         cy = my + rad * math.sin(ang)
+    #         r  = sample_radius()
+    #         self.obstacle_array.append(Obstacle(center_x=cx, center_y=cy, radius=r))
     # def obstacle_creation(self, current_local_goal, next_local_goal):
     #
     #     mid_x = (current_local_goal.pose.position.x +
@@ -686,7 +847,7 @@ class MapTraining(Node):
         self.map_y = []
         self.map_points = []
         self.global_path = None
-
+        self.shutdown_requested = False
         self.current_odom = (0.0, 0.0)
         self.OFFSET = 0
         self.RADIUS = 0
@@ -703,7 +864,8 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/mobrob/ros_ws/gauss_2_noisy/2025-08-21_19-38-54_gaus"
+        self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_15-40-10_gaus"
+
         self.yaml_reader()
         self.write_meta_data()
         self.frame_dkr = f"{self.input_bag}/input_data/"
@@ -898,6 +1060,9 @@ class MapTraining(Node):
         # self.setup()
         self.get_logger().info(
             f"Transformed {len(self.map_x)} points to map frame.")
+        self.get_logger().info("Shutdown requested from odom callback")
+        self.shutdown_requested = True  
+        sys.exit(0)
 
     def visualize_path_with_yaw(self, sample_rate=20):
         """
@@ -1658,15 +1823,25 @@ class MapTraining(Node):
         self.get_logger().info(
             f"Wrote OFFSET={self.OFFSET}, RADIUS={self.RADIUS} at {meta['timestamp']} to {filepath}"
         )
-
-
+    def check_shutdown(self):
+        """Timer callback to check if shutdown was requested"""
+        if self.shutdown_requested:
+            self.get_logger().info("Shutting down node...")
+            rclpy.shutdown()
+            sys.exit(0)
 def main(args=None):
     rclpy.init(args=args)
     test_node = MapTraining()
-    rclpy.spin(test_node)
-    test_node.destroy_node()
-    rclpy.shutdown()
-
-
+    
+    # Create a timer to periodically check for shutdown
+    shutdown_timer = test_node.create_timer(0.1, test_node.check_shutdown)
+    
+    try:
+        rclpy.spin(test_node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        test_node.destroy_node()
+        rclpy.shutdown()
 if __name__ == '__main__':
     main()

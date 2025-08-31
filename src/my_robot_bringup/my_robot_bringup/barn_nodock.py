@@ -90,6 +90,7 @@ class BarnOneShot(Node):
         )
         # publishs converted barn map to nav stack
         self.path_publisher = self.create_publisher(Path, '/plan_barn', 10)
+        self.path_og_publisher = self.create_publisher(Path, '/plan_barn_og', 10)
 
         self.amcl_pose_sub = self.create_subscription(
             PoseWithCovarianceStamped,
@@ -126,6 +127,7 @@ class BarnOneShot(Node):
         self.config_record_csv = None
         # gazebo path
         self.gazebo_path = None
+        self.gazebo_path_og = None
         # Parameters
         self.declare_parameter('initial_x', 0.0)
         self.declare_parameter('initial_y', 0.0)
@@ -177,7 +179,9 @@ class BarnOneShot(Node):
             self.handle_pose_initialization()
         elif self.current_state == SequenceState.CREATE_PATH:
             self.gazebo_path = self.load_barn_path(self.world_num)
+            self.gazebo_path_og = self.load_barn_path_og(self.world_num)
             self.path_publisher.publish(self.gazebo_path)
+            self.path_og_publisher.publish(self.gazebo_path_og)
             self.current_state = SequenceState.NAVIGATING
         elif self.current_state == SequenceState.NAVIGATING:
             self.handle_navigation()
@@ -967,45 +971,45 @@ class BarnOneShot(Node):
 
         self.total_lg = len(path_msg.poses)
         return path_msg
-    # def load_barn_path(self, world_num):
-    #
-    #     # Load path and convert to gazebo coordinates
-    #     barn_path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
-    #
-    #     path_msg = Path()
-    #     path_msg.header.frame_id = "map"  # or whatever your map frame is
-    #     path_msg.header.stamp = self.get_clock().now().to_msg()
-    #
-    #     path_subset = barn_path[3:] # robot swap
-    #     self.total_lg = len(path_subset)
-    #     for i, element in enumerate(path_subset):
-    #         gazebo_x, gazebo_y = self.path_coord_to_gazebo_coord(element[0], element[1])
-    #
-    #         pose_stamped = PoseStamped()
-    #         pose_stamped.header.frame_id = "map"
-    #         pose_stamped.header.stamp = path_msg.header.stamp
-    #
-    #         pose_stamped.pose.position.x = float(gazebo_x)
-    #         pose_stamped.pose.position.y = float(gazebo_y)
-    #         pose_stamped.pose.position.z = 0.0
-    #
-    #         # Calculate orientation if not the last point
-    #         if i < len(path_subset) - 1:
-    #             next_element = path_subset[i + 1]
-    #             next_gazebo = self.path_coord_to_gazebo_coord(next_element[0], next_element[1])
-    #             qx, qy, qz, qw = self.calculate_orientation((gazebo_x, gazebo_y), next_gazebo)
-    #
-    #             pose_stamped.pose.orientation.x = qx
-    #             pose_stamped.pose.orientation.y = qy
-    #             pose_stamped.pose.orientation.z = qz
-    #             pose_stamped.pose.orientation.w = qw
-    #         else:
-    #             # Last point, use previous orientation or default
-    #             pose_stamped.pose.orientation.w = 1.0
-    #
-    #         path_msg.poses.append(pose_stamped)
-    #     self.current_lg_xy = (path_msg.poses[0].pose.position.x, path_msg.poses[0].pose.position.y)
-    #     return path_msg
+    def load_barn_path_og(self, world_num):
+
+        # Load path and convert to gazebo coordinates
+        barn_path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
+
+        path_msg = Path()
+        path_msg.header.frame_id = "map"  # or whatever your map frame is
+        path_msg.header.stamp = self.get_clock().now().to_msg()
+
+        path_subset = barn_path[3:] # robot swap
+        self.total_lg = len(path_subset)
+        for i, element in enumerate(path_subset):
+            gazebo_x, gazebo_y = self.path_coord_to_gazebo_coord(element[0], element[1])
+
+            pose_stamped = PoseStamped()
+            pose_stamped.header.frame_id = "map"
+            pose_stamped.header.stamp = path_msg.header.stamp
+
+            pose_stamped.pose.position.x = float(gazebo_x)
+            pose_stamped.pose.position.y = float(gazebo_y)
+            pose_stamped.pose.position.z = 0.0
+
+            # Calculate orientation if not the last point
+            if i < len(path_subset) - 1:
+                next_element = path_subset[i + 1]
+                next_gazebo = self.path_coord_to_gazebo_coord(next_element[0], next_element[1])
+                qx, qy, qz, qw = self.calculate_orientation((gazebo_x, gazebo_y), next_gazebo)
+
+                pose_stamped.pose.orientation.x = qx
+                pose_stamped.pose.orientation.y = qy
+                pose_stamped.pose.orientation.z = qz
+                pose_stamped.pose.orientation.w = qw
+            else:
+                # Last point, use previous orientation or default
+                pose_stamped.pose.orientation.w = 1.0
+
+            path_msg.poses.append(pose_stamped)
+        self.current_lg_xy = (path_msg.poses[0].pose.position.x, path_msg.poses[0].pose.position.y)
+        return path_msg
     #
 
     def calculate_orientation(self, current_point, next_point):

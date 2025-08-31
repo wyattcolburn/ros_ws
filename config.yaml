@@ -3,10 +3,11 @@
 NUM_VALID_OBSTACLES :  20
 OFFSET : 1.0
 RADIUS : .4
-CSV_FILE : "gauss_2_noisy/baseline.csv"
+CSV_FILE : "gauss_2_combo_full/baseline.csv"
 
 # Bash script parameters
 WORLD_NUMS: [12, 36, 75, 125, 203, 210, 69, 187, 266]
+# WORLD_NUMS: [69, 187, 203, 210]
 NUM_TRIALS: 10
 RESET_DELAY: 10
 
@@ -14,4 +15,6 @@ RESET_DELAY: 10
 
 
 #ROS BAG
-BAG_DKR: "gauss_trial_2"
+BAG_DKR: "gauss_2"
+
+TRAINING_DKR: "gauss_2_combined_raw"
