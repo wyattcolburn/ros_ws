@@ -833,7 +833,7 @@ def odom_to_map(node, odom_x, odom_y, odom_frame='odom', map_frame='map'):
 
 
 class MapTraining(Node):
-    def __init__(self):
+    def __init__(self, input_bag_path=None):
         super().__init__('map_training_node')
 
         # TF setup
@@ -864,7 +864,13 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_15-40-10_gaus"
+
+        if input_bag_path:
+            self.input_bag = input_bag_path
+        else:
+            # Keep your default for backward compatibility
+            self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_15-40-10_gaus"
+        # self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_15-40-10_gaus"
 
         self.yaml_reader()
         self.write_meta_data()
@@ -1427,7 +1433,7 @@ class MapTraining(Node):
         plt.legend(loc='best')
         plt.tight_layout()
         plt.savefig(os.path.join(self.input_bag, "odom_plot.png"))
-        plt.show()
+        # plt.show()
         return plt.gcf()  # Return the figure if you want to save it later
 
     def draw_rays_claude_2(self, odom_x, odom_y, lidar_readings, segment):
@@ -1738,7 +1744,6 @@ class MapTraining(Node):
 
             # Clamp to sensor limits
             distances[i] = max(MIN_R, min(best, MAX_R))
-
         # store + return
         self.distances = distances
         self.get_logger().info("Calculated distances")
@@ -1830,16 +1835,28 @@ class MapTraining(Node):
             rclpy.shutdown()
             sys.exit(0)
 def main(args=None):
-    rclpy.init(args=args)
-    test_node = MapTraining()
+    import argparse
     
-    # Create a timer to periodically check for shutdown
-    shutdown_timer = test_node.create_timer(0.1, test_node.check_shutdown)
+    # Parse command line arguments before ROS2 init
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input_bag', type=str, 
+                       help='Path to input bag directory')
+    
+    # Parse known args to allow ROS2 args to pass through
+    parsed_args, unknown = parser.parse_known_args()
+    
+    rclpy.init(args=unknown)  # Pass remaining args to ROS2
+    test_node = MapTraining(input_bag_path=parsed_args.input_bag)
     
     try:
-        rclpy.spin(test_node)
+        # Keep spinning until shutdown is requested
+        while rclpy.ok() and not test_node.shutdown_requested:
+            rclpy.spin_once(test_node, timeout_sec=0.1)
+        
+        print("Processing complete - shutting down")
+        
     except KeyboardInterrupt:
-        pass
+        print("Interrupted by user")
     finally:
         test_node.destroy_node()
         rclpy.shutdown()

@@ -15,10 +15,17 @@ echo "Found ${#BAG_PATHS[@]} directories in $INPUT_BAG_DKR:"
 for i in "${!BAG_PATHS[@]}"; do
     echo "  [$((i+1))] ${BAG_PATHS[$i]}"
 done
-
-# Now iterate through them
 for bag_path in "${BAG_PATHS[@]}"; do
-    echo "Processing: $bag_path"
-    # Your processing command here
-    # python3 your_script.py --input_bag "$bag_path"
+    echo "Processing: $(basename "$bag_path")"
+    
+    # Pass the bag path to your Python script
+    ros2 run my_robot_bringup old_multiple --input_bag "$bag_path"
+    
+    if [ $? -eq 0 ]; then
+        echo "Successfully processed: $(basename "$bag_path")"
+    else
+        echo "Error processing: $(basename "$bag_path")"
+    fi
+done
+# Now iterate through them
 done
