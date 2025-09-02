@@ -125,6 +125,7 @@ class BarnOneShot(Node):
         self.config_num_valid_obstacles = None
         self.config_offset = None
         self.config_record_csv = None
+        self.config_model_path = None
         # gazebo path
         self.gazebo_path = None
         self.gazebo_path_og = None
@@ -592,6 +593,7 @@ class BarnOneShot(Node):
             self.config_num_valid_obstacles = config["NUM_VALID_OBSTACLES"]
             self.config_offset = config["OFFSET"]
             self.config_record_csv = config["CSV_FILE"]
+            self.config_model_path = config["MODEL_PATH"]
 
             print(
                 f"Loaded: RADIUS={self.config_radius}, NUM={self.config_num_valid_obstacles}, OFFSET={self.config_offset}")
@@ -615,6 +617,7 @@ class BarnOneShot(Node):
                 writer.writerow([
                     timestamp,
                     f"world {self.world_num}",
+                    self.config_model_path, 
                     # Fix 4: Add .value
                     self.get_parameter('initial_x').value,
                     self.get_parameter('initial_y').value,
@@ -634,11 +637,12 @@ class BarnOneShot(Node):
             with open(filepath, 'w', newline='') as csvfile:  # Use 'w' for new file
                 writer = csv.writer(csvfile)
                 # Fix 3: Add missing comma
-                writer.writerow(['timestamp', 'world_num', 'initial_x', 'initial_y', 'initial_yaw',
+                writer.writerow(['timestamp', 'world_num', 'model_path', 'initial_x', 'initial_y', 'initial_yaw',
                                  'goal_x', 'goal_y', 'trial_result', 'local_goal_reached', 'num_lg', 'RADIUS', 'NUM_VALID_OBSTACLES', 'OFFSET'])
                 writer.writerow([
                     timestamp,
                     f'world {self.world_num}',
+                    self.config_model_path,
                     self.get_parameter('initial_x').value,
                     self.get_parameter('initial_y').value,
                     self.get_parameter('initial_yaw').value,
@@ -744,7 +748,8 @@ class BarnOneShot(Node):
         if distance_remaining < 0.13:
             self.get_logger().info(
                 f"Passed local goal {self.current_lg_counter}")
-            self.current_lg_counter += 1
+            if self.current_lg_counter + 1 <= self.total_lg:
+                self.current_lg_counter += 1
             if self.current_lg_counter < len(self.gazebo_path.poses):
                 self.current_lg_xy = (self.gazebo_path.poses[self.current_lg_counter].pose.position.x,
                                       self.gazebo_path.poses[self.current_lg_counter].pose.position.y)

@@ -63,3 +63,29 @@ work for live topics
 Metric values
 The metrics_files folder contains the 5 difficulty metrics calculated on the path in this order: distance to closest obstacle, average visibility, dispersion, characteristic dimension, and tortuosity
 
+
+
+**Gauss 2 Explanations**
+
+Gauss 2 refers to our second attempt at a gaussain based random walk policy 
+
+gauss_2: part 1 of the dataset. around 75000 points that was trained on symmetrical obstacle placement with no added noise
+
+gauss_2_noisy: refers to same 75,000 points but there was added noise to the symmetrical obstacle placement
+
+guass_2_symetric: is the same 75,000 points but the obstacles are placed assymetrically based on the curvature of the path, inside wall and outside wall
+
+guass_2_combo: I believe is guass_2, gauss_2_noisy, gauss_2_asymetric all combined into 1 dataset.
+I am not sure what the difference between gauss_2_combo and gauss_2_combo_full is
+
+guass_2_pt2: Is a new set of random walks, same rando walk policy as gauss_2 but just trying to add more data: no results
+
+gauss_2_combined_raw: is currently trained with asymetric policy on the combination of gauss_2 and gauss_2 part 2. It is around 200000 data points, looks promising but only one 4 new worlds
+
+
+
+gauss_2_combined_asy: Not sure what this is, I figure it is a the part1 and part2 combined trained in the same way that gauss_2_combined_raw is??
+
+
+
+
