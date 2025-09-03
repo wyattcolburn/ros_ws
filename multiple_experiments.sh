@@ -99,7 +99,7 @@ for WORLD_NUM in "${WORLD_NUMS[@]}"; do
             world:=world_${WORLD_NUM} map_file:=yaml_${WORLD_NUM}.yaml
 
         LAST_LINE=$(tac "$CSV_FILE" | grep -m1 .)
-        TRIAL_RESULT=$(echo "$LAST_LINE" | tr -d '\r\n' | cut -d',' -f8)
+        TRIAL_RESULT=$(echo "$LAST_LINE" | tr -d '\r\n' | cut -d',' -f9)
 
         if [[ "$TRIAL_RESULT" == "AMCL TIMEOUT - MAX RETRIES EXCEEDED" ]]; then
             ((trial--))

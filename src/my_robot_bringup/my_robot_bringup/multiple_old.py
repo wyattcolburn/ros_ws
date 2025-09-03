@@ -1702,7 +1702,10 @@ class MapTraining(Node):
         """
         MIN_R = 0.164
         MAX_R = 12.0   # set to your sensor's max
-        EPS   = 1e-9
+        EPS   = 1e-9 
+        
+        drop_p = .1 # 10 percent of lidar no noise
+        sigma  = 0.003   # meters
 
         # fresh scan; default = "no hit"
         distances = [MAX_R] * self.NUM_LIDAR
@@ -1741,9 +1744,15 @@ class MapTraining(Node):
                     best = t1
                 if t2 > EPS and t2 < best:
                     best = t2
+            # Adding some noise to the lidar
+            r = max(MIN_R, min(best, MAX_R))
+            if (r > MIN_R + 1e-9) and (r < MAX_R - 1e-9):
+                    if random.random() >= drop_p:  # apply noise with prob (1 - drop_p)
+                        r += random.gauss(0.0, sigma)
 
+            # single final clip
+            distances[i] = max(MIN_R, min(r, MAX_R))
             # Clamp to sensor limits
-            distances[i] = max(MIN_R, min(best, MAX_R))
         # store + return
         self.distances = distances
         self.get_logger().info("Calculated distances")
