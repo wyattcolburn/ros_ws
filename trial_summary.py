@@ -71,7 +71,7 @@ def is_success(t):
 
 
 def frac_progress(t):
-    return (t.reached_lg / t.total_lg) if t.total_lg else 0.0
+    return min((t.reached_lg / t.total_lg),1) if t.total_lg else 0.0
 
 
 def world_key(w):

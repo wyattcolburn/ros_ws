@@ -2,6 +2,7 @@
 #include "nav_msgs/msg/path.hpp"
 #include "obstacles.hpp"
 
+#include <tf2/utils.h>
 #ifdef PI
 #undef PI
 #endif
@@ -150,9 +151,9 @@ class obsValid : public rclcpp::Node {
         // RCLCPP_INFO(this->get_logger(), "odom (%.2f, %.2f) -> map (%.2f, %.2f) yaw %.2f), map_yaw %.2f", odom_x,
         // odom_y,
         //             map_x, map_y, yaw, map_yaw);
-
+        rebuild_local_goals();
         local_goal_manager_.updateLocalGoal(odom_x, odom_y); // local goals have already been converted to odom
-        obstacle_manager_.update_obstacles(local_goal_manager_);
+        obstacle_manager_.update_obstacles_sliding(local_goal_manager_);
 
         auto local_goal_markers = make_local_goal_markers();
         local_goal_marker_pub_->publish(local_goal_markers);
@@ -509,6 +510,28 @@ class obsValid : public rclcpp::Node {
             RCLCPP_WARN(this->get_logger(), "transform_map_odom: %s", ex.what());
             return false;
         }
+    }
+
+    void rebuild_local_goals() {
+
+        local_goal_manager_.clean_data(); // get rid of all data
+        obstacle_manager_.clean_data();
+
+        geometry_msgs::msg::TransformStamped T;
+        try {
+            T = tf_buffer_->lookupTransform("odom", "map", tf2::TimePointZero);
+        } catch (const tf2::TransformException &ex) {
+            RCLCPP_WARN(this->get_logger(), "TF map->odom unavailable: %s", ex.what());
+            return; // keep last set
+        }
+
+        for (size_t i = 0; i < map_poses_.size(); ++i) {
+            geometry_msgs::msg::PoseStamped po;
+            tf2::doTransform(map_poses_[i], po, T);
+            const double yaw = tf2::getYaw(po.pose.orientation);
+            local_goal_manager_.add_local_goal(po.pose.position.x, po.pose.position.y, yaw);
+        }
+        obstacle_manager_.local_goals_to_obs(local_goal_manager_);
     }
     visualization_msgs::msg::MarkerArray make_local_goal_markers() {
         visualization_msgs::msg::MarkerArray marker_array;

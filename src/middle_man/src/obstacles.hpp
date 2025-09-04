@@ -33,7 +33,7 @@ struct ObstacleManager {
     }
 
     void set_params(float radius, int num_valid, float offset) {
-    //init values from config.yaml
+        // init values from config.yaml
         RADIUS = radius;
         NUM_VALID_OBSTACLES = num_valid;
         OFFSET = offset;
@@ -68,8 +68,8 @@ struct ObstacleManager {
             Local_Goal current_lg = local_goal_vec[lg_counter];
             Local_Goal next_lg = local_goal_vec[lg_counter + 1];
 
-            std::pair<Obstacle, Obstacle> obs_pair =
-                create_obstacle(current_lg.x_point, current_lg.y_point, next_lg.x_point, next_lg.y_point, OFFSET, RADIUS);
+            std::pair<Obstacle, Obstacle> obs_pair = create_obstacle(current_lg.x_point, current_lg.y_point,
+                                                                     next_lg.x_point, next_lg.y_point, OFFSET, RADIUS);
             add_obstacle(obs_pair.first);
             add_obstacle(obs_pair.second);
 
@@ -78,19 +78,34 @@ struct ObstacleManager {
         return;
     }
     void update_obstacles(Local_Goal_Manager &local_manager_) {
-        if (obstacle_count <= 0) return;
+        if (obstacle_count <= 0)
+            return;
 
         // Current segment index (which local goal we're on)
         int g = local_manager_.get_local_goal_counter();
 
         // Map segment index -> obstacle index range (2 obstacles per segment)
         int start = 2 * g; // first obstacle for this segment
-        int end   = std::min(start + NUM_VALID_OBSTACLES - 1, obstacle_count - 1);
+        int end = std::min(start + NUM_VALID_OBSTACLES - 1, obstacle_count - 1);
 
         // Log (obstacle indices, not goal indices)
-        std::cout << "goal/segment index: " << g
-                  << "  -> active obstacle window: [" << start << ", " << end
-                  << "]  of " << obstacle_count << std::endl;
+        std::cout << "goal/segment index: " << g << "  -> active obstacle window: [" << start << ", " << end << "]  of "
+                  << obstacle_count << std::endl;
+
+        for (int i = 0; i < obstacle_count; ++i) {
+            is_active[i] = (i >= start && i <= end);
+        }
+    }
+
+    void update_obstacles_sliding(Local_Goal_Manager &local_manager_) {
+
+        if (obstacle_count <= 0)
+            return;
+
+        int g = local_manager_.get_local_goal_counter();
+        int start_offset = NUM_VALID_OBSTACLES / 4;
+        int start = 2 * g - start_offset;
+        int end = std::min(start + NUM_VALID_OBSTACLES - 1, obstacle_count - 1);
 
         for (int i = 0; i < obstacle_count; ++i) {
             is_active[i] = (i >= start && i <= end);

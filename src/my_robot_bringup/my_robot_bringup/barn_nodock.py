@@ -748,7 +748,7 @@ class BarnOneShot(Node):
         if distance_remaining < 0.13:
             self.get_logger().info(
                 f"Passed local goal {self.current_lg_counter}")
-            if self.current_lg_counter + 1 <= self.total_lg:
+            if self.current_lg_counter + 1 < self.total_lg:
                 self.current_lg_counter += 1
             if self.current_lg_counter < len(self.gazebo_path.poses):
                 self.current_lg_xy = (self.gazebo_path.poses[self.current_lg_counter].pose.position.x,
@@ -986,7 +986,7 @@ class BarnOneShot(Node):
         path_msg.header.stamp = self.get_clock().now().to_msg()
 
         path_subset = barn_path[3:] # robot swap
-        self.total_lg = len(path_subset)
+        # self.total_lg = len(path_subset)
         for i, element in enumerate(path_subset):
             gazebo_x, gazebo_y = self.path_coord_to_gazebo_coord(element[0], element[1])
 
