@@ -100,7 +100,9 @@ RCLCPP_INFO(this->get_logger(), "Loading config file: %s", config_path.c_str());
     float OFFSET;
     int NUM_VALID_OBSTACLES;
 
-
+    //going to hold all the local goals in map, so that we can apply amcl transform before 
+    //passing local goal to network that has been affected by drfit
+    std::vector<geometry_msgs::msg::PoseStamped> map_poses;
 
     static constexpr double GOAL_THRESHOLD = .5;
 
@@ -255,6 +257,7 @@ RCLCPP_INFO(this->get_logger(), "Loading config file: %s", config_path.c_str());
 
             pose_in_map.header.frame_id = "map";
             pose_in_map.pose = pathMsg->poses[i].pose;
+            map_poses.push_back(pose_in_map);
             try {
                 tf2::doTransform(pose_in_map, pose_in_odom, transform);
 
@@ -424,6 +427,29 @@ RCLCPP_INFO(this->get_logger(), "Loading config file: %s", config_path.c_str());
             // std::cout << "dist to goal is : " << distance << std::endl;
             return 0;
         }
+    }
+
+    Local_Goal transform_map_odom(const geometry_msgs::msg::PoseStamped map_pose) {
+    
+        Local_Goal transformed_lg;    
+        geometry_msgs::msg::PoseStamped pose_in_odom;
+        try {
+            tf2::doTransform(map_pose, pose_in_odom, transform);
+
+            // Extract yaw from quaternion
+            tf2::Quaternion q(pose_in_odom.pose.orientation.x, pose_in_odom.pose.orientation.y,
+                              pose_in_odom.pose.orientation.z, pose_in_odom.pose.orientation.w);
+            double roll, pitch, yaw;
+            tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+            // Add transformed goal to manager
+            transformed_lg.x_point = pose_in_odom.pose.position.x;
+            transformed_lg.y_point = pose_in_odom.pose.position.y;
+            transformed_lg.yaw = yaw);
+        } catch (tf2::TransformException &ex) {
+            RCLCPP_ERROR(this->get_logger(), "Transform error on pose %zu: %s", i, ex.what());
+            continue; // Skip this goal and try the next
+        }
+    return transformed_lg;
     }
     visualization_msgs::msg::MarkerArray make_local_goal_markers() {
         visualization_msgs::msg::MarkerArray marker_array;
