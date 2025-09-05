@@ -101,6 +101,8 @@ class obsValid : public rclcpp::Node {
     float OFFSET;
     int NUM_VALID_OBSTACLES;
 
+    int rebuild_local_goal_counter = 0;
+    const int rebuild_local_goal_limit = 28;
     // going to hold all the local goals in map, so that we can apply amcl transform before
     // passing local goal to network that has been affected by drfit
     std::vector<geometry_msgs::msg::PoseStamped> map_poses_;
@@ -151,7 +153,13 @@ class obsValid : public rclcpp::Node {
         // RCLCPP_INFO(this->get_logger(), "odom (%.2f, %.2f) -> map (%.2f, %.2f) yaw %.2f), map_yaw %.2f", odom_x,
         // odom_y,
         //             map_x, map_y, yaw, map_yaw);
-        rebuild_local_goals();
+        if (rebuild_local_goal_counter >= rebuild_local_goal_limit) {
+
+            rebuild_local_goals();
+            rebuild_local_goal_counter = 0;
+        } else
+            rebuild_local_goal_counter++;
+
         local_goal_manager_.updateLocalGoal(odom_x, odom_y); // local goals have already been converted to odom
         obstacle_manager_.update_obstacles_sliding(local_goal_manager_);
 
@@ -353,28 +361,6 @@ class obsValid : public rclcpp::Node {
             RCLCPP_WARN(this->get_logger(), "No local goals were added after transformation");
         }
         return;
-        // //  RCLCPP_INFO(this->get_logger(), "Our current Odom position is %f %f", odom_x, odom_y);
-        // //  add to local goal manager to create obstacles
-        // if (local_goal_manager_.get_num_lg() > 0) {
-        //     // RCLCPP_INFO(this->get_logger(), "FIRST GOAL VALUES ARE %f and %f",
-        //     //             local_goal_manager_.data_vector[0].x_point,
-        //     //             local_goal_manager_.data_vector[0].y_point);
-        //     // RCLCPP_INFO(this->get_logger(), "SIZE OF LOCAL_GOAL_VECTOR %d",
-        //     // local_goal_manager_.get_num_lg());
-        //     obstacle_manager_.clean_data(); // reset the obstacles array
-        //     obstacle_manager_.local_goals_to_obs(local_goal_manager_);
-        //     local_goal_manager_.set_distance_vector(odom_x, odom_y);
-        //     path_flag = true;
-        //
-        //     GOAL.x_point = local_goal_manager_.data_vector.back().x_point;
-        //     GOAL.y_point = local_goal_manager_.data_vector.back().y_point;
-        //     GOAL.yaw = local_goal_manager_.data_vector.back().yaw;
-        //
-        //     std::cout << "GOAL after setting: (" << GOAL.x_point << ", " << GOAL.y_point << ")" << std::endl;
-        // } else {
-        //     RCLCPP_WARN(this->get_logger(), "No local goals were added after transformation");
-        // }
-        // return;
     }
     void processOdomLidar(const std_msgs::msg::Float64MultiArray &packetIn) {
 
@@ -533,6 +519,7 @@ class obsValid : public rclcpp::Node {
         }
         obstacle_manager_.local_goals_to_obs(local_goal_manager_);
     }
+
     visualization_msgs::msg::MarkerArray make_local_goal_markers() {
         visualization_msgs::msg::MarkerArray marker_array;
 
