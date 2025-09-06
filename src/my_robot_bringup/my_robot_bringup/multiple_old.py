@@ -324,7 +324,7 @@ class Obstacle_Manager():
     def create_all_obstacle(self):
         data = self.local_goal_manager_.data
         for i in range(len(data)-1):
-            self.obstacle_creation(data[i], data[i+1], i=i)
+            self.obstacle_creation_sym(data[i], data[i+1])
         print("All obstacles created")
     # def create_all_obstacle(self):
     #
@@ -512,39 +512,39 @@ class Obstacle_Manager():
     #         cy = my + rad * math.sin(ang)
     #         r  = sample_radius()
     #         self.obstacle_array.append(Obstacle(center_x=cx, center_y=cy, radius=r))
-    # def obstacle_creation(self, current_local_goal, next_local_goal):
-    #
-    #     mid_x = (current_local_goal.pose.position.x +
-    #              next_local_goal.pose.position.x) / 2
-    #     mid_y = (current_local_goal.pose.position.y +
-    #              next_local_goal.pose.position.y) / 2
-    #     dir_x = next_local_goal.pose.position.x - current_local_goal.pose.position.x
-    #     dir_y = next_local_goal.pose.position.y - current_local_goal.pose.position.y
-    #     # Normalize
-    #     length = math.sqrt(dir_x * dir_x + dir_y * dir_y)
-    #
-    #     if (length > 0):
-    #         dir_x /= length
-    #         dir_y /= length
-    #
-    #     perp_x = -dir_y
-    #     perp_y = dir_x
-    #
-    #     offset_x = perp_x * self.OFFSET
-    #     offset_y = perp_y * self.OFFSET
-    #
-    #     ob1 = Obstacle()
-    #     ob1.center_x = mid_x + offset_x
-    #     ob1.center_y = mid_y + offset_y
-    #     ob1.radius = self.RADIUS
-    #
-    #     ob2 = Obstacle()
-    #     ob2.center_x = mid_x - offset_x
-    #     ob2.center_y = mid_y - offset_y
-    #     ob2.radius = self.RADIUS
-    #
-    #     self.obstacle_array.append(ob1)
-    #     self.obstacle_array.append(ob2)
+    def obstacle_creation_sym(self, current_local_goal, next_local_goal):
+        # creates obstacles symetric with no noise
+        mid_x = (current_local_goal.pose.position.x +
+                 next_local_goal.pose.position.x) / 2
+        mid_y = (current_local_goal.pose.position.y +
+                 next_local_goal.pose.position.y) / 2
+        dir_x = next_local_goal.pose.position.x - current_local_goal.pose.position.x
+        dir_y = next_local_goal.pose.position.y - current_local_goal.pose.position.y
+        # Normalize
+        length = math.sqrt(dir_x * dir_x + dir_y * dir_y)
+
+        if (length > 0):
+            dir_x /= length
+            dir_y /= length
+
+        perp_x = -dir_y
+        perp_y = dir_x
+
+        offset_x = perp_x * self.OFFSET
+        offset_y = perp_y * self.OFFSET
+
+        ob1 = Obstacle()
+        ob1.center_x = mid_x + offset_x
+        ob1.center_y = mid_y + offset_y
+        ob1.radius = self.RADIUS
+
+        ob2 = Obstacle()
+        ob2.center_x = mid_x - offset_x
+        ob2.center_y = mid_y - offset_y
+        ob2.radius = self.RADIUS
+
+        self.obstacle_array.append(ob1)
+        self.obstacle_array.append(ob2)
 
 
 class Local_Goal_Manager():
