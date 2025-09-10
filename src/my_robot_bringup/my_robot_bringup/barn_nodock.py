@@ -394,7 +394,7 @@ class BarnOneShot(Node):
             self._nav_sent = True
             self._nav_start_time = time.time()
 
-        elif time.time() - self._nav_start_time > 120.0:
+        elif time.time() - self._nav_start_time > 300.0:
             self.get_logger().warn('Navigation action timed out')
             if self._nav_goal_handle:
                 self._nav_goal_handle.cancel_goal_async()
@@ -861,7 +861,7 @@ class BarnOneShot(Node):
 
         return (gazebo_x, gazebo_y)
 
-    def load_barn_path(self, world_num, resample_step=0.12, smooth_window=5):
+    def load_barn_path(self, world_num, resample_step=0.20, smooth_window=5):
         """
         Load BARN path, convert to Gazebo/map coordinates, resample, smooth,
         compute robust yaw, and build a nav_msgs/Path message.

@@ -324,7 +324,7 @@ class Obstacle_Manager():
     def create_all_obstacle(self):
         data = self.local_goal_manager_.data
         for i in range(len(data)-1):
-            self.obstacle_creation_sym(data[i], data[i+1])
+            self.obstacle_creation(data[i], data[i+1], i=i)
         print("All obstacles created")
     # def create_all_obstacle(self):
     #
@@ -566,6 +566,9 @@ class Local_Goal_Manager():
 
         accumulated_distance = 0.0
         base_threshold = 0.2
+        lo, hi = 0.15, 0.25
+        goal_counter = 0
+        rand_spacing = random.uniform(lo, hi)
         print(f"len of global_path : {len(self.global_path.poses)}")
         for i in range(len(self.global_path.poses)-1):
             current_pose = self.global_path.poses[i]
@@ -600,13 +603,15 @@ class Local_Goal_Manager():
             # Calculate distance with adaptive threshold
             segment_distance = self.distance_between_poses(
                 current_pose, next_pose)
-            adaptive_threshold = base_threshold * curvature_factor
+            adaptive_threshold = rand_spacing * curvature_factor
             # print(f"accumulated_distance is {accumulated_distance}")
             accumulated_distance += segment_distance
             if accumulated_distance >= adaptive_threshold:
                 self.data.append(current_pose)
                 accumulated_distance = 0
-
+                goal_counter+=1
+                if goal_counter % 5 == 0:
+                    rand_spacing = random.uniform(lo, hi)
         print(f"created local goals: {len(self.data)}")
 
     def generate_local_goals(self, global_path):
