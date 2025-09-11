@@ -603,15 +603,15 @@ class Local_Goal_Manager():
             # Calculate distance with adaptive threshold
             segment_distance = self.distance_between_poses(
                 current_pose, next_pose)
-            adaptive_threshold = rand_spacing * curvature_factor
+            adaptive_threshold = base_threshold * curvature_factor
             # print(f"accumulated_distance is {accumulated_distance}")
             accumulated_distance += segment_distance
             if accumulated_distance >= adaptive_threshold:
                 self.data.append(current_pose)
                 accumulated_distance = 0
-                goal_counter+=1
-                if goal_counter % 5 == 0:
-                    rand_spacing = random.uniform(lo, hi)
+                # goal_counter+=1
+                # if goal_counter % 5 == 0:
+                #     rand_spacing = random.uniform(lo, hi)
         print(f"created local goals: {len(self.data)}")
 
     def generate_local_goals(self, global_path):

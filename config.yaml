@@ -18,4 +18,4 @@ RESET_DELAY: 10
 BAG_DKR: "gauss_2"
 
 TRAINING_DKR: "gauss_2_asym_lg_random"
-MODEL_PATH: "created_models/gauss_2_200_sym"
+MODEL_PATH: "created_models/gauss_2_asym_lg_random"
