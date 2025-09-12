@@ -860,6 +860,11 @@ class MapTraining(Node):
         self.NUM_LIDAR = 1080
         self.Obstacle_list = []
 
+        self.SENSOR_YAW_OFFSET = -math.pi/2   # lidar x-axis relative to robot x-axis
+        self.FOV_MIN = -math.pi               # or -math.pi/2 if you’re doing a 180° forward wedge
+        self.FOV_MAX =  math.pi               # or  math.pi/2 for 180°
+        self.LIDAR_MIN_R = 0.164
+        self.LIDAR_MAX_R = 12.0
         self.Obstacle_list = []
         self.dist_between_goals = .2
         # Delay the odom-to-map conversion until TF is ready
@@ -874,7 +879,7 @@ class MapTraining(Node):
             self.input_bag = input_bag_path
         else:
             # Keep your default for backward compatibility
-            self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_15-40-10_gaus"
+            self.input_bag = "/home/mobrob/ros_ws/gauss_2_asym_cap/2025-08-21_19-38-54_gaus"
         # self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_15-40-10_gaus"
 
         self.yaml_reader()
@@ -1259,7 +1264,7 @@ class MapTraining(Node):
         output_folder = f"{self.input_bag}/seg_{seg_index}/input_data"
         os.makedirs(output_folder, exist_ok=True)
 
-        self.current_odom_index = 0
+        self.current_odom_index = seg_index
         counter = 0
 
         self.lidar_header_flag = True
@@ -1268,18 +1273,18 @@ class MapTraining(Node):
         if os.path.exists(lidar_file):
             os.remove(lidar_file)
             print("lidar file")
-        # path_x = [point[0] for point in seg.map_points]
-        # path_y = [point[1] for point in seg.map_points]
 
         frames_folder = f"{output_folder}/frames"
         os.makedirs(frames_folder, exist_ok=True)
 
         for i, map_point in enumerate(seg.map_points):
 
+            path_x = [point[0] for point in seg.map_points[i:i+1000]]
+            path_y = [point[1] for point in seg.map_points[i:i+1000]]
             self.current_odom = (map_point[0], map_point[1])
             seg.local_goal_manager_.current_odom = self.current_odom
             active_obstacles = seg.get_obstacles(i)
-            ray_data = self.ray_tracing(
+            ray_data = self.ray_tracing_capped(
                 seg.global_path.poses[i].pose, seg, active_obstacles)
             self.ray_data_append(filename=f"{output_folder}/lidar_data.csv")
 
@@ -1287,7 +1292,6 @@ class MapTraining(Node):
                 counter += 1
                 self.current_odom_index += 1
                 continue
-            """
             plt.clf()  # clear previous plot
             ax = plt.gca()
             ax.set_aspect('equal')
@@ -1315,7 +1319,7 @@ class MapTraining(Node):
             plt.plot(path_x, path_y, marker='o', linestyle='-',
                      markersize=3, color='black', label='odom path')
             self.draw_rays_claude_2(
-                self.current_odom[0], self.current_odom[1], ray_data, seg)
+                seg.global_path.poses[i].pose.position.x, seg.global_path.poses[i].pose.position.y, ray_data, self.get_yaw(seg.global_path.poses[i].pose))
             # save the frame
 
             frame_path = f"{frames_folder}/frame_{counter:03d}.png"
@@ -1323,8 +1327,7 @@ class MapTraining(Node):
             plt.savefig(frame_path)
 
         plt.close()
-            """
-            self.current_odom_index += 1
+        self.current_odom_index += 1
         print("done with main loop")
 
     def create_segments(self, map_points):
@@ -1441,54 +1444,144 @@ class MapTraining(Node):
         # plt.show()
         return plt.gcf()  # Return the figure if you want to save it later
 
-    def draw_rays_claude_2(self, odom_x, odom_y, lidar_readings, segment):
-        # Get robot's yaw from the current pose (you need to pass this as a parameter)
-        robot_yaw = self.get_yaw(
-            segment.global_path.poses[self.current_odom_index].pose)
+    # def draw_rays_claude_2(self, odom_x, odom_y, lidar_readings, segment):
+    #     # Get robot's yaw from the current pose (you need to pass this as a parameter)
+    #     robot_yaw = self.get_yaw(
+    #         segment.global_path.poses[self.current_odom_index].pose)
+    #
+    #     # Define lidar offset relative to robot (90 degrees = π/2 radians)
+    #     lidar_offset = -math.pi/2
+    #
+    #     # Draw rays
+    #     for lidar_counter in range(self.NUM_LIDAR):
+    #         # Calculate ray angle in the global frame
+    #         lidar_angle = lidar_counter * (2*np.pi / self.NUM_LIDAR)
+    #         global_angle = robot_yaw + lidar_angle + lidar_offset
+    #         global_angle = self.normalize_angle(global_angle)
+    #
+    #         distance = lidar_readings[lidar_counter]
+    #
+    #         # Ensure reasonable distance values
+    #         if distance <= 0.001 or distance >= 12.0:  # Likely invalid value
+    #             continue
+    #
+    #         # Draw a single line from robot to endpoint using the global angle
+    #         projection_x = odom_x + distance * math.cos(global_angle)
+    #         projection_y = odom_y + distance * math.sin(global_angle)
+    #
+    #         # Individual rays should be single lines, not connected
+    #
+    #         plt.plot([odom_x, projection_x], [odom_y, projection_y],
+    #                  linestyle='-', color='green', linewidth=0.5)
+    #
+    #     # Optionally draw the robot's orientation and lidar frame
+    #     arrow_length = 1.0
+    #
+    #     # Draw robot orientation (in red)
+    #     dx_robot = arrow_length * math.cos(robot_yaw)
+    #     dy_robot = arrow_length * math.sin(robot_yaw)
+    #     plt.arrow(odom_x, odom_y, dx_robot, dy_robot,
+    #               head_width=0.1, head_length=0.15, fc='red', ec='red', label='Robot Heading')
+    #
+    #     # Draw lidar orientation (in orange)
+    #     lidar_direction = robot_yaw + lidar_offset
+    #     dx_lidar = arrow_length * math.cos(lidar_direction)
+    #     dy_lidar = arrow_length * math.sin(lidar_direction)
+    #     plt.arrow(odom_x, odom_y, dx_lidar, dy_lidar,
+    #               head_width=0.1, head_length=0.15, fc='black', ec='black', label='Lidar Direction')
+    #
+    #     print("Done drawing rays")
+    def draw_rays_claude_2(self, odom_x, odom_y, scan, yaw):
+        OFF = -math.pi/2
+        RMIN, RMAX = 0.164, 12.0
+        inc = 2*math.pi / self.NUM_LIDAR   # must match tracer
 
-        # Define lidar offset relative to robot (90 degrees = π/2 radians)
-        lidar_offset = -math.pi/2
-
-        # Draw rays
-        for lidar_counter in range(self.NUM_LIDAR):
-            # Calculate ray angle in the global frame
-            lidar_angle = lidar_counter * (2*np.pi / self.NUM_LIDAR)
-            global_angle = robot_yaw + lidar_angle + lidar_offset
-            global_angle = self.normalize_angle(global_angle)
-
-            distance = lidar_readings[lidar_counter]
-
-            # Ensure reasonable distance values
-            if distance <= 0.001 or distance > 50.0:  # Likely invalid value
+        for k, r in enumerate(scan):
+            if r <= RMIN + 1e-6 or r >= RMAX - 1e-6:
                 continue
+            theta = yaw + OFF + k*inc
+            x = odom_x + r*math.cos(theta)
+            y = odom_y + r*math.sin(theta)
+            plt.plot([odom_x, x], [odom_y, y], '-', color='green', linewidth=0.5)
 
-            # Draw a single line from robot to endpoint using the global angle
-            projection_x = odom_x + distance * math.cos(global_angle)
-            projection_y = odom_y + distance * math.sin(global_angle)
-
-            # Individual rays should be single lines, not connected
-
-            plt.plot([odom_x, projection_x], [odom_y, projection_y],
-                     linestyle='-', color='green', linewidth=0.5)
-
-        # Optionally draw the robot's orientation and lidar frame
-        arrow_length = 1.0
-
-        # Draw robot orientation (in red)
-        dx_robot = arrow_length * math.cos(robot_yaw)
-        dy_robot = arrow_length * math.sin(robot_yaw)
-        plt.arrow(odom_x, odom_y, dx_robot, dy_robot,
-                  head_width=0.1, head_length=0.15, fc='red', ec='red', label='Robot Heading')
-
-        # Draw lidar orientation (in orange)
-        lidar_direction = robot_yaw + lidar_offset
-        dx_lidar = arrow_length * math.cos(lidar_direction)
-        dy_lidar = arrow_length * math.sin(lidar_direction)
-        plt.arrow(odom_x, odom_y, dx_lidar, dy_lidar,
-                  head_width=0.1, head_length=0.15, fc='black', ec='black', label='Lidar Direction')
-
-        print("Done drawing rays")
-
+        # arrows: robot +x (red) and beam 0 / angle_min (black)
+        plt.arrow(odom_x, odom_y, math.cos(yaw),         math.sin(yaw),
+                  head_width=0.1, head_length=0.15, fc='red', ec='red')
+        plt.arrow(odom_x, odom_y, math.cos(yaw+OFF),     math.sin(yaw+OFF),
+                  head_width=0.1, head_length=0.15, fc='black', ec='black')
+        plt.gca().set_aspect('equal', adjustable='box')
+    # def draw_rays_claude_2(self, odom_x, odom_y, lidar_readings, segment):
+    #     yaw = self.get_yaw(segment.global_path.poses[self.current_odom_index].pose)
+    #
+    #     FOV_MIN = self.FOV_MIN
+    #     FOV_MAX = self.FOV_MAX
+    #     RMIN = self.LIDAR_MIN_R
+    #     RMAX = self.LIDAR_MAX_R
+    #
+    #     n = len(lidar_readings)
+    #     if n < 2:
+    #         return
+    #     inc = (2*math.pi) / self.NUM_LIDAR  # == (FOV_MAX - FOV_MIN)/(n-1)
+    #     OFF= -math.pi /2.0
+    #     for i, r in enumerate(lidar_readings):
+    #         if r <= RMIN + 1e-6 or r >= RMAX - 1e-6:
+    #             continue
+    #
+    #         # angle in SENSOR frame, then to WORLD with yaw + mounting offset
+    #         ang_sensor = i * inc
+    #         ang_world  = self.normalize_angle(yaw + OFF + ang_sensor)
+    #
+    #         x = odom_x + r * math.cos(ang_world)
+    #         y = odom_y + r * math.sin(ang_world)
+    #         plt.plot([odom_x, x], [odom_y, y], '-', color='green', linewidth=0.5)
+    #
+    #     # robot +x (forward) arrow in red
+    #     plt.arrow(odom_x, odom_y, math.cos(yaw), math.sin(yaw),
+    #               head_width=0.1, head_length=0.15, fc='red', ec='red', label='Robot heading')
+    #
+    #     # angle_min direction in black (exactly matches how we index rays)
+    #     ang_min_world = self.normalize_angle(yaw + OFF + FOV_MIN)
+    #     plt.arrow(odom_x, odom_y, math.cos(ang_min_world), math.sin(ang_min_world),
+    #               head_width=0.1, head_length=0.15, fc='black', ec='black', label='LiDAR angle_min')
+    #
+    #     plt.gca().set_aspect('equal', adjustable='box')
+    #
+    # def draw_rays_claude_2(self, odom_x, odom_y, lidar_readings, segment):
+    #     # current pose/yaw
+    #     robot_yaw = self.get_yaw(segment.global_path.poses[self.current_odom_index].pose)
+    #
+    #     # same FOV and offset as the tracer
+    #     inc = (2*math.pi / self.NUM_LIDAR )
+    #
+    #     for i in range(self.NUM_LIDAR):
+    #         # angle of this ray in the ROBOT frame
+    #         ang_r = -math.pi + i * inc
+    #         # convert to WORLD frame
+    #         global_angle = self.normalize_angle(robot_yaw + -math.pi/2 + ang_r)
+    #
+    #         r = lidar_readings[i]
+    #         # skip hits outside sensor range
+    #         if r <= .164 + 1e-6 or r >= 12 - 1e-6:
+    #             continue
+    #
+    #         x = odom_x + r * math.cos(global_angle)
+    #         y = odom_y + r * math.sin(global_angle)
+    #         plt.plot([odom_x, x], [odom_y, y], '-', color='green', linewidth=0.5)
+    #
+    #     # robot forward (+x in robot frame) in red
+    #     dx_robot = math.cos(robot_yaw)
+    #     dy_robot = math.sin(robot_yaw)
+    #     plt.arrow(odom_x, odom_y, dx_robot, dy_robot,
+    #               head_width=0.1, head_length=0.15, fc='red', ec='red', label='Robot Heading')
+    #
+    #     # black arrow = angle_min direction
+    #     angle_min_world = self.normalize_angle(robot_yaw + -math.pi/2 -math.pi)
+    #     plt.arrow(odom_x, odom_y, math.cos(angle_min_world), math.sin(angle_min_world),
+    #               head_width=0.1, head_length=0.15, fc='black', ec='black', label='Lidar angle_min')
+    #
+    #     # keep geometry from looking stretched
+    #     ax = plt.gca()
+    #     ax.set_aspect('equal', adjustable='box')
     def is_pose_in_map_points(self, pose_stamped, map_points, tolerance=0.01):
         """Check if a PoseStamped exists in map points within tolerance"""
         pose_x = pose_stamped.pose.position.x
@@ -1700,6 +1793,86 @@ class MapTraining(Node):
     #             local_data[index] = min_distance
     #     self.get_logger().info("Calculated distances")
     #     return local_data
+    def ray_tracing_capped(self, pose, segment, active_obstacles):
+        """
+        LiDAR with planar front cap: x_r <= FRONT_CAP_X (robot frame),
+        so the far boundary appears as a straight line at 3 m ahead.
+        """
+        # --- sensor + cap params ---
+        MIN_R = 0.164
+        MAX_R = 12.0            # sensor hard max (keep it large)
+        FRONT_CAP_X = 3.0       # meters straight ahead in robot frame
+        FOV_MIN = -math.pi  # front FOV (adjust if needed)
+        FOV_MAX =  math.pi
+        EPS = 1e-9
+
+        # noise/dropouts (your values, tweak as needed)
+        noise_drop_prob = 0.10
+        base_sigma = 0.003
+
+        distances = [MAX_R] * self.NUM_LIDAR
+
+        x0 = pose.position.x
+        y0 = pose.position.y
+        yaw = self.get_yaw(pose)
+
+        # forward unit vector (robot x-axis in world)
+        fx, fy = math.cos(yaw), math.sin(yaw)
+
+        # angular sampling across front FOV
+        inc = (2 * math.pi) / self.NUM_LIDAR
+
+        for i in range(self.NUM_LIDAR):
+            ang = self.normalize_angle(yaw+(-math.pi/2)+i*inc)
+            # ray direction in world
+            dx = math.cos(ang)
+            dy = math.sin(ang)
+
+            # ---------- circle intersections (environment) ----------
+            best = MAX_R
+            for obs in active_obstacles:
+                Cx, Cy, r = obs.center_x, obs.center_y, obs.radius
+                mx = x0 - Cx
+                my = y0 - Cy
+                a = dx*dx + dy*dy            # = 1 but keep for clarity
+                b = 2.0 * (mx*dx + my*dy)
+                c = mx*mx + my*my - r*r
+                disc = b*b - 4.0*a*c
+                if disc < 0.0:
+                    continue
+                s = math.sqrt(disc)
+                t1 = (-b - s) / (2.0*a)
+                t2 = (-b + s) / (2.0*a)
+                if t1 > EPS and t1 < best: best = t1
+                if t2 > EPS and t2 < best: best = t2
+
+            # ---------- planar front cap: x_r <= FRONT_CAP_X ----------
+            # projection of ray direction onto forward axis
+            cdir = dx*fx + dy*fy   # cos(angle between ray & forward)
+            # If ray points forward, intersect with plane x_r = FRONT_CAP_X at distance t_plane
+            if cdir > 1e-6:
+                t_plane = FRONT_CAP_X / cdir
+                # Limit by the front plane
+                if t_plane < best:
+                    best = t_plane
+            else:
+                # Ray is sideways/backward; treat as no return inside front cap
+                best = MAX_R
+
+            # ---------- noise + clamping ----------
+            r = max(MIN_R, min(best, MAX_R))
+            # add mild, range-dependent noise when valid hit
+            if MIN_R + 1e-6 < r < MAX_R - 1e-6:
+                sigma = base_sigma * (1.0 + 0.4 * (r / FRONT_CAP_X))
+                if random.random() >= noise_drop_prob:
+                    r += random.gauss(0.0, sigma)
+                r = max(MIN_R, min(r, MAX_R))
+
+            distances[i] = r
+
+        self.distances = distances
+        self.get_logger().info("Calculated distances (front-cap)")
+        return distances
     def ray_tracing(self, pose, segment, active_obstacles):
         """
         Return one LiDAR scan (len = self.NUM_LIDAR) with circle intersections.
