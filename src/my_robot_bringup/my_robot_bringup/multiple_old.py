@@ -224,7 +224,7 @@ class Obstacle_Manager():
         """Select obstacles based on distance to the current robot position."""
         # Get current robot position
         robot_pos = self.local_goal_manager_.current_odom
-        print(f"active obstacles reference to where it is {robot_pos}")
+        # print(f"active obstacles reference to where it is {robot_pos}")
         # Calculate distance to each obstacle
         obstacles_with_distance = []
         for obs in self.obstacle_array:
@@ -280,7 +280,7 @@ class Obstacle_Manager():
             else:
                 dropped += 1
         self.obstacle_array = kept
-        print(f"[Obstacle prune] kept {len(kept)}, dropped {dropped} (too close to path)")
+        # print(f"[Obstacle prune] kept {len(kept)}, dropped {dropped} (too close to path)")
     def calculate_min_distance_to_path(self, x, y, path_points):
             """Calculate minimum distance from point (x,y) to the path."""
             min_dist = float('inf')
@@ -324,8 +324,8 @@ class Obstacle_Manager():
     def create_all_obstacle(self):
         data = self.local_goal_manager_.data
         for i in range(len(data)-1):
-            # self.obstacle_creation(data[i], data[i+1], i=i)
-            self.obstacle_creation_sym(data[i], data[i+1])
+            self.obstacle_creation(data[i], data[i+1], i=i)
+            # self.obstacle_creation_sym(data[i], data[i+1])
         print("All obstacles created")
     # def create_all_obstacle(self):
     #
@@ -638,7 +638,7 @@ class Local_Goal_Manager():
             # Calculate distance between consecutive points
             segment_distance = self.distance_between_poses(
                 current_pose, next_pose)
-            print(segment_distance)
+            # print(segment_distance)
             accumulated_distance += segment_distance
             # Add points at regular intervals
             if accumulated_distance >= threshold_distance:
@@ -725,7 +725,7 @@ class Local_Goal_Manager():
                 if self.data[self.current_lg_counter].pose.position.x:
                     self.current_lg = (self.data[self.current_lg_counter].pose.position.x,
                                        self.data[self.current_lg_counter].pose.position.y)
-            print("Have updated current local goal:")
+            # print("Have updated current local goal:")
         else:
             # Check if the *next* local goal is even closer
             next_lg_counter = self.current_lg_counter + 1
@@ -1161,11 +1161,13 @@ class MapTraining(Node):
         self.plot_odometry_path(self.segments[-1])
 
         # return
-        # for i, seg in enumerate(self.segments):
-        #     print(
-        #         f"checking start and end index : {seg.start_index} and {seg.end_index}")
-        #     self.per_seg_loop_once(seg, i)
-        #     print(f"done with seg : {i}")
+        for i, seg in enumerate(self.segments):
+            print(
+                f"checking start and end index : {seg.start_index} and {seg.end_index}")
+            self.per_seg_loop_once(seg, i)
+            print(f"done with seg : {i}")
+
+        print(f"input bag is : {self.input_bag}")
         # self.main_loop()
 
     def setup(self):
@@ -1853,8 +1855,8 @@ class MapTraining(Node):
         """
         # --- sensor + cap params ---
         MIN_R = 0.164
-        MAX_R = 12.0            # sensor hard max (keep it large)
-        FRONT_CAP_X = 3.0       # meters straight ahead in robot frame
+        MAX_R = 1.0            # sensor hard max (keep it large)
+        FRONT_CAP_X = 1.0       # meters straight ahead in robot frame
         FOV_MIN = -math.pi  # front FOV (adjust if needed)plot
         FOV_MAX =  math.pi
         EPS = 1e-9
@@ -1908,9 +1910,9 @@ class MapTraining(Node):
                 # Limit by the front plane
                 if t_plane < best:
                     best = t_plane
-            else:
-                # Ray is sideways/backward; treat as no return inside front cap
-                best = MAX_R
+            # else:
+            #     # Ray is sideways/backward; treat as no return inside front cap
+            #     best = MAX_R
 
             # ---------- noise + clamping ----------
             r = max(MIN_R, min(best, MAX_R))

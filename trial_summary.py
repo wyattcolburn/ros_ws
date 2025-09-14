@@ -7,6 +7,17 @@ import math
 import matplotlib.pyplot as plt
 import sys
 
+import matplotlib as mpl
+mpl.rcParams.update({
+    "font.size": 13,        # base size
+    "axes.titlesize": 15,
+    "axes.labelsize": 13,
+    "xtick.labelsize": 11,
+    "ytick.labelsize": 11,
+    "legend.fontsize": 11,
+    "pdf.fonttype": 42,     # embed fonts nicely for LaTeX
+    "ps.fonttype": 42,
+})
 # ---- CONFIG ----
 # Usage: python trial_summary.py /path/to/dir
 if len(sys.argv) < 2:
