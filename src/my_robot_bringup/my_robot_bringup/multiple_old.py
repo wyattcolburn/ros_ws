@@ -324,7 +324,8 @@ class Obstacle_Manager():
     def create_all_obstacle(self):
         data = self.local_goal_manager_.data
         for i in range(len(data)-1):
-            self.obstacle_creation(data[i], data[i+1], i=i)
+            # self.obstacle_creation(data[i], data[i+1], i=i)
+            self.obstacle_creation_sym(data[i], data[i+1])
         print("All obstacles created")
     # def create_all_obstacle(self):
     #
@@ -1152,15 +1153,19 @@ class MapTraining(Node):
         self.current_odom = (self.map_points[0][0], self.map_points[0][1])
         self.segments = self.create_segments(self.map_points)
 
-        # self.create_excels(self.segments), only do this if not cached
+        self.create_excels(self.segments)
 
         # Does not work, must do one by one ??, need to fix
         # self.per_seg_loop_once(self.segments[2], 2)
-        for i, seg in enumerate(self.segments):
-            print(
-                f"checking start and end index : {seg.start_index} and {seg.end_index}")
-            self.per_seg_loop_once(seg, i)
-            print(f"done with seg : {i}")
+
+        self.plot_odometry_path(self.segments[-1])
+
+        # return
+        # for i, seg in enumerate(self.segments):
+        #     print(
+        #         f"checking start and end index : {seg.start_index} and {seg.end_index}")
+        #     self.per_seg_loop_once(seg, i)
+        #     print(f"done with seg : {i}")
         # self.main_loop()
 
     def setup(self):
@@ -1403,6 +1408,54 @@ class MapTraining(Node):
         self.plot_segments(segments)
 
         return segments
+
+    def plot_odometry_path(self, segment):
+        import matplotlib.pyplot as plt
+        from matplotlib.patches import Circle           # <-- import patches
+        from matplotlib.lines import Line2D   
+        path_x = [p[0] for p in segment.map_points]
+        path_y = [p[1] for p in segment.map_points]
+
+        local_goal_data = segment.local_goal_manager_.data
+    
+        local_goal_data_x = [p.pose.position.x for p in local_goal_data]
+        local_goal_data_y = [p.pose.position.y for p in local_goal_data]
+        
+        fig, ax = plt.subplots(figsize=(6, 6))      # square figure
+        ax.plot(path_x, path_y, lw=2, label="Odometry Path")
+
+        ax.scatter(local_goal_data_x[::2], local_goal_data_y[::2],
+           s=10, marker='o', facecolors='none', edgecolors='tab:orange',
+           linewidths=1.2, label="Local Goals", zorder=3)
+        # square axes (equal units on x/y) and square data window
+        ax.set_aspect('equal', adjustable='box')    # or: ax.set_box_aspect(1)
+        for obs in segment.obstacle_manager_.obstacle_array:
+            ax.add_patch(Circle((obs.center_x, obs.center_y),
+                                radius=obs.radius, fill=False, edgecolor='red', linewidth=1.5))
+
+        # make a proxy legend handle that *looks* like a red circle
+
+        xmin, xmax = min(path_x)-1, max(path_x)+1
+        ymin, ymax = min(path_y)-1, max(path_y) +1
+        dx, dy = (xmax - xmin), (ymax - ymin)
+        R = max(dx, dy)
+        cx, cy = (xmin + xmax)/2, (ymin + ymax)/2
+        ax.set_xlim(cx - R/2, cx + R/2)
+        ax.set_ylim(cy - R/2, cy + R/2)
+
+        ax.set_title('Odometry Path with Local Goals'); ax.set_xlabel('odom_x'); ax.set_ylabel('odom_y')
+        ax.grid(True, linewidth=0.5, alpha=0.3)
+        circle_proxy = Line2D([0],[0], marker='o', linestyle='None',
+                              markerfacecolor='none', markeredgecolor='red',
+                              markeredgewidth=1.5, markersize=8, label='Obstacle')
+
+        handles, labels = ax.get_legend_handles_labels()
+        handles.append(circle_proxy); labels.append('Obstacle')
+        ax.legend(handles, labels, loc='best', frameon=True)
+        out_path = os.path.join(self.input_bag if os.path.isdir(self.input_bag)
+                                else os.path.dirname(self.input_bag), "odometry_path_local_goals.png")
+        fig.savefig(out_path, dpi=400, bbox_inches="tight")
+        plt.close(fig)
 
     def plot_segments(self, segments):
         plt.figure(figsize=(10, 8))
@@ -1802,7 +1855,7 @@ class MapTraining(Node):
         MIN_R = 0.164
         MAX_R = 12.0            # sensor hard max (keep it large)
         FRONT_CAP_X = 3.0       # meters straight ahead in robot frame
-        FOV_MIN = -math.pi  # front FOV (adjust if needed)
+        FOV_MIN = -math.pi  # front FOV (adjust if needed)plot
         FOV_MAX =  math.pi
         EPS = 1e-9
 

@@ -4,7 +4,7 @@
 #include "local_goal.hpp"
 #include "obstacles.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-
+#include <algorithm> // for std::clamp
 #include <cmath>
 constexpr float kPi = 3.14159265358979323846f;
 
@@ -71,6 +71,132 @@ void map_compute_lidar_distances(double map_origin_x, double map_origin_y, doubl
 
         // Test against each obstacle
         for (int obs = 0; obs < num_obstacles; obs++) {
+            // Get obstacle data
+            //
+            // std::cout << "looking at obstacle : " << obs << std::endl;
+            float Cx = map_obs_array[obs].center_x;
+            float Cy = map_obs_array[obs].center_y;
+            float radius = map_obs_array[obs].radius;
+
+            // Compute ray-circle intersection
+            float mx = map_origin_x - Cx;
+            float my = map_origin_y - Cy;
+            float a = dx * dx + dy * dy;
+            float b = 2.0f * (mx * dx + my * dy);
+            float c = mx * mx + my * my - radius * radius;
+
+            // Compute discriminant
+            float discriminant = b * b - 4.0f * a * c;
+            // std::cout << "discriminant" << discriminant << std::endl;
+            if (discriminant >= 0.0f) {
+                // Has intersection(s)
+                float sqrt_discriminant = sqrtf(discriminant);
+                float t1 = (-b - sqrt_discriminant) / (2.0f * a);
+                float t2 = (-b + sqrt_discriminant) / (2.0f * a);
+
+                // Find closest valid intersection
+                if (t1 > 0.0f && t1 < distances[index]) {
+                    distances[index] = t1;
+                }
+
+                if (t2 > 0.0f && t2 < distances[index]) {
+                    distances[index] = t2;
+                }
+            }
+        }
+
+        // If no intersection was found, mark with -1
+        if (distances[index] == std::numeric_limits<float>::max()) {
+            distances[index] = MAX_RANGE;
+        }
+    }
+}
+void map_compute_lidar_distances_cap(double map_origin_x, double map_origin_y, double map_yaw, int num_lidar_readings,
+                                     ObstacleManager &local_manager_, double *distances, tf2_ros::Buffer &tf_buffer)
+
+{
+
+    geometry_msgs::msg::TransformStamped transform_stamped;
+    try {
+        transform_stamped = tf_buffer.lookupTransform("map", "odom", rclcpp::Time(0));
+    } catch (tf2::TransformException &ex) {
+        return;
+    }
+
+    int num_obstacles;
+    const Obstacle *active_obstacles = local_manager_.get_active_obstacles(num_obstacles);
+
+    std::vector<Obstacle> raytrace_obs;
+    raytrace_obs.reserve(num_obstacles + 3);
+
+    double dist_to_origin = 0;
+    int furthest_counter_1 = 0;
+    int furthest_counter_2 = 0;
+    for (int i = 0; i < num_obstacles; i++) {
+        Obstacle current;
+        current.center_x = active_obstacles[i].center_x;
+        current.center_y = active_obstacles[i].center_y;
+        current.radius = active_obstacles[i].radius;
+        double dist = std::hypot(current.center_x - map_origin_x,
+                                 current.center_y - map_origin_y); // sqrt(dx*dx + dy*dy)
+        if (dist > dist_to_origin) {
+            dist_to_origin = dist;
+            furthest_counter_2 = furthest_counter_1;
+            furthest_counter_1 = i;
+        }
+
+        raytrace_obs.push_back(current);
+    }
+
+    Obstacle last_obs_1 = active_obstacles[furthest_counter_1];
+    Obstacle last_obs_2 = active_obstacles[furthest_counter_2];
+
+    Obstacle last_middle;
+    last_middle.center_x = (last_obs_1.center_x + last_obs_2.center_x) / 2;
+    last_middle.center_y = (last_obs_1.center_y + last_obs_2.center_y) / 2;
+    last_middle.radius = last_obs_1.radius;
+
+    raytrace_obs.push_back(last_middle);
+    Obstacle map_obs_array[num_obstacles + 3];
+    for (int obs_counter = 0; obs_counter < num_obstacles + 3; obs_counter++) {
+        // Create the point to transform
+        geometry_msgs::msg::PointStamped obs_point_msg;
+        obs_point_msg.header.frame_id = "odom";
+        obs_point_msg.header.stamp = rclcpp::Time(0);
+        obs_point_msg.point.x = raytrace_obs[obs_counter].center_x;
+        obs_point_msg.point.y = raytrace_obs[obs_counter].center_y;
+        obs_point_msg.point.z = 0.0;
+
+        try {
+            // Transform the point
+            geometry_msgs::msg::PointStamped map_point_msg = tf_buffer.transform(obs_point_msg, "map");
+
+            // Store the transformed point
+            map_obs_array[obs_counter].center_x = map_point_msg.point.x;
+            map_obs_array[obs_counter].center_y = map_point_msg.point.y;
+            map_obs_array[obs_counter].radius = raytrace_obs[obs_counter].radius;
+        } catch (tf2::TransformException &ex) {
+        }
+    }
+
+    float angle_step = 2.0f * kPi / num_lidar_readings;
+    std::cout << "have computed all the angles for lidar cast" << std::endl;
+    // For each ray direction
+    for (int index = 0; index < num_lidar_readings; index++) {
+        // Initialize to max distance to find closest
+        distances[index] = std::numeric_limits<float>::max();
+
+        // Calculate direction vector for this ray
+        float theta_prev = map_yaw - M_PI / 2 + angle_step * index;
+
+        float theta = normalize_angle(theta_prev);
+
+        // std::cout << "num lidar : " << num_lidar_readings << std::endl;
+        float dx = cosf(theta);
+        float dy = sinf(theta);
+
+        // Test against each obstacle
+        for (int obs = 0; obs < num_obstacles + 3; obs++) {
             // Get obstacle data
             //
             // std::cout << "looking at obstacle : " << obs << std::endl;

@@ -170,8 +170,8 @@ class obsValid : public rclcpp::Node {
         auto marker_array = make_markers(obs_list, static_cast<size_t>(num_obs));
         marker_pub_->publish(marker_array);
 
-        map_compute_lidar_distances(map_x, map_y, map_yaw, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges,
-                                    *tf_buffer_);
+        map_compute_lidar_distances_cap(map_x, map_y, map_yaw, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges,
+                                        *tf_buffer_);
         processPacketOut();
 
         int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
@@ -499,7 +499,6 @@ class obsValid : public rclcpp::Node {
     }
 
     void rebuild_local_goals() {
-
         local_goal_manager_.clean_data(); // get rid of all data
         obstacle_manager_.clean_data();
 
