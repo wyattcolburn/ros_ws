@@ -111,11 +111,13 @@ void map_compute_lidar_distances(double map_origin_x, double map_origin_y, doubl
         }
     }
 }
+
 void map_compute_lidar_distances_cap(double map_origin_x, double map_origin_y, double map_yaw, int num_lidar_readings,
                                      ObstacleManager &local_manager_, double *distances, tf2_ros::Buffer &tf_buffer)
 
 {
 
+    double max_range_cap = 1.0;
     geometry_msgs::msg::TransformStamped transform_stamped;
     try {
         transform_stamped = tf_buffer.lookupTransform("map", "odom", rclcpp::Time(0));
@@ -126,45 +128,14 @@ void map_compute_lidar_distances_cap(double map_origin_x, double map_origin_y, d
     int num_obstacles;
     const Obstacle *active_obstacles = local_manager_.get_active_obstacles(num_obstacles);
 
-    std::vector<Obstacle> raytrace_obs;
-    raytrace_obs.reserve(num_obstacles + 3);
-
-    double dist_to_origin = 0;
-    int furthest_counter_1 = 0;
-    int furthest_counter_2 = 0;
-    for (int i = 0; i < num_obstacles; i++) {
-        Obstacle current;
-        current.center_x = active_obstacles[i].center_x;
-        current.center_y = active_obstacles[i].center_y;
-        current.radius = active_obstacles[i].radius;
-        double dist = std::hypot(current.center_x - map_origin_x,
-                                 current.center_y - map_origin_y); // sqrt(dx*dx + dy*dy)
-        if (dist > dist_to_origin) {
-            dist_to_origin = dist;
-            furthest_counter_2 = furthest_counter_1;
-            furthest_counter_1 = i;
-        }
-
-        raytrace_obs.push_back(current);
-    }
-
-    Obstacle last_obs_1 = active_obstacles[furthest_counter_1];
-    Obstacle last_obs_2 = active_obstacles[furthest_counter_2];
-
-    Obstacle last_middle;
-    last_middle.center_x = (last_obs_1.center_x + last_obs_2.center_x) / 2;
-    last_middle.center_y = (last_obs_1.center_y + last_obs_2.center_y) / 2;
-    last_middle.radius = last_obs_1.radius;
-
-    raytrace_obs.push_back(last_middle);
-    Obstacle map_obs_array[num_obstacles + 3];
-    for (int obs_counter = 0; obs_counter < num_obstacles + 3; obs_counter++) {
+    Obstacle map_obs_array[num_obstacles];
+    for (int obs_counter = 0; obs_counter < num_obstacles; obs_counter++) {
         // Create the point to transform
         geometry_msgs::msg::PointStamped obs_point_msg;
         obs_point_msg.header.frame_id = "odom";
         obs_point_msg.header.stamp = rclcpp::Time(0);
-        obs_point_msg.point.x = raytrace_obs[obs_counter].center_x;
-        obs_point_msg.point.y = raytrace_obs[obs_counter].center_y;
+        obs_point_msg.point.x = active_obstacles[obs_counter].center_x;
+        obs_point_msg.point.y = active_obstacles[obs_counter].center_y;
         obs_point_msg.point.z = 0.0;
 
         try {
@@ -174,7 +145,7 @@ void map_compute_lidar_distances_cap(double map_origin_x, double map_origin_y, d
             // Store the transformed point
             map_obs_array[obs_counter].center_x = map_point_msg.point.x;
             map_obs_array[obs_counter].center_y = map_point_msg.point.y;
-            map_obs_array[obs_counter].radius = raytrace_obs[obs_counter].radius;
+            map_obs_array[obs_counter].radius = active_obstacles[obs_counter].radius;
         } catch (tf2::TransformException &ex) {
         }
     }
@@ -196,7 +167,7 @@ void map_compute_lidar_distances_cap(double map_origin_x, double map_origin_y, d
         float dy = sinf(theta);
 
         // Test against each obstacle
-        for (int obs = 0; obs < num_obstacles + 3; obs++) {
+        for (int obs = 0; obs < num_obstacles; obs++) {
             // Get obstacle data
             //
             // std::cout << "looking at obstacle : " << obs << std::endl;
@@ -230,14 +201,14 @@ void map_compute_lidar_distances_cap(double map_origin_x, double map_origin_y, d
                 }
             }
         }
+        distances[index] = std::clamp(distances[index], MIN_RANGE, max_range_cap);
 
         // If no intersection was found, mark with -1
-        if (distances[index] == std::numeric_limits<float>::max()) {
-            distances[index] = MAX_RANGE;
-        }
+        // if (distances[index] == std::numeric_limits<float>::max()) {
+        //     distances[index] = MAX_RANGE;
+        // }
     }
 }
-
 void compute_lidar_distances(double ray_origin_x, double ray_origin_y, int num_lidar_readings,
                              ObstacleManager &local_manager, double *distances) {
 

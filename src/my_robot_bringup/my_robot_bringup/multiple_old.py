@@ -1856,7 +1856,7 @@ class MapTraining(Node):
         # --- sensor + cap params ---
         MIN_R = 0.164
         MAX_R = 1.0            # sensor hard max (keep it large)
-        FRONT_CAP_X = 1.0       # meters straight ahead in robot frame
+        FRONT_CAP_X = 2.0       # meters straight ahead in robot frame
         FOV_MIN = -math.pi  # front FOV (adjust if needed)plot
         FOV_MAX =  math.pi
         EPS = 1e-9
