@@ -1291,7 +1291,7 @@ class MapTraining(Node):
             self.current_odom = (map_point[0], map_point[1])
             seg.local_goal_manager_.current_odom = self.current_odom
             active_obstacles = seg.get_obstacles(i)
-            ray_data = self.ray_tracing_capped(
+            ray_data = self.ray_tracing(
                 seg.global_path.poses[i].pose, seg, active_obstacles)
             self.ray_data_append(filename=f"{output_folder}/lidar_data.csv")
 
