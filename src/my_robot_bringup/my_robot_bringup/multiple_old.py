@@ -524,81 +524,6 @@ class Obstacle_Manager():
                          my + rad * math.sin(ang),
                          self.RADIUS * (r_lo + (r_hi - r_lo) * self._rng.random()))
             )
-    # def obstacle_creation(self, current_local_goal, next_local_goal):
-    #     # mid-point
-    #     x1 = current_local_goal.pose.position.x
-    #     y1 = current_local_goal.pose.position.y
-    #     x2 = next_local_goal.pose.position.x
-    #     y2 = next_local_goal.pose.position.y
-    #
-    #     mx = (x1 + x2) / 2.0
-    #     my = (y1 + y2) / 2.0
-    #
-    #     # direction (unit tangent)
-    #     dx = x2 - x1
-    #     dy = y2 - y1
-    #     L = math.sqrt(dx*dx + dy*dy)
-    #     if L == 0.0:
-    #         return
-    #     dx /= L
-    #     dy /= L
-    #
-    #     # unit perpendicular
-    #     px = -dy
-    #     py = dx
-    #
-    #     # --- width modulation ---
-    #     lo, hi = self._offset_range
-    #     width_scale = lo + (hi - lo) * self._rng.random()
-    #     off = self.OFFSET * width_scale
-    #
-    #     # occasional pinch (extra narrowing)
-    #     if self._rng.random() < self._pinch_prob:
-    #         p_lo, p_hi = self._pinch_scale
-    #         off *= p_lo + (p_hi - p_lo) * self._rng.random()
-    #
-    #     # choose sides (both or single)
-    #     keep_both = (self._rng.random() > self._single_side_prob)
-    #     sides = [+1, -1] if keep_both else [self._rng.choice([+1, -1])]
-    #
-    #     def sample_radius():
-    #         r_lo, r_hi = self._radius_range
-    #         return self.RADIUS * (r_lo + (r_hi - r_lo) * self._rng.random())
-    #
-    #     def normal(std):
-    #         # Box–Muller for a quick normal from uniform RNG
-    #         u1 = max(1e-9, self._rng.random())
-    #         u2 = self._rng.random()
-    #         z = math.sqrt(-2.0 * math.log(u1)) * math.cos(2*math.pi*u2)
-    #         return z * std
-    #
-    #     # create 1–2 wall obstacles
-    #     for s in sides:
-    #         # base center on the perpendicular
-    #         cx = mx + s * off * px
-    #         cy = my + s * off * py
-    #
-    #         # jitter (XY) and along-path slide
-    #         cx += normal(self._jitter_std) + normal(self._along_std) * dx
-    #         cy += normal(self._jitter_std) + normal(self._along_std) * dy
-    #
-    #         r = sample_radius()
-    #
-    #         # random drop to create gaps
-    #         if self._rng.random() < self._drop_prob:
-    #             continue
-    #
-    #         ob = Obstacle(center_x=cx, center_y=cy, radius=r)
-    #         self.obstacle_array.append(ob)
-    #
-    #     # occasional clutter near (not exactly on) the corridor
-    #     if self._rng.random() < self._clutter_prob:
-    #         ang = 2 * math.pi * self._rng.random()
-    #         rad = 0.2 + (self._clutter_rad - 0.2) * self._rng.random()
-    #         cx = mx + rad * math.cos(ang)
-    #         cy = my + rad * math.sin(ang)
-    #         r  = sample_radius()
-    #         self.obstacle_array.append(Obstacle(center_x=cx, center_y=cy, radius=r))
     def obstacle_creation_sym(self, current_local_goal, next_local_goal):
         # creates obstacles symetric with no noise
         mid_x = (current_local_goal.pose.position.x +
@@ -743,6 +668,89 @@ class Local_Goal_Manager():
 
         self.adaptive_local_goals = goals
         return goals
+
+
+    def _xy_from_goal(self, g):
+        try:
+            return float(g.pose.position.x), float(g.pose.position.y)
+        except AttributeError:
+            return float(g[0]), float(g[1])
+
+    def _yaw_of_goal(self, goals, idx):
+        import math
+        # If PoseStamped has orientation, use it; otherwise derive from neighbors.
+        g = goals[idx]
+        try:
+            q = g.pose.orientation
+            return math.atan2(q.z, q.w) * 2.0
+        except AttributeError:
+            # fallback: finite-diff direction
+            if idx < len(goals) - 1:
+                x0,y0 = self._xy_from_goal(goals[idx])
+                x1,y1 = self._xy_from_goal(goals[idx+1])
+            else:
+                x0,y0 = self._xy_from_goal(goals[idx-1])
+                x1,y1 = self._xy_from_goal(goals[idx])
+            return math.atan2(y1 - y0, x1 - x0)
+
+    def save_goals_csv(self, goals, out_csv):
+        """Write a sparse goal list → CSV: idx,x,y,yaw,spacing_to_next."""
+        import csv, math, os
+        os.makedirs(os.path.dirname(out_csv), exist_ok=True)
+
+        rows = []
+        for i in range(len(goals)):
+            x,y = self._xy_from_goal(goals[i])
+            yaw  = self._yaw_of_goal(goals, i)
+            if i < len(goals)-1:
+                xn,yn = self._xy_from_goal(goals[i+1])
+                sp = math.hypot(xn-x, yn-y)
+            else:
+                sp = ""
+            rows.append([i, x, y, yaw, sp])
+
+        with open(out_csv, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["idx","x","y","yaw","spacing_to_next"])
+            w.writerows(rows)
+        print(f"[save_goals_csv] wrote {len(rows)} rows → {out_csv}")
+
+    def upsample_goals_to_path(self, goals, map_points, out_csv):
+        """
+        For each map point (odom step), pick the 'current' goal index that is closest
+        along the path (monotonic). Output rows: local_goals_x, local_goals_y, local_goals_yaw
+        (same shape as map_points) so it lines up with odom/cmd/lidar.
+        """
+        import csv, math, os
+        os.makedirs(os.path.dirname(out_csv), exist_ok=True)
+
+        if not goals:
+            with open(out_csv, "w", newline="") as f:
+                csv.writer(f).writerow(['local_goals_x','local_goals_y','local_goals_yaw'])
+            print(f"[upsample_goals_to_path] no goals; wrote header only → {out_csv}")
+            return
+
+        goals_xy = [self._xy_from_goal(g) for g in goals]
+        j = 0  # current goal index
+        rows = []
+        for (mx, my) in map_points:
+            # advance j if the next goal is closer than the current goal
+            while j + 1 < len(goals_xy):
+                d_cur = (goals_xy[j][0]   - mx)**2 + (goals_xy[j][1]   - my)**2
+                d_nxt = (goals_xy[j+1][0] - mx)**2 + (goals_xy[j+1][1] - my)**2
+                if d_nxt <= d_cur:
+                    j += 1
+                else:
+                    break
+            gx, gy = goals_xy[j]
+            yaw = self._yaw_of_goal(goals, j)
+            rows.append([gx, gy, yaw])
+
+        with open(out_csv, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(['local_goals_x','local_goals_y','local_goals_yaw'])
+            w.writerows(rows)
+        print(f"[upsample_goals_to_path] wrote {len(rows)} rows → {out_csv}")
     def generate_local_goals_claude(self, global_path):
         """
         Modified to create more local goals in areas with high curvature
@@ -1348,11 +1356,11 @@ class MapTraining(Node):
         self.plot_odometry_path(self.segments[-1])
 
         # return
-        # for i, seg in enumerate(self.segments):
-        #     print(
-        #         f"checking start and end index : {seg.start_index} and {seg.end_index}")
-        #     self.per_seg_loop_once(seg, i)
-        #     print(f"done with seg : {i}")
+        for i, seg in enumerate(self.segments):
+            print(
+                f"checking start and end index : {seg.start_index} and {seg.end_index}")
+            self.per_seg_loop_once(seg, i)
+            print(f"done with seg : {i}")
 
         print(f"input bag is : {self.input_bag}")
         # self.main_loop()
@@ -1443,7 +1451,16 @@ class MapTraining(Node):
             local_goal_all = pd.read_csv(self.local_goals_output)
             local_goal_curr = local_goal_all[seg.start_index:seg.end_index]
             local_goal_curr.to_csv(f"{output_folder}/local_goals.csv")
-
+            # NEW: adaptive goals for this segment
+            adapt = getattr(seg.local_goal_manager_, "adaptive_local_goals", [])
+            # 1) sparse list (few dozen rows typically)
+            seg.local_goal_manager_.save_goals_csv(
+                adapt, f"{output_folder}/adaptive_local_goals_sparse.csv"
+            )
+            # 2) upsampled to odom rows (same length as odom_curr)
+            seg.local_goal_manager_.upsample_goals_to_path(
+                adapt, seg.map_points, f"{output_folder}/adaptive_local_goals.csv"
+            )
             print(
                 f"Segment: start_index={seg.start_index}, end_index={seg.end_index}")
 

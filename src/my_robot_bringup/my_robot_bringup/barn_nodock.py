@@ -91,7 +91,7 @@ class BarnOneShot(Node):
         # publishs converted barn map to nav stack
         self.path_publisher = self.create_publisher(Path, '/plan_barn', 10)
         self.path_og_publisher = self.create_publisher(Path, '/plan_barn_og', 10)
-
+        self.adaptive_path_publisher = self.create_publisher(Path, '/adaptive_path', 10)
         self.amcl_pose_sub = self.create_subscription(
             PoseWithCovarianceStamped,
             '/amcl_pose',
@@ -129,6 +129,7 @@ class BarnOneShot(Node):
         # gazebo path
         self.gazebo_path = None
         self.gazebo_path_og = None
+        self.adaptive_path = None
         # Parameters
         self.declare_parameter('initial_x', 0.0)
         self.declare_parameter('initial_y', 0.0)
@@ -183,6 +184,14 @@ class BarnOneShot(Node):
             self.gazebo_path_og = self.load_barn_path_og(self.world_num)
             self.path_publisher.publish(self.gazebo_path)
             self.path_og_publisher.publish(self.gazebo_path_og)
+            self.adaptive_path = self.adaptive_barn_path(
+                self.gazebo_path,
+                min_spacing=0.12,   # tune
+                max_spacing=0.60,   # tune
+                k_gain=0.35,        # tune
+                smoothing=0.5       # EMA on curvature
+            )
+            self.adaptive_path_publishe.publish(self.adaptive_path)
             self.current_state = SequenceState.NAVIGATING
         elif self.current_state == SequenceState.NAVIGATING:
             self.handle_navigation()
@@ -860,7 +869,140 @@ class BarnOneShot(Node):
         gazebo_y = y * (RADIUS * 2) + c_shift
 
         return (gazebo_x, gazebo_y)
+    def adaptive_barn_path(self, path_msg: Path,
+                           min_spacing=0.12, max_spacing=0.60,
+                           k_gain=0.35, smoothing=0.5) -> Path:
+        """
+        Build a curvature-adaptive downsample of an input nav_msgs/Path.
+        Returns a new Path with fewer poses on straights and denser in curves.
 
+        Notes:
+          - Spacing is based on arc length between *kept* poses.
+          - Orientation is recomputed from forward differences on the kept chain.
+          - This does not modify self.gazebo_path; it's an additional path you can
+            publish to '/plan_barn_adaptive' for the network to consume.
+        """
+        import math
+        import numpy as np
+        from nav_msgs.msg import Path
+        from geometry_msgs.msg import PoseStamped
+
+        def _path_xy(P: Path):
+            if not P or not P.poses:
+                return np.zeros((0, 2), dtype=float)
+            return np.array([(ps.pose.position.x, ps.pose.position.y) for ps in P.poses], dtype=float)
+
+        def _signed_curv(xy: np.ndarray, i: int) -> float:
+            n = len(xy)
+            if n < 3:
+                return 0.0
+            i0 = max(0, i - 1)
+            i1 = i
+            i2 = min(n - 1, i + 1)
+            ax, ay = xy[i1] - xy[i0]
+            bx, by = xy[i2] - xy[i1]
+            la = math.hypot(ax, ay) + 1e-12
+            lb = math.hypot(bx, by) + 1e-12
+            # sin(theta) = cross/(|a||b|); dtheta/ds ≈ sin(theta)/|a|
+            cross = ax * by - ay * bx
+            sinu = cross / (la * lb)
+            return sinu / la
+
+        def _target_spacing(k: float) -> float:
+            # straights → max_spacing; curves → min_spacing
+            s = max_spacing / (1.0 + k_gain * abs(k))
+            return max(min_spacing, min(s, max_spacing))
+
+        def _yaw(p, q):
+            return math.atan2(q[1] - p[1], q[0] - p[0])
+
+        def _yaw_to_quat(yaw):
+            qz = math.sin(yaw / 2.0)
+            qw = math.cos(yaw / 2.0)
+            return 0.0, 0.0, qz, qw
+
+        xy = _path_xy(path_msg)
+        n = len(xy)
+        if n == 0:
+            self.get_logger().warn("[adaptive_barn_path] input path is empty")
+            return Path()
+        if n == 1:
+            out = Path()
+            out.header.frame_id = path_msg.header.frame_id or "map"
+            out.header.stamp = self.get_clock().now().to_msg()
+            ps = PoseStamped()
+            ps.header = out.header
+            ps.pose.position.x = float(xy[0, 0])
+            ps.pose.position.y = float(xy[0, 1])
+            ps.pose.orientation.w = 1.0
+            out.poses.append(ps)
+            return out
+
+        # Curvature along the base path
+        K = np.array([_signed_curv(xy, i) for i in range(n)], dtype=float)
+
+        # Optional EMA smoothing of curvature to reduce jitter
+        if 0.0 < smoothing < 1.0 and n >= 2:
+            ema = K[0]
+            for i in range(n):
+                ema = smoothing * ema + (1.0 - smoothing) * K[i]
+                K[i] = ema
+
+        # Walk the path accumulating arc length; keep a pose when acc >= target
+        kept_idx = [0]
+        acc = 0.0
+        tgt = _target_spacing(K[0])
+        for i in range(1, n):
+            seg = float(np.hypot(xy[i, 0] - xy[i - 1, 0], xy[i, 1] - xy[i - 1, 1]))
+            acc += seg
+            # blend target spacing for smooth changes
+            tgt = 0.5 * tgt + 0.5 * _target_spacing(K[i])
+            if acc >= tgt:
+                kept_idx.append(i)
+                acc = 0.0
+        if kept_idx[-1] != n - 1:
+            kept_idx.append(n - 1)
+
+        xy_keep = xy[kept_idx]
+
+        # Build a new Path with recomputed yaw on the kept chain
+        out = Path()
+        out.header.frame_id = path_msg.header.frame_id or "map"
+        out.header.stamp = self.get_clock().now().to_msg()
+
+        last_yaw = None
+        for i in range(len(xy_keep)):
+            ps = PoseStamped()
+            ps.header = out.header
+            ps.pose.position.x = float(xy_keep[i, 0])
+            ps.pose.position.y = float(xy_keep[i, 1])
+            ps.pose.position.z = 0.0
+
+            if i < len(xy_keep) - 1:
+                yaw = _yaw(xy_keep[i], xy_keep[i + 1])
+                last_yaw = yaw
+            else:
+                yaw = last_yaw if last_yaw is not None else 0.0
+
+            qx, qy, qz, qw = _yaw_to_quat(yaw)
+            ps.pose.orientation.x = qx
+            ps.pose.orientation.y = qy
+            ps.pose.orientation.z = qz
+            ps.pose.orientation.w = qw
+            out.poses.append(ps)
+
+        # Log some quick stats
+        spacings = [math.hypot(xy_keep[i + 1, 0] - xy_keep[i, 0],
+                               xy_keep[i + 1, 1] - xy_keep[i, 1])
+                    for i in range(len(xy_keep) - 1)]
+        if spacings:
+            import numpy as np
+            self.get_logger().info(
+                f"[adaptive_barn_path] kept {len(xy_keep)} of {n} poses; "
+                f"spacing min/med/max = {min(spacings):.3f} / {np.median(spacings):.3f} / {max(spacings):.3f} m"
+            )
+
+        return out
     def load_barn_path(self, world_num, resample_step=0.20, smooth_window=5):
         """
         Load BARN path, convert to Gazebo/map coordinates, resample, smooth,
@@ -1016,6 +1158,7 @@ class BarnOneShot(Node):
         self.current_lg_xy = (path_msg.poses[0].pose.position.x, path_msg.poses[0].pose.position.y)
         return path_msg
     #
+
 
     def calculate_orientation(self, current_point, next_point):
         """Calculate quaternion orientation from current point to next point"""
