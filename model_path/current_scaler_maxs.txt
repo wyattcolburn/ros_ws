@@ -1,1 +1,1 @@
-/home/mobrob/ros_ws/model_path/versions/2025_09_14_20_53/scaler_maxs.txt
+/home/mobrob/ros_ws/model_path/versions/2025_09_15_21_18/scaler_maxs.txt

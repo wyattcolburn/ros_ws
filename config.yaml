@@ -1,12 +1,12 @@
 ---
 # This is stuff regarding the c++ poriton of the project, robot configurations
 NUM_VALID_OBSTACLES :  40
-OFFSET : 1.0
-RADIUS : .4
-CSV_FILE : "good_data/gauss_2_asym_cap_2m/baseline.csv"
+OFFSET : 0.8
+RADIUS : .3
+CSV_FILE : "gauss_2_asym_08_offset/baseline.csv"
 
 # Bash script parameters
-WORLD_NUMS: [12, 36, 75, 125, 203, 210, 69, 187, 266]
+WORLD_NUMS: [266, 187, 69, 210, 203, 125, 75, 36, 12]
 # WORLD_NUMS: [203, 210,266]
 # WORLD_NUMS: [36]
 
@@ -19,5 +19,5 @@ RESET_DELAY: 10
 #ROS BAG
 BAG_DKR: "gauss_2"
 
-TRAINING_DKR: "gauss_2_asym_cap_2m"
-MODEL_PATH: "created_models/gauss_2_asym_cap_2m"
+TRAINING_DKR: "gauss_2_asym_08_03"
+MODEL_PATH: "created_models/gauss_2_asym_08_offset"
