@@ -44,6 +44,8 @@ class obsValid : public rclcpp::Node {
         path_sub_ = this->create_subscription<nav_msgs::msg::Path>(
             "/plan_barn", 10, std::bind(&obsValid::path_callback_map, this, std::placeholders::_1));
 
+        adaptive_sub = this->create_subscription<nav_msgs::msg::Path>(
+            "/adaptive_path", 10, std::bind(&obsValid::adaptive_path_callback, this, std::placeholders::_1));
         scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             "/scan", 10, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
 
@@ -72,7 +74,11 @@ class obsValid : public rclcpp::Node {
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr local_goal_marker_pub_;
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr adaptive_sub_;
 
+    std::vector<geometry_msgs::msg::PoseStamped> adaptive_map_poses_;
+    bool adaptive_flag_ = false;                  // have we received an adaptive path yet?
+    size_t adaptive_idx_ = 0;                     // closest-ahead index on adaptive path
     static constexpr size_t ODOM_FIELD_COUNT = 2; // odom current v, w
     static constexpr size_t LOCAL_GOAL_COUNT = 3; // local goal x, y, yaw
     static constexpr size_t LIDAR_COUNT = 1080;
@@ -197,25 +203,81 @@ class obsValid : public rclcpp::Node {
         return;
     }
 
+    void adaptive_path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
+        RCLCPP_INFO(this->get_logger(), "Received adaptive path: %zu poses in frame %s", pathMsg->poses.size(),
+                    pathMsg->header.frame_id.c_str());
+
+        adaptive_map_poses_.clear();
+        adaptive_map_poses_.reserve(pathMsg->poses.size());
+
+        // Keep in MAP frame; we’ll transform to OD0M when sending to the NN
+        for (const auto &p : pathMsg->poses) {
+            geometry_msgs::msg::PoseStamped pm = p;
+            pm.header.frame_id = "map";
+            if (pm.header.stamp.sec == 0 && pm.header.stamp.nanosec == 0) {
+                pm.header.stamp = this->now();
+            }
+            adaptive_map_poses_.push_back(pm);
+        }
+        adaptive_idx_ = 0;
+        adaptive_flag_ = !adaptive_map_poses_.empty();
+    }
+    std::pair<size_t, double> find_closest_ahead_index(const std::vector<geometry_msgs::msg::PoseStamped> &v, double mx,
+                                                       double my, size_t start_idx) {
+        if (v.empty())
+            return {0, std::numeric_limits<double>::infinity()};
+        size_t best = start_idx;
+        double best_d2 = std::numeric_limits<double>::infinity();
+
+        for (size_t i = start_idx; i < v.size(); ++i) {
+            const auto &pt = v[i].pose.position;
+            const double dx = mx - pt.x;
+            const double dy = my - pt.y;
+            const double d2 = dx * dx + dy * dy;
+            if (d2 < best_d2) {
+                best_d2 = d2;
+                best = i;
+            }
+        }
+        return {best, std::sqrt(best_d2)};
+    }
     void processPacketOut() {
         packetOut[0] = current_cmd_v;
         packetOut[1] = current_cmd_w;
-
-        // Transforming current local goal from map pose so should be more accurate
         Local_Goal nn_lg;
-        if (transform_map_odom(map_poses_[local_goal_manager_.current_local_goal_counter], nn_lg)) {
+        // Transforming current Local_Goal nn_lg;
+        bool have_nn_lg = false;
+
+        if (adaptive_flag_ && !adaptive_map_poses_.empty()) {
+            // find closest-ahead on the adaptive chain using current MAP pose
+            auto [idx, dist] = find_closest_ahead_index(adaptive_map_poses_, map_x, map_y, adaptive_idx_);
+            adaptive_idx_ = idx; // monotonic forward (never go backwards)
+            // transform selected adaptive pose map->odom for NN input
+            if (transform_map_odom(adaptive_map_poses_[adaptive_idx_], nn_lg)) {
+                have_nn_lg = true;
+            }
+        }
+
+        if (!have_nn_lg) {
+            // fallback: use your existing fixed local goal mechanism
+            if (local_goal_manager_.current_local_goal_counter < map_poses_.size()) {
+                if (transform_map_odom(map_poses_[local_goal_manager_.current_local_goal_counter], nn_lg)) {
+                    have_nn_lg = true;
+                }
+            }
+        }
+
+        // write into packetOut (only if we have something valid)
+        if (have_nn_lg) {
             packetOut[2] = nn_lg.x_point;
             packetOut[3] = nn_lg.y_point;
             packetOut[4] = nn_lg.yaw;
+        } else {
+            // safe default if nothing available
+            packetOut[2] = 0.0;
+            packetOut[3] = 0.0;
+            packetOut[4] = 0.0;
         }
-        // Local_Goal currentLG = local_goal_manager_.data_vector[local_goal_manager_.current_local_goal_counter];
-        // packetOut[2] = currentLG.x_point;
-        // packetOut[3] = currentLG.y_point;
-        // packetOut[4] = currentLG.yaw;
-        // packetOut[2] = map_lg_x;
-        // packetOut[3] = map_lg_y;
-        // packetOut[4] = currentLG.yaw;
-
         for (int lidar_counter = 0; lidar_counter < LIDAR_COUNT; lidar_counter++) {
             packetOut[5 + lidar_counter] = hall_lidar_ranges[lidar_counter];
         }
