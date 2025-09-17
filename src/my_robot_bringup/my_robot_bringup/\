@@ -91,98 +91,14 @@ class Segment():
         print(f"len of global path {len(self.global_path.poses)}")
         self.create_local_goals()
         self.create_obstacles()
-        # self.local_goal_manager_.generate_local_goals_adaptive(self.global_path) # this populates local_goal_manager.adaptive_local_goals an array of local goals
-        adaptive_lg = self.local_goal_manager_.generate_local_goals_adaptive(
-        self.global_path, min_spacing=0.12, max_spacing=0.60, k_gain=0.35, smoothing=0.5
-)
-        self.plot_adaptive_lg_first()
+
         
-        chord = [math.hypot(adaptive_lg[i+1].pose.position.x - adaptive_lg[i].pose.position.x,
-                            adaptive_lg[i+1].pose.position.y - adaptive_lg[i].pose.position.y)
-                 for i in range(len(adaptive_lg)-1)]
-        print(f"Chord spacing min/med/max: {min(chord):.3f}/{np.median(chord):.3f}/{max(chord):.3f}")
         self.obstacle_manager_.prune_overlapping_with_path(
             self.global_path,
             clearance_extra=0.02,  # ~2cm buffer
             radius_mult=1.1        # require center ≥ 1.1*radius away from path
         )
 
-
-    def plot_adaptive_lg_first(self, N=10000, eps=0.25, save=True, color_by_spacing=True):
-        import os, math
-        import numpy as np
-        import matplotlib.pyplot as plt
-        from matplotlib.collections import LineCollection
-
-        def _xy_from_goal(g):
-            try:    return float(g.pose.position.x), float(g.pose.position.y)
-            except AttributeError: return float(g[0]), float(g[1])
-
-        path_xy = [(x, y) for (x, y) in self.map_points[:N] if x is not None and y is not None]
-        if not path_xy:
-            print("[plot_adaptive_lg_first] no path points to plot")
-            return
-        P = np.array(path_xy, dtype=float)
-
-        adapt_lg_all = getattr(self.local_goal_manager_, "adaptive_local_goals", [])
-        if not adapt_lg_all:
-            print("[plot_adaptive_lg_first] no adaptive local goals")
-            return
-        A = np.array([_xy_from_goal(g) for g in adapt_lg_all], dtype=float)
-
-        keep_mask = []
-        for ax, ay in A:
-            d2 = np.min((P[:,0]-ax)**2 + (P[:,1]-ay)**2)
-            keep_mask.append(d2 <= eps*eps)
-        A_keep = A[np.array(keep_mask, dtype=bool)]
-        if len(A_keep) < 2:
-            print("[plot_adaptive_lg_first] too few adaptive goals in first-N chunk")
-            return
-
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.set_aspect('equal', adjustable='box')
-        ax.plot(P[:,0], P[:,1], '-', linewidth=1.0, color='0.8', label='Path (first N)', zorder=1)
-
-        segs = [[(A_keep[i,0], A_keep[i,1]), (A_keep[i+1,0], A_keep[i+1,1])] for i in range(len(A_keep)-1)]
-        dists = [math.hypot(A_keep[i+1,0]-A_keep[i,0], A_keep[i+1,1]-A_keep[i,1]) for i in range(len(A_keep)-1)]
-
-        if color_by_spacing:
-            norm = plt.Normalize(vmin=min(dists), vmax=max(dists))
-            lc = LineCollection(segs, cmap='viridis', norm=norm, linewidths=3, alpha=0.95, zorder=3)
-            lc.set_array(np.array(dists)); ax.add_collection(lc)
-            cbar = fig.colorbar(lc, ax=ax, fraction=0.046, pad=0.04)
-            cbar.set_label('Adaptive LG spacing (m)')
-        else:
-            for s in segs:
-                ax.plot([s[0][0], s[1][0]], [s[0][1], s[1][1]], '-', lw=2.2, color='tab:orange', zorder=3)
-
-        ax.scatter(A_keep[:,0], A_keep[:,1], s=20, facecolors='white', edgecolors='k', linewidths=0.6, zorder=4)
-        ax.text(0.02, 0.98, f"N_path={len(P)}  N_adapt={len(A_keep)}   spacing(m): min={min(dists):.2f}  med={np.median(dists):.2f}  max={max(dists):.2f}",
-                transform=ax.transAxes, va='top', ha='left',
-                fontsize=9, bbox=dict(facecolor='white', alpha=0.85, edgecolor='0.8'))
-
-        xs = np.r_[P[:,0], A_keep[:,0]]; ys = np.r_[P[:,1], A_keep[:,1]]
-        xmin, xmax = xs.min(), xs.max(); ymin, ymax = ys.min(), ys.max()
-        R = max(xmax-xmin, ymax-ymin) * 1.05 if max(xmax-xmin, ymax-ymin) > 0 else 1.0
-        cx, cy = (xmin+xmax)/2.0, (ymin+ymax)/2.0
-        ax.set_xlim(cx - R/2.0, cx + R/2.0); ax.set_ylim(cy - R/2.0, cy + R/2.0)
-        ax.set_title(f'Adaptive LGs on first {N} path points (eps={eps} m)')
-        ax.grid(True, alpha=0.3); ax.legend(loc='best', frameon=True)
-
-        # ------- per-segment save path -------
-        seg_tag = f"seg_{getattr(self,'start_index','?')}_{getattr(self,'end_index','?')}"
-        outdir = None
-        if hasattr(self, "node") and hasattr(self.node, "input_bag"):
-            outdir = os.path.join(self.node.input_bag, seg_tag, "debug")
-            os.makedirs(outdir, exist_ok=True)
-
-        if save and outdir:
-            out_main = os.path.join(outdir, f"adaptive_local_goals_first{N}.png")
-            fig.savefig(out_main, dpi=300, bbox_inches='tight')
-            print(f"[Segment {seg_tag}] saved → {out_main}")
-            plt.close(fig)
-        else:
-            plt.show()
     def create_path(self):
         return self.node.create_path_from_points(self.map_points)
 
@@ -655,94 +571,40 @@ class Local_Goal_Manager():
         dot = max(-1.0, min(1.0, ux0*ux1 + uy0*uy1))
         dtheta = math.acos(dot)
         return dtheta / ((L0+L1)*0.5 + 1e-9)
+
     def generate_local_goals_adaptive(self, global_path,
                                       min_spacing=0.12, max_spacing=0.60,
                                       k_gain=0.35, smoothing=0.5):
-        import math
-        self.min_spacing = min_spacing
-        self.max_spacing = max_spacing
-        self.global_path = self.global_path or global_path
+        if self.global_path is None:
+            self.global_path = global_path
         poses = self.global_path.poses
         n = len(poses)
-        if n < 2:
-            self.adaptive_local_goals = []
-            return []
-
-        def curv_at(i):
-            if i <= 0 or i >= n-1: return 0.0
-            p0, p1, p2 = poses[i-1], poses[i], poses[i+1]
-            x0,y0 = p0.pose.position.x, p0.pose.position.y
-            x1,y1 = p1.pose.position.x, p1.pose.position.y
-            x2,y2 = p2.pose.position.x, p2.pose.position.y
-            vx0,vy0 = x1-x0, y1-y0; L0 = math.hypot(vx0,vy0)+1e-12
-            vx1,vy1 = x2-x1, y2-y1; L1 = math.hypot(vx1,vy1)+1e-12
-            ux0,uy0 = vx0/L0, vy0/L0; ux1,uy1 = vx1/L1, vy1/L1
-            dot = max(-1.0, min(1.0, ux0*ux1+uy0*uy1))
-            dtheta = math.acos(dot)
-            return dtheta / ((L0+L1)*0.5)
-
-        # smooth curvature a bit
-        kappa = [curv_at(i) for i in range(n)]
-        if smoothing > 0 and n >= 3:
-            src = kappa[:]
+        self.adaptive_local_goals = []
+        if n == 0:
+            return
+        kappa = [0.0]*n
+        for i in range(1, n-1):
+            kappa[i] = self._curvature_proxy(poses[i-1], poses[i], poses[i+1])
+        if n >= 3 and smoothing > 0.0:
+            ks = kappa[:]
             for i in range(1, n-1):
-                kappa[i] = (1-smoothing)*src[i] + 0.5*smoothing*(src[i-1]+src[i+1])
+                kappa[i] = (1-smoothing)*ks[i] + 0.5*smoothing*(ks[i-1]+ks[i+1])
 
-        goals = [poses[0]]
-        acc = 0.0  # accumulated arc-length since last goal
-
-        def interp_pose(pA, pB, t):
-            """Linear interp position + yaw along segment."""
-            from geometry_msgs.msg import PoseStamped
-            xA,yA = pA.pose.position.x, pA.pose.position.y
-            xB,yB = pB.pose.position.x, pB.pose.position.y
-            x = xA + t*(xB-xA); y = yA + t*(yB-yA)
-            yaw = math.atan2(yB-yA, xB-xA)
-            ps = PoseStamped()
-            ps.header = pA.header
-            ps.pose.position.x = float(x); ps.pose.position.y = float(y)
-            ps.pose.orientation.z = math.sin(yaw/2.0)
-            ps.pose.orientation.w = math.cos(yaw/2.0)
-            return ps
-
+        self.adaptive_local_goals.append(poses[0])
+        acc = 0.0
+        last = poses[0]
         for i in range(1, n):
-            # segment i-1 → i
-            x0,y0 = poses[i-1].pose.position.x, poses[i-1].pose.position.y
-            x1,y1 = poses[i].pose.position.x,  poses[i].pose.position.y
-            seg = math.hypot(x1-x0, y1-y0)
-
-            # current target based on curvature at vertex i
-            k = kappa[i]
-            target = max_spacing / (1.0 + k_gain * k)
+            acc += self.distance_between_poses(last, poses[i])
+            k_hat = kappa[i]
+            target = max_spacing / (1.0 + k_gain * k_hat)
             target = max(min_spacing, min(target, max_spacing))
-
-            if seg == 0:
-                continue
-
-            # walk along this segment, placing as many points as needed
-            remain = seg
-            # distance from the start of this segment to the next drop
-            need = max(1e-9, target - acc)
-
-            while remain >= need - 1e-12:
-                t = (seg - remain + need) / seg   # 0..1 along current segment
-                goals.append(interp_pose(poses[i-1], poses[i], t))
-                remain -= need
-                # next target (update with same vertex curvature—fine at segment scale)
+            if acc >= target:
+                self.adaptive_local_goals.append(poses[i])
+                last = poses[i]
                 acc = 0.0
-                k = kappa[i]
-                target = max(min_spacing, min(max_spacing, max_spacing / (1.0 + k_gain*k)))
-                need = target
-
-            # whatever is left of this segment contributes to next interval
-            acc += remain
-
-        # ensure last vertex included
-        if goals[-1] is not poses[-1]:
-            goals.append(poses[-1])
-
-        self.adaptive_local_goals = goals
-        return goals
+        if self.adaptive_local_goals[-1] is not poses[-1]:
+            self.adaptive_local_goals.append(poses[-1])
+        print(f"[adaptive LG] {len(self.data)} local goals (min={min_spacing}, max={max_spacing})")
     def generate_local_goals_claude(self, global_path):
         """
         Modified to create more local goals in areas with high curvature
@@ -1348,11 +1210,11 @@ class MapTraining(Node):
         self.plot_odometry_path(self.segments[-1])
 
         # return
-        # for i, seg in enumerate(self.segments):
-        #     print(
-        #         f"checking start and end index : {seg.start_index} and {seg.end_index}")
-        #     self.per_seg_loop_once(seg, i)
-        #     print(f"done with seg : {i}")
+        for i, seg in enumerate(self.segments):
+            print(
+                f"checking start and end index : {seg.start_index} and {seg.end_index}")
+            self.per_seg_loop_once(seg, i)
+            print(f"done with seg : {i}")
 
         print(f"input bag is : {self.input_bag}")
         # self.main_loop()
