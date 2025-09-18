@@ -148,7 +148,7 @@ max_frac  = _reord(max_frac)
 # ---- 1) Successes per world ----
 fig, ax = plt.subplots(figsize=(10, 6))
 ax.bar(worlds, successes, color='C0')
-ax.set_title('Successful Trials per World for Asymmetric Obstacle Placement')
+ax.set_title('Successful Trials per World for Adaptive Local Goal Placement')
 ax.set_xlabel('Worlds (easy → hard)')
 ax.set_ylim(0, 10)                 # top at 10
 ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
@@ -165,7 +165,7 @@ plt.close(fig)
 fig, ax = plt.subplots(figsize=(10, 6))
 ax.bar(worlds, successes, label='Successes', color='C0')
 ax.bar(worlds, failures, bottom=successes, label='Failures', color='C1')
-ax.set_title('Trials per World (Success vs Failure) for Asymmetric Obstacle Placement')
+ax.set_title('Trials per World (Success vs Failure) for Adaptive Local Goal Placement')
 ax.set_xlabel('Worlds (easy → hard)')
 ax.set_ylim(0, 10)                 # top at 10
 ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
@@ -180,7 +180,7 @@ plt.close(fig)
 # ---- 3) Average fraction of LG reached ----
 fig, ax = plt.subplots(figsize=(10, 5))
 ax.bar(worlds, avg_frac, color='C0')
-ax.set_title('Average Fraction of Local Goals Reached per World for Asymmetric Obstacle Placement')
+ax.set_title('Average Fraction of Local Goals Reached per World for Adaptive Local Goal Placement')
 ax.set_xlabel('Worlds (easy → hard)')
 ax.set_ylabel('Average fraction (0–1)')
 ax.set_ylim(0, 1)
@@ -193,7 +193,7 @@ plt.close(fig)
 # ---- 4) Max fraction ----
 fig, ax = plt.subplots(figsize=(10, 5))
 ax.bar(worlds, max_frac, color='C0')
-ax.set_title('Max Fraction of Local Goals Reached per World for Asymmetric Obstacle Placement')
+ax.set_title('Max Fraction of Local Goals Reached per World for Adaptive Local Goal Placement')
 ax.set_xlabel('Worlds (easy → hard)')
 ax.set_ylabel('Max fraction (0–1)')
 ax.set_ylim(0, 1)

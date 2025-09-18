@@ -191,7 +191,7 @@ class BarnOneShot(Node):
                 k_gain=0.35,        # tune
                 smoothing=0.5       # EMA on curvature
             )
-            self.adaptive_path_publishe.publish(self.adaptive_path)
+            self.adaptive_path_publisher.publish(self.adaptive_path)
             self.current_state = SequenceState.NAVIGATING
         elif self.current_state == SequenceState.NAVIGATING:
             self.handle_navigation()

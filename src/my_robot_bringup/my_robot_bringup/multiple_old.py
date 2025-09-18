@@ -95,12 +95,12 @@ class Segment():
         adaptive_lg = self.local_goal_manager_.generate_local_goals_adaptive(
         self.global_path, min_spacing=0.12, max_spacing=0.60, k_gain=0.35, smoothing=0.5
 )
-        self.plot_adaptive_lg_first()
-        
-        chord = [math.hypot(adaptive_lg[i+1].pose.position.x - adaptive_lg[i].pose.position.x,
-                            adaptive_lg[i+1].pose.position.y - adaptive_lg[i].pose.position.y)
-                 for i in range(len(adaptive_lg)-1)]
-        print(f"Chord spacing min/med/max: {min(chord):.3f}/{np.median(chord):.3f}/{max(chord):.3f}")
+        # self.plot_adaptive_lg_first()
+        # 
+        # chord = [math.hypot(adaptive_lg[i+1].pose.position.x - adaptive_lg[i].pose.position.x,
+        #                     adaptive_lg[i+1].pose.position.y - adaptive_lg[i].pose.position.y)
+        #          for i in range(len(adaptive_lg)-1)]
+        # print(f"Chord spacing min/med/max: {min(chord):.3f}/{np.median(chord):.3f}/{max(chord):.3f}")
         self.obstacle_manager_.prune_overlapping_with_path(
             self.global_path,
             clearance_extra=0.02,  # ~2cm buffer
@@ -1078,6 +1078,7 @@ class MapTraining(Node):
             self.input_bag = "/home/mobrob/ros_ws/gauss_2_asym_cap/2025-08-21_19-38-54_gaus"
         # self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_15-40-10_gaus"
 
+        self.adaptive_flag = True
         self.yaml_reader()
         self.write_meta_data()
         self.frame_dkr = f"{self.input_bag}/input_data/"
@@ -1503,39 +1504,39 @@ class MapTraining(Node):
                 counter += 1
                 self.current_odom_index += 1
                 continue
-            plt.clf()  # clear previous plot
-            ax = plt.gca()
-            ax.set_aspect('equal')
-            # replot the base elements
-            plt.plot(self.current_odom[0], self.current_odom[1], marker='o',
-                     linestyle='-', markersize=3, color='blue', label="odometry path")
-
-
-            print("local goal count")
-            for obstacle in active_obstacles:
-                circle = patches.Circle(
-                (obstacle.center_x, obstacle.center_y),
-                radius=obstacle.radius,
-                fill=False,
-                color='red',
-                linewidth=1.5,
-                linestyle='-'
-            )
-                ax.add_patch(circle)
-
-            plt.scatter(
-                self.current_odom[0], self.current_odom[1], color='cyan', s=200, label='robot')
-
-            # plot the entire path
-            plt.plot(path_x, path_y, marker='o', linestyle='-',
-                     markersize=3, color='black', label='odom path')
-            self.draw_rays_claude_2(
-                seg.global_path.poses[i].pose.position.x, seg.global_path.poses[i].pose.position.y, ray_data, self.get_yaw(seg.global_path.poses[i].pose))
-            # save the frame
-
-            frame_path = f"{frames_folder}/frame_{counter:03d}.png"
-            counter+=1
-            plt.savefig(frame_path)
+            # plt.clf()  # clear previous plot
+            # ax = plt.gca()
+            # ax.set_aspect('equal')
+            # # replot the base elements
+            # plt.plot(self.current_odom[0], self.current_odom[1], marker='o',
+            #          linestyle='-', markersize=3, color='blue', label="odometry path")
+            #
+            #
+            # print("local goal count")
+            # for obstacle in active_obstacles:
+            #     circle = patches.Circle(
+            #     (obstacle.center_x, obstacle.center_y),
+            #     radius=obstacle.radius,
+            #     fill=False,
+            #     color='red',
+            #     linewidth=1.5,
+            #     linestyle='-'
+            # )
+            #     ax.add_patch(circle)
+            #
+            # plt.scatter(
+            #     self.current_odom[0], self.current_odom[1], color='cyan', s=200, label='robot')
+            #
+            # # plot the entire path
+            # plt.plot(path_x, path_y, marker='o', linestyle='-',
+            #          markersize=3, color='black', label='odom path')
+            # self.draw_rays_claude_2(
+            #     seg.global_path.poses[i].pose.position.x, seg.global_path.poses[i].pose.position.y, ray_data, self.get_yaw(seg.global_path.poses[i].pose))
+            # # save the frame
+            #
+            # frame_path = f"{frames_folder}/frame_{counter:03d}.png"
+            # counter+=1
+            # plt.savefig(frame_path)
 
         plt.close()
         self.current_odom_index += 1
