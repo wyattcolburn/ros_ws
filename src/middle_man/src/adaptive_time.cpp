@@ -44,6 +44,8 @@ class obsValid : public rclcpp::Node {
         path_sub_ = this->create_subscription<nav_msgs::msg::Path>(
             "/plan_barn", 10, std::bind(&obsValid::path_callback_map, this, std::placeholders::_1));
 
+        adaptive_sub_ = this->create_subscription<nav_msgs::msg::Path>(
+            "/adaptive_path", 10, std::bind(&obsValid::adaptive_path_callback, this, std::placeholders::_1));
         scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             "/scan", 10, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
 
@@ -51,6 +53,9 @@ class obsValid : public rclcpp::Node {
         // Add this to your constructor
         local_goal_marker_pub_ =
             this->create_publisher<visualization_msgs::msg::MarkerArray>("/local_goal_markers", 10);
+
+        adaptive_local_goal_marker_pub_ =
+            this->create_publisher<visualization_msgs::msg::MarkerArray>("/adaptive_local_goal_markers", 10);
 
         hall_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("/HallScan", 10);
 
@@ -70,9 +75,13 @@ class obsValid : public rclcpp::Node {
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr packetOut_publisher_;
     // Add this to your private members
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr local_goal_marker_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr adaptive_local_goal_marker_pub_;
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr adaptive_sub_;
 
+    std::vector<geometry_msgs::msg::PoseStamped> adaptive_map_poses_;
+    bool adaptive_flag_ = false; // have we received an adaptive path yet?
     // size_t adaptive_idx_ = 0;                     // closest-ahead index on adaptive path
     static constexpr size_t ODOM_FIELD_COUNT = 2; // odom current v, w
     static constexpr size_t LOCAL_GOAL_COUNT = 3; // local goal x, y, yaw
@@ -102,12 +111,39 @@ class obsValid : public rclcpp::Node {
     float OFFSET;
     int NUM_VALID_OBSTACLES;
 
-    const float GOAL_THRESHOLD = .5;
     int rebuild_local_goal_counter = 0;
     const int rebuild_local_goal_limit = 28;
     // going to hold all the local goals in map, so that we can apply amcl transform before
     // passing local goal to network that has been affected by drfit
     std::vector<geometry_msgs::msg::PoseStamped> map_poses_;
+
+    // --- Adaptive-path tracking state ---
+    size_t adaptive_idx_ = 0;
+    double adaptive_prev_d2_ = std::numeric_limits<double>::infinity();
+    int adaptive_increasing_counter_ = 0;
+    bool adaptive_first_pose_seen_ = false;
+    double prev_mx_ = std::numeric_limits<double>::quiet_NaN();
+    double prev_my_ = std::numeric_limits<double>::quiet_NaN();
+
+    // --- Tunables ---
+    static constexpr int ADAPT_INC_LIMIT = 100;      // ticks: distance increasing -> skip ahead
+    static constexpr size_t ADAPT_LOOKAHEAD = 10;    // how many future poses to consider
+    static constexpr double ADAPT_MIN_MOVE = 0.02;   // m: ignore heading if not moving
+    static constexpr double ADAPT_HYSTERESIS = 0.05; // m: small buffer on distance compare
+    static constexpr double GOAL_THRESHOLD = .5;
+
+    // --- Tunables (adjust to taste) ---
+    static constexpr double ADAPT_REACH_THRESH = 0.15; // m, "arrived" radius
+    static constexpr int ADAPT_REACH_CONFIRM = 3;      // need N consecutive ticks inside radius
+    static constexpr int ADAPT_COOLDOWN_TICKS = 4;     // min ticks between index++
+    static constexpr size_t MAX_JUMP_PER_UPDATE = 1;   // at most 1 step per call
+    static constexpr double PASSED_DOT_THRESH = -0.2;  // cos(angle) < -0.2 (~> 101°) = clearly behind
+
+    // --- State (add to your class) ---
+    int adapt_reach_consec_ = 0;
+    int adapt_ticks_since_adv_ = 1000;
+    double adapt_last_adv_mx_ = std::numeric_limits<double>::quiet_NaN();
+    double adapt_last_adv_my_ = std::numeric_limits<double>::quiet_NaN();
 
     void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
 
@@ -164,7 +200,9 @@ class obsValid : public rclcpp::Node {
         obstacle_manager_.update_obstacles_sliding(local_goal_manager_);
 
         auto local_goal_markers = make_local_goal_markers();
+        auto adaptive_goal_marker = make_adaptive_local_goal_markers();
         local_goal_marker_pub_->publish(local_goal_markers);
+        adaptive_local_goal_marker_pub_->publish(adaptive_goal_marker);
         int num_obs;
         auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
         auto marker_array = make_markers(obs_list, static_cast<size_t>(num_obs));
@@ -197,12 +235,165 @@ class obsValid : public rclcpp::Node {
         return;
     }
 
+    void adaptive_path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
+        RCLCPP_INFO(this->get_logger(), "Received adaptive path: %zu poses in frame %s", pathMsg->poses.size(),
+                    pathMsg->header.frame_id.c_str());
+
+        adaptive_map_poses_.clear();
+        adaptive_map_poses_.reserve(pathMsg->poses.size());
+
+        // Keep in MAP frame; we’ll transform to OD0M when sending to the NN
+        for (const auto &p : pathMsg->poses) {
+            geometry_msgs::msg::PoseStamped pm = p;
+            pm.header.frame_id = "map";
+            if (pm.header.stamp.sec == 0 && pm.header.stamp.nanosec == 0) {
+                pm.header.stamp = this->now();
+            }
+            adaptive_map_poses_.push_back(pm);
+        }
+        adaptive_idx_ = 0;
+        adaptive_flag_ = !adaptive_map_poses_.empty();
+    }
+    std::pair<size_t, double> find_closest_ahead_index(const std::vector<geometry_msgs::msg::PoseStamped> &v, double mx,
+                                                       double my, size_t start_idx) {
+        if (v.empty())
+            return {0, std::numeric_limits<double>::infinity()};
+        size_t best = start_idx;
+        double best_d2 = std::numeric_limits<double>::infinity();
+
+        for (size_t i = start_idx; i < v.size(); ++i) {
+            const auto &pt = v[i].pose.position;
+            const double dx = mx - pt.x;
+            const double dy = my - pt.y;
+            const double d2 = dx * dx + dy * dy;
+            if (d2 < best_d2) {
+                best_d2 = d2;
+                best = i;
+            }
+        }
+        return {best, std::sqrt(best_d2)};
+    }
+
+    std::pair<size_t, double> update_adaptive_index(const std::vector<geometry_msgs::msg::PoseStamped> &v, double mx,
+                                                    double my) {
+        using std::numeric_limits;
+        if (v.empty())
+            return {0, numeric_limits<size_t>::max()};
+        if (adaptive_idx_ >= v.size())
+            adaptive_idx_ = v.size() - 1;
+
+        auto dist2_to = [&](size_t i) {
+            const auto &p = v[i].pose.position;
+            const double dx = p.x - mx, dy = p.y - my;
+            return dx * dx + dy * dy;
+        };
+        auto dist_to = [&](size_t i) { return std::sqrt(dist2_to(i)); };
+
+        adapt_ticks_since_adv_++;
+
+        // Distance & consecutive-confirm logic
+        const double d_cur = dist_to(adaptive_idx_);
+        if (d_cur <= ADAPT_REACH_THRESH)
+            ++adapt_reach_consec_;
+        else
+            adapt_reach_consec_ = 0;
+
+        const bool have_last_adv = std::isfinite(adapt_last_adv_mx_) && std::isfinite(adapt_last_adv_my_);
+        const double move_since_adv =
+            have_last_adv ? std::hypot(mx - adapt_last_adv_mx_, my - adapt_last_adv_my_) : 1e9;
+        const bool can_advance = adapt_ticks_since_adv_ >= ADAPT_COOLDOWN_TICKS && move_since_adv >= ADAPT_MIN_MOVE;
+
+        // Advance by AT MOST ONE when truly arrived
+        if (can_advance && adapt_reach_consec_ >= ADAPT_REACH_CONFIRM && adaptive_idx_ + 1 < v.size()) {
+            adaptive_idx_++;
+            adapt_ticks_since_adv_ = 0;
+            adapt_reach_consec_ = 0;
+            adapt_last_adv_mx_ = mx;
+            adapt_last_adv_my_ = my;
+            adaptive_prev_d2_ = numeric_limits<double>::infinity();
+            adaptive_increasing_counter_ = 0;
+        }
+
+        // Passed-target check (only if moving and not already within reach)
+        if (can_advance && d_cur > ADAPT_REACH_THRESH + 0.05 && std::isfinite(prev_mx_) && std::isfinite(prev_my_)) {
+            double hx = mx - prev_mx_, hy = my - prev_my_;
+            const double mv = std::hypot(hx, hy);
+            if (mv > ADAPT_MIN_MOVE) {
+                hx /= mv;
+                hy /= mv;
+                const auto &tgt = v[adaptive_idx_].pose.position;
+                const double gx = tgt.x - mx, gy = tgt.y - my;
+                const double dot = gx * hx + gy * hy;
+                if (dot < PASSED_DOT_THRESH && adaptive_idx_ + 1 < v.size()) {
+                    adaptive_idx_++;
+                    adapt_ticks_since_adv_ = 0;
+                    adapt_last_adv_mx_ = mx;
+                    adapt_last_adv_my_ = my;
+                    adaptive_prev_d2_ = numeric_limits<double>::infinity();
+                    adaptive_increasing_counter_ = 0;
+                }
+            }
+        }
+
+        // Slow "distance increasing" nudge with hysteresis (still max +1)
+        {
+            const double d2 = dist2_to(adaptive_idx_);
+            const double prev = adaptive_prev_d2_;
+            const double hyst2 = ADAPT_HYSTERESIS * ADAPT_HYSTERESIS;
+
+            if (d2 + hyst2 > prev) {
+                adaptive_increasing_counter_++;
+                if (can_advance && adaptive_increasing_counter_ > ADAPT_INC_LIMIT && adaptive_idx_ + 1 < v.size()) {
+                    adaptive_idx_++;
+                    adaptive_increasing_counter_ = 0;
+                    adaptive_prev_d2_ = numeric_limits<double>::infinity();
+                    adapt_ticks_since_adv_ = 0;
+                    adapt_last_adv_mx_ = mx;
+                    adapt_last_adv_my_ = my;
+                }
+            } else {
+                adaptive_increasing_counter_ = 0;
+                adaptive_prev_d2_ = d2;
+            }
+        }
+
+        // Choose best within a *small* window; cap jump size
+        size_t best = adaptive_idx_;
+        double best_d2 = dist2_to(adaptive_idx_);
+        const size_t end = std::min(v.size(), adaptive_idx_ + std::min(ADAPT_LOOKAHEAD, MAX_JUMP_PER_UPDATE) + 1);
+        for (size_t i = adaptive_idx_ + 1; i < end; ++i) {
+            const double d2 = dist2_to(i);
+            if (d2 < best_d2) {
+                best_d2 = d2;
+                best = i;
+            }
+        }
+        adaptive_idx_ = best;
+
+        // Save for next tick
+        prev_mx_ = mx;
+        prev_my_ = my;
+
+        return {adaptive_idx_, std::sqrt(best_d2)};
+    }
     void processPacketOut() {
         packetOut[0] = current_cmd_v;
         packetOut[1] = current_cmd_w;
         Local_Goal nn_lg;
         // Transforming current Local_Goal nn_lg;
         bool have_nn_lg = false;
+
+        if (adaptive_flag_ && !adaptive_map_poses_.empty()) {
+            // find closest-ahead on the adaptive chain using current MAP pose
+
+            auto [idx, dist] = update_adaptive_index(adaptive_map_poses_, map_x, map_y);
+            adaptive_idx_ = idx;
+
+            // transform selected adaptive pose map->odom for NN input
+            if (transform_map_odom(adaptive_map_poses_[adaptive_idx_], nn_lg)) {
+                have_nn_lg = true;
+            }
+        }
 
         if (!have_nn_lg) {
             // fallback: use your existing fixed local goal mechanism
@@ -527,6 +718,54 @@ class obsValid : public rclcpp::Node {
         obstacle_manager_.local_goals_to_obs(local_goal_manager_);
     }
 
+    visualization_msgs::msg::MarkerArray make_adaptive_local_goal_markers() {
+        visualization_msgs::msg::MarkerArray marker_array;
+
+        // Clear previous adaptive markers
+        visualization_msgs::msg::Marker del;
+        del.header.frame_id = "map";
+        del.header.stamp = this->now();
+        del.ns = "adaptive_local_goals";
+        del.id = 0;
+        del.action = visualization_msgs::msg::Marker::DELETEALL;
+        marker_array.markers.push_back(del);
+
+        for (size_t i = 0; i < adaptive_map_poses_.size(); ++i) {
+            const auto &ps = adaptive_map_poses_[i]; // PoseStamped in MAP frame
+
+            visualization_msgs::msg::Marker m;
+            m.header.frame_id = "map";
+            m.header.stamp = this->now();
+            m.ns = "adaptive_local_goals"; // match DELETE ns
+            m.id = static_cast<int>(i) + 1;
+            m.type = visualization_msgs::msg::Marker::ARROW;
+            m.action = visualization_msgs::msg::Marker::ADD;
+
+            // Directly use pose (already in map frame)
+            m.pose = ps.pose;
+
+            m.scale.x = 0.3;
+            m.scale.y = 0.05;
+            m.scale.z = 0.05;
+
+            // Color: highlight current adaptive index
+            if (i == adaptive_idx_) { // current target on adaptive path
+                m.color.r = 1.0f;
+                m.color.g = 0.0f;
+                m.color.b = 1.0f;
+                m.color.a = 0.9f; // magenta
+            } else {
+                m.color.r = 0.6f;
+                m.color.g = 0.0f;
+                m.color.b = 0.8f;
+                m.color.a = 0.5f; // purple-ish
+            }
+
+            m.lifetime = rclcpp::Duration::from_seconds(0.0);
+            marker_array.markers.push_back(m);
+        }
+        return marker_array;
+    }
     visualization_msgs::msg::MarkerArray make_local_goal_markers() {
         visualization_msgs::msg::MarkerArray marker_array;
 
