@@ -21,7 +21,6 @@ PLUGINLIB_EXPORT_CLASS(onnx_controller::ONNXController, nav2_core::Controller)
 
 using nav2_util::declare_parameter_if_not_declared;
 using nav2_util::geometry_utils::euclidean_distance;
-
 namespace {
 
 // Ensure the ONNX Runtime Env lives as long as the process
@@ -68,39 +67,7 @@ void ONNXController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr &p
     // Create session
     session_ = std::make_unique<Ort::Session>(*g_env, model_path_.c_str(), session_options);
 
-    // Fetch input/output names: we expect TWO inputs ("lidar","state") and ONE output
-    Ort::AllocatorWithDefaultOptions ort_alloc;
-    input_name_.clear();
-    output_name_.clear();
-
-    size_t num_inputs = session_->GetInputCount();
-    size_t num_outputs = session_->GetOutputCount();
-
-    for (size_t i = 0; i < num_inputs; ++i) {
-        Ort::AllocatedStringPtr nm = session_->GetInputNameAllocated(i, ort_alloc);
-        input_name_.emplace_back(nm.get());
-    }
-    for (size_t i = 0; i < num_outputs; ++i) {
-        Ort::AllocatedStringPtr nm = session_->GetOutputNameAllocated(i, ort_alloc);
-        output_name_.emplace_back(nm.get());
-    }
-
-    // Log the discovered names
-    if (!input_name_.empty()) {
-        std::string in_list;
-        for (auto &s : input_name_) {
-            in_list += (in_list.empty() ? "" : ", ") + s;
-        }
-        RCLCPP_INFO(logger_, "ONNX inputs: %s", in_list.c_str());
-    }
-    if (!output_name_.empty()) {
-        std::string out_list;
-        for (auto &s : output_name_) {
-            out_list += (out_list.empty() ? "" : ", ") + s;
-        }
-        RCLCPP_INFO(logger_, "ONNX outputs: %s", out_list.c_str());
-    }
-
+    RCLCPP_INFO(logger_, "Expecting ONNX inputs: lidar [1,1080,1], state [1,5]; output: cmd_out");
     // Publishers / Subscribers
     global_pub_ = node->create_publisher<nav_msgs::msg::Path>("received_global_plan", 1);
 
@@ -192,18 +159,23 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     float odom_yaw = static_cast<float>(latest[1087]);
 
     // Create Ort tensors
+    //
+    //
     auto mem = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
+    // Build tensors as before:
     Ort::Value lidar_tensor =
         Ort::Value::CreateTensor<float>(mem, lidar_in.data(), lidar_in.size(), lidar_shape.data(), lidar_shape.size());
     Ort::Value state_tensor =
         Ort::Value::CreateTensor<float>(mem, state_in.data(), state_in.size(), state_shape.data(), state_shape.size());
 
-    const char *const input_names[] = {input_name_[0].c_str(), input_name_[1].c_str()}; // "lidar","state"
-    Ort::Value inputs[] = {std::move(lidar_tensor), std::move(state_tensor)};
-    const char *const output_names[] = {output_name_[0].c_str()};
+    // Just hardcode the names that match your exported graph:
+    static const char *INPUT_NAMES[] = {"lidar", "state"};
+    static const char *OUTPUT_NAMES[] = {"cmd_out"};
 
-    // Inference
-    auto outputs = session_->Run(Ort::RunOptions{}, input_names, inputs, 2, output_names, 1);
+    Ort::Value inputs[] = {std::move(lidar_tensor), std::move(state_tensor)};
+
+    // Run
+    auto outputs = session_->Run(Ort::RunOptions{}, INPUT_NAMES, inputs, 2, OUTPUT_NAMES, 1);
 
     // Output [1,2]
     float *out_f = outputs[0].GetTensorMutableData<float>();
