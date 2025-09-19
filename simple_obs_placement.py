@@ -42,8 +42,15 @@ def obstacle_creation_sym(p_curr, p_next, offset=OFFSET, radius=RADIUS):
     return ob1, ob2
 
 def main():
-    local_goals_x = [1, 1.2, 1.4, 1.6, 1.8]
-    local_goals_y = [0, 0, 0, 0, 0]
+    local_goals_x = [
+    1.00, 1.04, 1.08, 1.12, 1.16, 1.20, 1.24, 1.28, 1.32, 1.36,
+    1.40, 1.44, 1.48, 1.52, 1.56, 1.60, 1.64, 1.68, 1.72, 1.76, 1.80
+    ]
+
+    local_goals_y = [
+        0.0000, 0.0013, 0.0050, 0.0113, 0.0200, 0.0312, 0.0450, 0.0612, 0.0800, 0.1012,
+        0.1250, 0.1512, 0.1800, 0.2112, 0.2450, 0.2813, 0.3200, 0.3613, 0.4050, 0.4512, 0.5000
+    ]
     path = list(zip(local_goals_x, local_goals_y))
 
     obs_list = []
@@ -70,8 +77,12 @@ def main():
     leg = ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0),
                     borderaxespad=0., frameon=True)
     fig.subplots_adjust(right=0.8)  # make room on the right
+    plt.title("Symmetric Corridor Obstacles")
     plt.xlabel("odom_x")
     plt.ylabel("odom_y")
+    ax.set_xlim(.8,2.4)
+    ax.set_ylim(-.8,1)
+    plt.savefig("Symmetric_Obstacle_Placement.jpg")
     plt.show()
     # ax.grid(True, linestyle='--', alpha=0.3)
     # ax.legend(loc='upper right')  # legend in top right

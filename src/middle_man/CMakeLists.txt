@@ -16,6 +16,7 @@ find_package(yaml-cpp REQUIRED)
 add_executable(${PROJECT_NAME}_node src/main.cpp src/mpc.cpp src/obstacles.cpp src/raytracing.cpp)
 add_executable(${PROJECT_NAME}_valid src/obs_validation.cpp src/obstacles.cpp src/raytracing.cpp)
 add_executable(${PROJECT_NAME}_barn src/barn_time.cpp src/obstacles.cpp src/raytracing.cpp)
+add_executable(${PROJECT_NAME}_runtime src/barn_time.cpp src/obstacles.cpp src/raytracing.cpp)
 
 
 # Link against ROS2 packages
@@ -48,8 +49,20 @@ ament_target_dependencies(${PROJECT_NAME}_barn
   geometry_msgs
   yaml-cpp
 )
+ament_target_dependencies(${PROJECT_NAME}_runtime
+  rclcpp
+  sensor_msgs
+  nav_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
+  visualization_msgs
+  geometry_msgs
+  yaml-cpp
+)
 
 target_link_libraries(${PROJECT_NAME}_barn yaml-cpp)
+target_link_libraries(${PROJECT_NAME}_runtime yaml-cpp)
 
 install(TARGETS 
   ${PROJECT_NAME}_node
