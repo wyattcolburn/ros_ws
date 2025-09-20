@@ -3,7 +3,7 @@
 NUM_VALID_OBSTACLES :  20
 OFFSET : 1.0
 RADIUS : .4
-CSV_FILE : "sanity_test/baseline.csv"
+CSV_FILE : "cnn/baseline.csv"
 
 # Bash script parameters
 WORLD_NUMS: [12, 36, 75, 125, 203, 210, 69, 187, 266]
@@ -19,4 +19,4 @@ RESET_DELAY: 10
 BAG_DKR: "gauss_2"
 
 TRAINING_DKR: "gauss_2_asym_adaptive_lg"
-MODEL_PATH: "created_models/gauss_2_asym_combo"
+MODEL_PATH: "created_models/cnn"

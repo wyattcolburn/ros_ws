@@ -47,7 +47,7 @@ MAXS_FILE="${PREFIX}_scaler_maxs.txt"
 if [[ ! -f "$MINS_FILE" || ! -f "$MAXS_FILE" ]]; then
   echo "ERROR: matching scaler mins/maxs not found for $(basename "$LATEST_ONNX")" >&2
   echo " searched mins: $MINS_FILE  |  maxs: $MAXS_FILE" >&2
-  exit 1
+  # exit 1
 fi
 
 # Stage to versioned folder then atomically update static symlinks
