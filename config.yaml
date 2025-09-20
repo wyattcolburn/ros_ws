@@ -3,10 +3,11 @@
 NUM_VALID_OBSTACLES :  20
 OFFSET : 1.0
 RADIUS : .4
-CSV_FILE : "cnn/baseline.csv"
+CSV_FILE : "cnn_lstm/baseline.csv"
 
 # Bash script parameters
 WORLD_NUMS: [12, 36, 75, 125, 203, 210, 69, 187, 266]
+# WORLD_NUMS: [210, 69, 187, 266]
 # WORLD_NUMS: [36]
 
 NUM_TRIALS: 10
@@ -19,4 +20,4 @@ RESET_DELAY: 10
 BAG_DKR: "gauss_2"
 
 TRAINING_DKR: "gauss_2_asym_adaptive_lg"
-MODEL_PATH: "created_models/cnn"
+MODEL_PATH: "created_models/cnn_lstm_2"
