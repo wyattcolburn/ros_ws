@@ -92,9 +92,9 @@ class Segment():
         self.create_local_goals()
         self.create_obstacles()
         # self.local_goal_manager_.generate_local_goals_adaptive(self.global_path) # this populates local_goal_manager.adaptive_local_goals an array of local goals
-        adaptive_lg = self.local_goal_manager_.generate_local_goals_adaptive(
-        self.global_path, min_spacing=0.12, max_spacing=0.60, k_gain=0.35, smoothing=0.5
-)
+#         adaptive_lg = self.local_goal_manager_.generate_local_goals_adaptive(
+#         self.global_path, min_spacing=0.12, max_spacing=0.60, k_gain=0.35, smoothing=0.5
+# )
         # self.plot_adaptive_lg_first()
         # 
         # chord = [math.hypot(adaptive_lg[i+1].pose.position.x - adaptive_lg[i].pose.position.x,
@@ -1453,6 +1453,8 @@ class MapTraining(Node):
             local_goal_curr = local_goal_all[seg.start_index:seg.end_index]
             local_goal_curr.to_csv(f"{output_folder}/local_goals.csv")
             # NEW: adaptive goals for this segment
+
+            
             adapt = getattr(seg.local_goal_manager_, "adaptive_local_goals", [])
             # 1) sparse list (few dozen rows typically)
             seg.local_goal_manager_.save_goals_csv(
@@ -1504,39 +1506,39 @@ class MapTraining(Node):
                 counter += 1
                 self.current_odom_index += 1
                 continue
-            # plt.clf()  # clear previous plot
-            # ax = plt.gca()
-            # ax.set_aspect('equal')
-            # # replot the base elements
-            # plt.plot(self.current_odom[0], self.current_odom[1], marker='o',
-            #          linestyle='-', markersize=3, color='blue', label="odometry path")
-            #
-            #
-            # print("local goal count")
-            # for obstacle in active_obstacles:
-            #     circle = patches.Circle(
-            #     (obstacle.center_x, obstacle.center_y),
-            #     radius=obstacle.radius,
-            #     fill=False,
-            #     color='red',
-            #     linewidth=1.5,
-            #     linestyle='-'
-            # )
-            #     ax.add_patch(circle)
-            #
-            # plt.scatter(
-            #     self.current_odom[0], self.current_odom[1], color='cyan', s=200, label='robot')
-            #
-            # # plot the entire path
-            # plt.plot(path_x, path_y, marker='o', linestyle='-',
-            #          markersize=3, color='black', label='odom path')
-            # self.draw_rays_claude_2(
-            #     seg.global_path.poses[i].pose.position.x, seg.global_path.poses[i].pose.position.y, ray_data, self.get_yaw(seg.global_path.poses[i].pose))
-            # # save the frame
-            #
-            # frame_path = f"{frames_folder}/frame_{counter:03d}.png"
-            # counter+=1
-            # plt.savefig(frame_path)
+            plt.clf()  # clear previous plot
+            ax = plt.gca()
+            ax.set_aspect('equal')
+            # replot the base elements
+            plt.plot(self.current_odom[0], self.current_odom[1], marker='o',
+                     linestyle='-', markersize=3, color='blue', label="odometry path")
+
+
+            print("local goal count")
+            for obstacle in active_obstacles:
+                circle = patches.Circle(
+                (obstacle.center_x, obstacle.center_y),
+                radius=obstacle.radius,
+                fill=False,
+                color='red',
+                linewidth=1.5,
+                linestyle='-'
+            )
+                ax.add_patch(circle)
+
+            plt.scatter(
+                self.current_odom[0], self.current_odom[1], color='cyan', s=200, label='robot')
+
+            # plot the entire path
+            plt.plot(path_x, path_y, marker='o', linestyle='-',
+                     markersize=3, color='black', label='odom path')
+            self.draw_rays_claude_2(
+                seg.global_path.poses[i].pose.position.x, seg.global_path.poses[i].pose.position.y, ray_data, self.get_yaw(seg.global_path.poses[i].pose))
+            # save the frame
+
+            frame_path = f"{frames_folder}/frame_{counter:03d}.png"
+            counter+=1
+            plt.savefig(frame_path)
 
         plt.close()
         self.current_odom_index += 1
@@ -1704,53 +1706,6 @@ class MapTraining(Node):
         # plt.show()
         return plt.gcf()  # Return the figure if you want to save it later
 
-    # def draw_rays_claude_2(self, odom_x, odom_y, lidar_readings, segment):
-    #     # Get robot's yaw from the current pose (you need to pass this as a parameter)
-    #     robot_yaw = self.get_yaw(
-    #         segment.global_path.poses[self.current_odom_index].pose)
-    #
-    #     # Define lidar offset relative to robot (90 degrees = π/2 radians)
-    #     lidar_offset = -math.pi/2
-    #
-    #     # Draw rays
-    #     for lidar_counter in range(self.NUM_LIDAR):
-    #         # Calculate ray angle in the global frame
-    #         lidar_angle = lidar_counter * (2*np.pi / self.NUM_LIDAR)
-    #         global_angle = robot_yaw + lidar_angle + lidar_offset
-    #         global_angle = self.normalize_angle(global_angle)
-    #
-    #         distance = lidar_readings[lidar_counter]
-    #
-    #         # Ensure reasonable distance values
-    #         if distance <= 0.001 or distance >= 12.0:  # Likely invalid value
-    #             continue
-    #
-    #         # Draw a single line from robot to endpoint using the global angle
-    #         projection_x = odom_x + distance * math.cos(global_angle)
-    #         projection_y = odom_y + distance * math.sin(global_angle)
-    #
-    #         # Individual rays should be single lines, not connected
-    #
-    #         plt.plot([odom_x, projection_x], [odom_y, projection_y],
-    #                  linestyle='-', color='green', linewidth=0.5)
-    #
-    #     # Optionally draw the robot's orientation and lidar frame
-    #     arrow_length = 1.0
-    #
-    #     # Draw robot orientation (in red)
-    #     dx_robot = arrow_length * math.cos(robot_yaw)
-    #     dy_robot = arrow_length * math.sin(robot_yaw)
-    #     plt.arrow(odom_x, odom_y, dx_robot, dy_robot,
-    #               head_width=0.1, head_length=0.15, fc='red', ec='red', label='Robot Heading')
-    #
-    #     # Draw lidar orientation (in orange)
-    #     lidar_direction = robot_yaw + lidar_offset
-    #     dx_lidar = arrow_length * math.cos(lidar_direction)
-    #     dy_lidar = arrow_length * math.sin(lidar_direction)
-    #     plt.arrow(odom_x, odom_y, dx_lidar, dy_lidar,
-    #               head_width=0.1, head_length=0.15, fc='black', ec='black', label='Lidar Direction')
-    #
-    #     print("Done drawing rays")
     def draw_rays_claude_2(self, odom_x, odom_y, scan, yaw):
         OFF = -math.pi/2
         RMIN, RMAX = 0.164, 12.0
@@ -1767,81 +1722,13 @@ class MapTraining(Node):
         # arrows: robot +x (red) and beam 0 / angle_min (black)
         plt.arrow(odom_x, odom_y, math.cos(yaw),         math.sin(yaw),
                   head_width=0.1, head_length=0.15, fc='red', ec='red')
-        plt.arrow(odom_x, odom_y, math.cos(yaw+OFF),     math.sin(yaw+OFF),
-                  head_width=0.1, head_length=0.15, fc='black', ec='black')
+        # plt.arrow(odom_x, odom_y, math.cos(yaw+OFF),     math.sin(yaw+OFF),
+        #           head_width=0.1, head_length=0.15, fc='black', ec='black')
+        plt.grid(True, which='major', alpha=0.25, linewidth=0.6, color='0.6')  
         plt.gca().set_aspect('equal', adjustable='box')
-    # def draw_rays_claude_2(self, odom_x, odom_y, lidar_readings, segment):
-    #     yaw = self.get_yaw(segment.global_path.poses[self.current_odom_index].pose)
-    #
-    #     FOV_MIN = self.FOV_MIN
-    #     FOV_MAX = self.FOV_MAX
-    #     RMIN = self.LIDAR_MIN_R
-    #     RMAX = self.LIDAR_MAX_R
-    #
-    #     n = len(lidar_readings)
-    #     if n < 2:
-    #         return
-    #     inc = (2*math.pi) / self.NUM_LIDAR  # == (FOV_MAX - FOV_MIN)/(n-1)
-    #     OFF= -math.pi /2.0
-    #     for i, r in enumerate(lidar_readings):
-    #         if r <= RMIN + 1e-6 or r >= RMAX - 1e-6:
-    #             continue
-    #
-    #         # angle in SENSOR frame, then to WORLD with yaw + mounting offset
-    #         ang_sensor = i * inc
-    #         ang_world  = self.normalize_angle(yaw + OFF + ang_sensor)
-    #
-    #         x = odom_x + r * math.cos(ang_world)
-    #         y = odom_y + r * math.sin(ang_world)
-    #         plt.plot([odom_x, x], [odom_y, y], '-', color='green', linewidth=0.5)
-    #
-    #     # robot +x (forward) arrow in red
-    #     plt.arrow(odom_x, odom_y, math.cos(yaw), math.sin(yaw),
-    #               head_width=0.1, head_length=0.15, fc='red', ec='red', label='Robot heading')
-    #
-    #     # angle_min direction in black (exactly matches how we index rays)
-    #     ang_min_world = self.normalize_angle(yaw + OFF + FOV_MIN)
-    #     plt.arrow(odom_x, odom_y, math.cos(ang_min_world), math.sin(ang_min_world),
-    #               head_width=0.1, head_length=0.15, fc='black', ec='black', label='LiDAR angle_min')
-    #
-    #     plt.gca().set_aspect('equal', adjustable='box')
-    #
-    # def draw_rays_claude_2(self, odom_x, odom_y, lidar_readings, segment):
-    #     # current pose/yaw
-    #     robot_yaw = self.get_yaw(segment.global_path.poses[self.current_odom_index].pose)
-    #
-    #     # same FOV and offset as the tracer
-    #     inc = (2*math.pi / self.NUM_LIDAR )
-    #
-    #     for i in range(self.NUM_LIDAR):
-    #         # angle of this ray in the ROBOT frame
-    #         ang_r = -math.pi + i * inc
-    #         # convert to WORLD frame
-    #         global_angle = self.normalize_angle(robot_yaw + -math.pi/2 + ang_r)
-    #
-    #         r = lidar_readings[i]
-    #         # skip hits outside sensor range
-    #         if r <= .164 + 1e-6 or r >= 12 - 1e-6:
-    #             continue
-    #
-    #         x = odom_x + r * math.cos(global_angle)
-    #         y = odom_y + r * math.sin(global_angle)
-    #         plt.plot([odom_x, x], [odom_y, y], '-', color='green', linewidth=0.5)
-    #
-    #     # robot forward (+x in robot frame) in red
-    #     dx_robot = math.cos(robot_yaw)
-    #     dy_robot = math.sin(robot_yaw)
-    #     plt.arrow(odom_x, odom_y, dx_robot, dy_robot,
-    #               head_width=0.1, head_length=0.15, fc='red', ec='red', label='Robot Heading')
-    #
-    #     # black arrow = angle_min direction
-    #     angle_min_world = self.normalize_angle(robot_yaw + -math.pi/2 -math.pi)
-    #     plt.arrow(odom_x, odom_y, math.cos(angle_min_world), math.sin(angle_min_world),
-    #               head_width=0.1, head_length=0.15, fc='black', ec='black', label='Lidar angle_min')
-    #
-    #     # keep geometry from looking stretched
-    #     ax = plt.gca()
-    #     ax.set_aspect('equal', adjustable='box')
+        plt.xlabel("odom_x")
+        plt.ylabel("odom_y")
+        plt.title("Asymmetric Ray Tracing Example")
     def is_pose_in_map_points(self, pose_stamped, map_points, tolerance=0.01):
         """Check if a PoseStamped exists in map points within tolerance"""
         pose_x = pose_stamped.pose.position.x
