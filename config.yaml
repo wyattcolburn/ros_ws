@@ -1,23 +1,27 @@
----
-# This is stuff regarding the c++ poriton of the project, robot configurations
-NUM_VALID_OBSTACLES :  20
-OFFSET : 1.0
-RADIUS : .4
-CSV_FILE : "cnn_lstm/baseline.csv"
 
-# Bash script parameters
+# Robot/config bits (unchanged)
+NUM_VALID_OBSTACLES: 20
+OFFSET: 1.0
+RADIUS: 0.4
+
+# NEW: per-model lists
+CSV_FILES:
+  - "timer_test/gauss_2_asym.csv"
+  - "timer_test/gauss_2_sym.csv"
+  # - "timer_test/cnn_sym.csv"
+  # - "timer_test/cnn_asym.csv"
+
+MODEL_PATHS:
+  - "created_models/gauss_2_asym_combo"         # can be a directory name under ~/ros_ws/created_models/
+  - "created_models/gauss_2_sym"     # or an absolute dir path
+  # - "created_models/cnn_sym"
+  # - "created_models/cnn"
+
+# Worlds & trials
 WORLD_NUMS: [12, 36, 75, 125, 203, 210, 69, 187, 266]
-# WORLD_NUMS: [210, 69, 187, 266]
-# WORLD_NUMS: [36]
-
 NUM_TRIALS: 10
 RESET_DELAY: 10
 
-# Model parameters
-
-
-#ROS BAG
+# Optional names if you use bags per model (unchanged if you don’t)
 BAG_DKR: "gauss_2"
-
 TRAINING_DKR: "gauss_2_asym_adaptive_lg"
-MODEL_PATH: "created_models/cnn_lstm_2"

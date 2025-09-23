@@ -52,7 +52,7 @@ include_directories(/usr/local/include)
 #link_directories(/home/mobrob/Downloads/onnxruntime-linux-x64-1.21.0/lib)
 link_directories(/usr/local/lib)
 # Create ONNX Plugin
-add_library(onnx_controller SHARED src/cnn_lstm_controller.cpp src/mpc.cpp)
+add_library(onnx_controller SHARED src/onnx_controller.cpp src/mpc.cpp)
 
 # Prevent plugin from using boost
 target_compile_definitions(onnx_controller PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")

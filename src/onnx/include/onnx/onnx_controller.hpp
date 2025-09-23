@@ -72,6 +72,7 @@ class ONNXController : public nav2_core::Controller {
     std::string scaler_min_path;
     std::string scaler_max_path;
 
+    void process_input_buffer();
     static const int LIDAR_SHAPE = 1080;
     static const int STATE_SHAPE = 5;
     static const int NUM_TIMESTEPS = 10;

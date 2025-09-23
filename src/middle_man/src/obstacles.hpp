@@ -73,7 +73,7 @@ struct ObstacleManager {
             add_obstacle(obs_pair.first);
             add_obstacle(obs_pair.second);
 
-            std::cout << "Obstacle at " << obs_pair.first.center_x << "  " << obs_pair.first.center_y << std::endl;
+            // std::cout << "Obstacle at " << obs_pair.first.center_x << "  " << obs_pair.first.center_y << std::endl;
         }
         return;
     }
@@ -89,8 +89,9 @@ struct ObstacleManager {
         int end = std::min(start + NUM_VALID_OBSTACLES - 1, obstacle_count - 1);
 
         // Log (obstacle indices, not goal indices)
-        std::cout << "goal/segment index: " << g << "  -> active obstacle window: [" << start << ", " << end << "]  of "
-                  << obstacle_count << std::endl;
+        // std::cout << "goal/segment index: " << g << "  -> active obstacle window: [" << start << ", " << end << "] of
+        // "
+        // << obstacle_count << std::endl;
 
         for (int i = 0; i < obstacle_count; ++i) {
             is_active[i] = (i >= start && i <= end);

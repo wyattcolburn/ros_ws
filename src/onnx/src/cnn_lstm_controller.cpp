@@ -106,12 +106,14 @@ void ONNXController::setPlan(const nav_msgs::msg::Path &path) {
 void ONNXController::onnxInputCallback(const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
     latest_onnx_input_ = *msg; // store latest packet (Float64MultiArray)
     //
+}
+
+void ONNXController::process_input_buffer() {
 
     input_frame_ latest_frame;
     for (int8_t state_counter = 0; state_counter < STATE_SHAPE; state_counter++) {
         latest_frame.state_data[state_counter] = static_cast<float>(latest_onnx_input_.data[state_counter]);
     }
-
     for (int16_t lidar_counter = 0; lidar_counter < LIDAR_SHAPE; lidar_counter++) {
         latest_frame.lidar_data[lidar_counter] =
             static_cast<float>(latest_onnx_input_.data[lidar_counter + STATE_SHAPE]);
@@ -146,7 +148,7 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     // [1085]=odom_x, [1086]=odom_y, [1087]=odom_yaw,
     // [1088..]= (optional obstacle info, unused here)
     const auto &latest = latest_onnx_input_.data;
-
+    process_input_buffer();
     // Minimal size check (we need at least up to odom_yaw)
     if (latest.size() < 1088) {
         geometry_msgs::msg::TwistStamped zero;
