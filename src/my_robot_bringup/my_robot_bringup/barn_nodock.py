@@ -32,7 +32,8 @@ import yaml
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from builtin_interfaces.msg import Time
-
+from rclpy.clock import Clock, ClockType
+from rclpy.duration import Duration
 
 class SequenceState(Enum):
     IDLE = 0
@@ -62,7 +63,7 @@ class BarnOneShot(Node):
         self.current_state = SequenceState.IDLE
 
         self._nav_timeout_counter = 0
-        self._nav_timeout_limit = 5
+        self._nav_timeout_limit = 3
 
         self._nav_feedback_counter = 0
         self._nav_feedback_limit = 30
@@ -72,6 +73,13 @@ class BarnOneShot(Node):
         self.current_lg_counter = 0
         self.current_lg_xy = (0, 0)
 
+        
+        self.steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
+        self.clock_running = False
+        self.trial_total_time = 0
+        self.trial_start_time = 0
+        self.trial_end_time = 0 
+        
         # Action clients
         self.undock_client = ActionClient(
             self, Undock, '/undock',
@@ -609,7 +617,7 @@ class BarnOneShot(Node):
 
     def record_results(self):
         """Records the results of the current trial into a CSV"""
-
+        self.end_trial_timer()
         self.yaml_reader()
         # Fix 1: Properly expand the path and ensure directory exists
         filepath = os.path.join(os.path.expanduser(
@@ -639,7 +647,8 @@ class BarnOneShot(Node):
                     self.total_lg,
                     self.config_radius,
                     self.config_num_valid_obstacles,
-                    self.config_offset
+                    self.config_offset, 
+                    f"{self.trial_total_time:.3f}"
                 ])
         else:
             print(f"File {filepath} does not exist, creating file and header")
@@ -647,7 +656,7 @@ class BarnOneShot(Node):
                 writer = csv.writer(csvfile)
                 # Fix 3: Add missing comma
                 writer.writerow(['timestamp', 'world_num', 'model_path', 'initial_x', 'initial_y', 'initial_yaw',
-                                 'goal_x', 'goal_y', 'trial_result', 'local_goal_reached', 'num_lg', 'RADIUS', 'NUM_VALID_OBSTACLES', 'OFFSET'])
+                                 'goal_x', 'goal_y', 'trial_result', 'local_goal_reached', 'num_lg', 'RADIUS', 'NUM_VALID_OBSTACLES', 'OFFSET', 'TRIAL_TIME'])
                 writer.writerow([
                     timestamp,
                     f'world {self.world_num}',
@@ -662,7 +671,8 @@ class BarnOneShot(Node):
                     self.total_lg,
                     self.config_radius,
                     self.config_num_valid_obstacles,
-                    self.config_offset
+                    self.config_offset,
+                    f"{self.trial_total_time:.3f}"
                 ])
         return
 
@@ -801,6 +811,20 @@ class BarnOneShot(Node):
         if self.current_state != SequenceState.NAVIGATING:
             return
         try:
+
+            v = (odom_msg.twist.twist.linear.x ** 2 + odom_msg.twist.twist.linear.y ** 2) ** 0.5
+            moving = v > 0.02  # tune threshold
+            if moving and not self.clock_running:
+                self.clock_running = True
+                self.trial_start_time = self.steady_clock.now()
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
             # Create PoseStamped from odometry message
             pose_stamped = PoseStamped()
             pose_stamped.header = odom_msg.header
@@ -820,7 +844,14 @@ class BarnOneShot(Node):
                 tf2_ros.ExtrapolationException) as e:
             self.get_logger().warn(
                 f'Could not transform odom to map: {str(e)}')
-
+    def end_trial_timer(self):
+        # safe no-op if never started
+        if self.clock_running and self.trial_start_time is not None:
+            end = self.steady_clock.now()
+            dur = end - self.trial_start_time
+            self.trial_total_time = dur.nanoseconds / 1e9
+            self.clock_running = False
+            self.get_logger().info(f"[trial] duration = {self.trial_total_time:.3f} s")
     def terminate(self):
         """Reset the simulation and should kill all the nodes"""
         self.get_logger().info("Terminating function")
