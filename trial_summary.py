@@ -36,12 +36,19 @@ data = []
 summary = {}
 
 class Trial:
-    def __init__(self, world_num, trial_num, STATUS, reached_lg, total_lg):
+    def __init__(self, world_num, trial_num, STATUS, reached_lg, total_lg, trial_time, avg_cmd_v, avg_cmd_w, avg_odom_v, avg_odom_w):
         self.world_num = (world_num)
         self.trial_num = int(trial_num)
         self.STATUS = (STATUS)
         self.reached_lg = int(reached_lg)
         self.total_lg = int(total_lg)
+        self.trial_time = float(trial_time)
+        self.avg_cmd_v = float(avg_cmd_v)
+        self.avg_cmd_w = float(avg_cmd_w)
+        self.avg_odom_v = float(avg_odom_v)
+        self.avg_odom_w = float(avg_odom_w)
+
+
 
 with open(filename, 'r') as file:
     csv_reader = csv.DictReader(file)
@@ -64,7 +71,12 @@ for world in world_nums:
                 trial,
                 data_line['trial_result'],
                 data_line['local_goal_reached'],
-                data_line['num_lg']
+                data_line['num_lg'], 
+                data_line['TRIAL_TIME'],
+                data_line['CMD_AVG_LIN'],
+                data_line['CMD_AVG_ANG'],
+                data_line['ODOM_AVG_LIN'],
+                data_line['ODOM_AVG_ANG']
             )
             if trial_.STATUS == 'AMCL TIMEOUT - MAX RETRIES EXCEEDED' or trial_.reached_lg == 0:
                 continue
@@ -145,60 +157,131 @@ successes = _reord(successes)
 failures  = _reord(failures)
 avg_frac  = _reord(avg_frac)
 max_frac  = _reord(max_frac)
-# ---- 1) Successes per world ----
-fig, ax = plt.subplots(figsize=(10, 6))
-ax.bar(worlds, successes, color='C0')
-ax.set_title('Successful Trials per World for CNN')
-ax.set_xlabel('Worlds (easy → hard)')
-ax.set_ylim(0, 10)                 # top at 10
-ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
-nice_grid(ax, y_major=1)           # optional: subtle grid every 1
-ax.set_ylabel('# Successes')
-plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-nice_grid(ax)  # default (no fixed major step)
-fig.tight_layout(pad=1.1)
-fig.subplots_adjust(top=0.90)   # leave 10% for the title
-save_plot(fig, 'successes_per_world.png')
-plt.close(fig)
+# # ---- 1) Successes per world ----
+# fig, ax = plt.subplots(figsize=(10, 6))
+# ax.bar(worlds, successes, color='C0')
+# ax.set_title('Successful Trials per World for MLP Trained on Asymetric Obstacles')
+# ax.set_xlabel('Worlds (easy → hard)')
+# ax.set_ylim(0, 10)                 # top at 10
+# ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
+# nice_grid(ax, y_major=1)           # optional: subtle grid every 1
+# ax.set_ylabel('# Successes')
+# plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+# nice_grid(ax)  # default (no fixed major step)
+# fig.tight_layout(pad=1.1)
+# fig.subplots_adjust(top=0.90)   # leave 10% for the title
+# save_plot(fig, 'successes_per_world.png')
+# plt.close(fig)
+#
+# # ---- 2) Stacked successes vs failures ----
+# fig, ax = plt.subplots(figsize=(10, 6))
+# ax.bar(worlds, successes, label='Successes', color='C0')
+# ax.bar(worlds, failures, bottom=successes, label='Failures', color='C1')
+# ax.set_title('Trials per World (Success vs Failure) for MLP Trained on Asymetric Obstacles')
+# ax.set_xlabel('Worlds (easy → hard)')
+# ax.set_ylim(0, 10)                 # top at 10
+# ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
+# ax.set_ylabel('# Trials')
+# ax.legend()
+# plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+# nice_grid(ax)
+# fig.tight_layout()
+# save_plot(fig, 'success_vs_failure_per_world.png')
+# plt.close(fig)
+#
+# # ---- 3) Average fraction of LG reached ----
+# fig, ax = plt.subplots(figsize=(10, 5))
+# ax.bar(worlds, avg_frac, color='C0')
+# ax.set_title('Average Fraction of Local Goals Reached per World for MLP Trained on Asymetric Obstacles')
+# ax.set_xlabel('Worlds (easy → hard)')
+# ax.set_ylabel('Average fraction (0–1)')
+# ax.set_ylim(0, 1)
+# plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+# nice_grid(ax, y_major=0.2)  # fixed 0.2 grid for 0–1 axis
+# fig.tight_layout()
+# save_plot(fig, 'avg_fraction_per_world.png')
+# plt.close(fig)
+#
+# # ---- 4) Max fraction ----
+# fig, ax = plt.subplots(figsize=(10, 5))
+# ax.bar(worlds, max_frac, color='C0')
+# ax.set_title('Max Fraction of Local Goals Reached per World for MLP Trained on Asymetric Obstacles')
+# ax.set_xlabel('Worlds (easy → hard)')
+# ax.set_ylabel('Max fraction (0–1)')
+# ax.set_ylim(0, 1)
+# plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+# nice_grid(ax, y_major=0.2)  # fixed 0.2 grid for 0–1 axis
+# fig.tight_layout()
+# save_plot(fig, 'max_fraction_per_world.png')
+# plt.close(fig)
+#
+def mean_or_nan(vals):
+    return (sum(vals) / len(vals)) if vals else float('nan')
 
-# ---- 2) Stacked successes vs failures ----
-fig, ax = plt.subplots(figsize=(10, 6))
-ax.bar(worlds, successes, label='Successes', color='C0')
-ax.bar(worlds, failures, bottom=successes, label='Failures', color='C1')
-ax.set_title('Trials per World (Success vs Failure) for CNN')
-ax.set_xlabel('Worlds (easy → hard)')
-ax.set_ylim(0, 10)                 # top at 10
-ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
-ax.set_ylabel('# Trials')
-ax.legend()
-plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-nice_grid(ax)
-fig.tight_layout()
-save_plot(fig, 'success_vs_failure_per_world.png')
-plt.close(fig)
+success_avgs = {}  # world -> dict of averages + count
 
-# ---- 3) Average fraction of LG reached ----
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.bar(worlds, avg_frac, color='C0')
-ax.set_title('Average Fraction of Local Goals Reached per World for CNN')
-ax.set_xlabel('Worlds (easy → hard)')
-ax.set_ylabel('Average fraction (0–1)')
-ax.set_ylim(0, 1)
-plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-nice_grid(ax, y_major=0.2)  # fixed 0.2 grid for 0–1 axis
-fig.tight_layout()
-save_plot(fig, 'avg_fraction_per_world.png')
-plt.close(fig)
+for w, trials in summary.items():
+    succ_trials = [t for t in trials if is_success(t)]
+    if not succ_trials:
+        continue
 
-# ---- 4) Max fraction ----
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.bar(worlds, max_frac, color='C0')
-ax.set_title('Max Fraction of Local Goals Reached per World for CNN')
-ax.set_xlabel('Worlds (easy → hard)')
-ax.set_ylabel('Max fraction (0–1)')
-ax.set_ylim(0, 1)
-plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-nice_grid(ax, y_major=0.2)  # fixed 0.2 grid for 0–1 axis
-fig.tight_layout()
-save_plot(fig, 'max_fraction_per_world.png')
-plt.close(fig)
+    cmd_v   = [t.avg_cmd_v  for t in succ_trials]
+    cmd_w   = [t.avg_cmd_w  for t in succ_trials]
+    odom_v  = [t.avg_odom_v for t in succ_trials]
+    odom_w  = [t.avg_odom_w for t in succ_trials]
+    trial_time = [t.trial_time for t in succ_trials]
+
+    success_avgs[w] = {
+        "n_success": len(succ_trials),
+        "avg_cmd_v":  mean_or_nan(cmd_v),
+        "avg_cmd_w":  mean_or_nan(cmd_w),
+        "avg_odom_v": mean_or_nan(odom_v),
+        "avg_odom_w": mean_or_nan(odom_w),
+        "trial_time": mean_or_nan(trial_time)
+    }
+
+# Save to CSV
+out_csv = os.path.join(input_dir, 'success_kinematics_per_world.csv')
+with open(out_csv, 'w', newline='') as f:
+
+    success_counter = 0
+    total_avg_cmd_v = 0
+    total_avg_cmd_w = 0
+    total_avg_odom_v = 0
+    total_avg_odom_w = 0
+    total_trial_time = 0
+    writer = csv.writer(f)
+    writer.writerow(['world','n_success','avg_cmd_v','avg_cmd_w','avg_odom_v','avg_odom_w', 'avg_trial_time'])
+
+    total_successes = 0
+    sum_cmd_v = sum_cmd_w = sum_odom_v = sum_odom_w = 0.0
+
+    for w in sorted(success_avgs.keys(), key=world_key):
+        s = success_avgs[w]
+        n = s['n_success']
+        total_successes += n
+
+        sum_cmd_v  += s['avg_cmd_v']  * n
+        sum_cmd_w  += s['avg_cmd_w']  * n
+        sum_odom_v += s['avg_odom_v'] * n
+        sum_odom_w += s['avg_odom_w'] * n
+        total_trial_time += s['trial_time'] * n
+        writer.writerow([
+            world_id(w), n,
+            f"{s['avg_cmd_v']:.6f}",
+            f"{s['avg_cmd_w']:.6f}",
+            f"{s['avg_odom_v']:.6f}",
+            f"{s['avg_odom_w']:.6f}",
+            f"{s['trial_time']:.6f}"
+        ])
+
+    # Overall averages across successful trials
+    writer.writerow([
+        "average velocities", f"{total_successes}",
+        f"{(sum_cmd_v/total_successes):.6f}",
+        f"{(sum_cmd_w/total_successes):.6f}",
+        f"{(sum_odom_v/total_successes):.6f}",
+        f"{(sum_odom_w/total_successes):.6f}",
+        f"{(total_trial_time / total_successes)}"
+    ])
+print(f"Saved {out_csv}")
