@@ -1,6 +1,6 @@
 #!/bin/bash
 set -eE -o pipefail   # no -u
-
+source ~/.bashrc
 source /opt/ros/humble/setup.bash
 source "$HOME/ros_ws/install/setup.bash" || true
 
@@ -75,11 +75,17 @@ for mi in "${!MODEL_PATHS[@]}"; do
   MAXS_FILE="${PREFIX}_scaler_maxs.txt"
   [[ -f "$MINS_FILE" ]] || MINS_FILE=$(ls -1t "$MODEL_DIR"/*mins*.txt 2>/dev/null | head -n1 || true)
   [[ -f "$MAXS_FILE" ]] || MAXS_FILE=$(ls -1t "$MODEL_DIR"/*maxs*.txt 2>/dev/null | head -n1 || true)
+  export CONTROLLER_VARIANT=MLP
 
+  colcon build --packages-select onnx --cmake-clean-cache
+  source "$HOME/ros_ws/install/setup.bash"
   if [[ ! -f "$MINS_FILE" || ! -f "$MAXS_FILE" ]]; then
     echo "WARN: scaler mins/maxs not found matching $(basename "$LATEST_ONNX")"
     echo "      mins: $MINS_FILE"
     echo "      maxs: $MAXS_FILE"
+    export CONTROLLER_VARIANT=CNN
+    colcon build --packages-select onnx --cmake-clean-cache
+    source "$HOME/ros_ws/install/setup.bash"
     # continue without exiting if that's acceptable for your controller
   fi
 

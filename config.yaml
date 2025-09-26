@@ -6,10 +6,10 @@ RADIUS: 0.4
 
 # NEW: per-model lists
 CSV_FILES:
-  - "timer_test/gauss_2_asym.csv"
-  - "timer_test/gauss_2_sym.csv"
-  - "timer_test/cnn_sym.csv"
-  - "timer_test/cnn_asym.csv"
+  - "smaller_goal_tolerance/gauss_2_asym.csv"
+  - "smaller_goal_tolerance/gauss_2_sym.csv"
+  - "smaller_goal_tolerance/cnn_sym.csv"
+  - "smaller_goal_tolerance/cnn_asym.csv"
 
 MODEL_PATHS:
   - "created_models/gauss_2_asym_combo"         # can be a directory name under ~/ros_ws/created_models/
@@ -19,9 +19,9 @@ MODEL_PATHS:
 
 # Worlds & trials
 WORLD_NUMS: [12, 36, 75, 125, 203, 210, 69, 187, 266]
+# WORLD_NUMS: [12]
 NUM_TRIALS: 10
 RESET_DELAY: 10
-
 # Optional names if you use bags per model (unchanged if you don’t)
 BAG_DKR: "gauss_2"
 TRAINING_DKR: "gauss_2_asym_adaptive_lg"

@@ -150,7 +150,7 @@ class BarnOneShot(Node):
         self.final_goal_x = None
         self.final_goal_y = None
 
-        self.goal_tolerance_xy = 1
+        self.goal_tolerance_xy = .5
 
         self.amcl_pose_received = False
         self.pose_stable_count = 0
