@@ -1,0 +1,111 @@
+Making a map of the research room: 
+
+1) connect to the turtlebot4 router
+2) once on the same network as the turtlebot4: 
+	ssh ubuntu@192.168.1.5 
+	password: turtlebot4
+
+This is using discovery server. The configuration needs to already be created for this to work:
+
+The discovery server works with having a namespace for the turtlebot, in this case it is /turtle
+
+
+On turtlebot4:
+
+1) ros2 topic list
+2) ros2 topic list (need to do this twice because of daemon services)
+
+
+
+Host Machine:
+
+1) ros2 topic list
+2) ros2 topic listou should see 
+
+host_machine:~$ ros2 topic list
+/diagnostics
+/parameter_events
+/rosout
+/turtle/battery_state
+/turtle/cmd_audio
+/turtle/cmd_lightring
+/turtle/cmd_vel
+/turtle/diagnostics
+/turtle/diagnostics_agg
+/turtle/diagnostics_toplevel_state
+/turtle/dock_status
+/turtle/function_calls
+/turtle/hazard_detection
+/turtle/hmi/buttons
+/turtle/hmi/display
+/turtle/hmi/display/message
+/turtle/hmi/led
+/turtle/imu
+/turtle/interface_buttons
+/turtle/ip
+/turtle/joint_states
+/turtle/joy
+/turtle/joy/set_feedback
+/turtle/mouse
+/turtle/oakd/rgb/preview/image_raw
+/turtle/odom
+/turtle/robot_description
+/turtle/scan
+/turtle/tf
+/turtle/tf_static
+/turtle/wheel_status
+
+Seeing the following topics under the namespace turtle shows that the host computer can receive important sensor information from the robot. A really important first step to make sure the networking is work: 
+
+
+To build a map (all of these commands are done on the host computer): 
+
+ros2 launch turtlebot4_viz view_robot.launch.py (use namespace turtle)
+ros2 launch turtlebot4_navigation slam.launch.py namespace:=turtle
+
+## This package is used to move the robot around in order to map the entire space
+ros2 run teleop_twist_keyboard teleop_twist_keyboard \
+  --ros-args -r /cmd_vel:=/turtle/cmd_vel
+  
+## This service call is used to save a map  
+ros2 run nav2_map_server map_saver_cli -f "map_name" --ros-args -p map_subscribe_transient_local:=true -r __ns:=/namespace
+
+
+To goal to goal pose using nav2 (all turtlebot4 code)
+
+# open rviz, here you will initialize the robot and set goal poses
+1)
+ros2 launch turtlebot4_viz view_robot.launch.py namespace:=turtle
+
+# Start the localization node
+2)
+ros2 launch turtlebot4_navigation localization.launch.py map:=research_room.yaml use_sim_time:=true namespace:=turtle
+
+# Start the navigation stack 
+3)
+ros2 launch turtlebot4_navigation nav2.launch.py namespace:=turtle
+
+
+##Observations
+Do 1 and 2, and only do three if the map shows up in rviz.
+
+Do 3, once localize the cost map should show up if everything went according to plan
+
+It doesnt want to start in a "non-free space," will throw errors
+
+
+
+Hall One test works for DWA:
+
+initial position: (0.80, -0.09) 
+
+goal position: (7.74, 0.67)
+
+Begin navigating from current location (0.80, -0.09) to (7.74, 0.67)
+
+Tonight goal is to write a script which brings up 
+
+1) view robot so we can visual
+2) initialize position 
+3) set goal pose (this should be using nav2.yaml, then once we wanna run our model we should be able to do nav2_copy.yaml)
+
