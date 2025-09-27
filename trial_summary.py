@@ -157,64 +157,64 @@ successes = _reord(successes)
 failures  = _reord(failures)
 avg_frac  = _reord(avg_frac)
 max_frac  = _reord(max_frac)
-# # ---- 1) Successes per world ----
-# fig, ax = plt.subplots(figsize=(10, 6))
-# ax.bar(worlds, successes, color='C0')
-# ax.set_title('Successful Trials per World for MLP Trained on Asymetric Obstacles')
-# ax.set_xlabel('Worlds (easy → hard)')
-# ax.set_ylim(0, 10)                 # top at 10
-# ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
-# nice_grid(ax, y_major=1)           # optional: subtle grid every 1
-# ax.set_ylabel('# Successes')
-# plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-# nice_grid(ax)  # default (no fixed major step)
-# fig.tight_layout(pad=1.1)
-# fig.subplots_adjust(top=0.90)   # leave 10% for the title
-# save_plot(fig, 'successes_per_world.png')
-# plt.close(fig)
-#
-# # ---- 2) Stacked successes vs failures ----
-# fig, ax = plt.subplots(figsize=(10, 6))
-# ax.bar(worlds, successes, label='Successes', color='C0')
-# ax.bar(worlds, failures, bottom=successes, label='Failures', color='C1')
-# ax.set_title('Trials per World (Success vs Failure) for MLP Trained on Asymetric Obstacles')
-# ax.set_xlabel('Worlds (easy → hard)')
-# ax.set_ylim(0, 10)                 # top at 10
-# ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
-# ax.set_ylabel('# Trials')
-# ax.legend()
-# plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-# nice_grid(ax)
-# fig.tight_layout()
-# save_plot(fig, 'success_vs_failure_per_world.png')
-# plt.close(fig)
-#
-# # ---- 3) Average fraction of LG reached ----
-# fig, ax = plt.subplots(figsize=(10, 5))
-# ax.bar(worlds, avg_frac, color='C0')
-# ax.set_title('Average Fraction of Local Goals Reached per World for MLP Trained on Asymetric Obstacles')
-# ax.set_xlabel('Worlds (easy → hard)')
-# ax.set_ylabel('Average fraction (0–1)')
-# ax.set_ylim(0, 1)
-# plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-# nice_grid(ax, y_major=0.2)  # fixed 0.2 grid for 0–1 axis
-# fig.tight_layout()
-# save_plot(fig, 'avg_fraction_per_world.png')
-# plt.close(fig)
-#
-# # ---- 4) Max fraction ----
-# fig, ax = plt.subplots(figsize=(10, 5))
-# ax.bar(worlds, max_frac, color='C0')
-# ax.set_title('Max Fraction of Local Goals Reached per World for MLP Trained on Asymetric Obstacles')
-# ax.set_xlabel('Worlds (easy → hard)')
-# ax.set_ylabel('Max fraction (0–1)')
-# ax.set_ylim(0, 1)
-# plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-# nice_grid(ax, y_major=0.2)  # fixed 0.2 grid for 0–1 axis
-# fig.tight_layout()
-# save_plot(fig, 'max_fraction_per_world.png')
-# plt.close(fig)
-#
+# ---- 1) Successes per world ----
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.bar(worlds, successes, color='C0')
+ax.set_title('Successful Trials per World for MLP Trained on Asymetric Obstacles')
+ax.set_xlabel('Worlds (easy → hard)')
+ax.set_ylim(0, 10)                 # top at 10
+ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
+nice_grid(ax, y_major=1)           # optional: subtle grid every 1
+ax.set_ylabel('# Successes')
+plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+nice_grid(ax)  # default (no fixed major step)
+fig.tight_layout(pad=1.1)
+fig.subplots_adjust(top=0.90)   # leave 10% for the title
+save_plot(fig, 'successes_per_world.png')
+plt.close(fig)
+
+# ---- 2) Stacked successes vs failures ----
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.bar(worlds, successes, label='Successes', color='C0')
+ax.bar(worlds, failures, bottom=successes, label='Failures', color='C1')
+ax.set_title('Trials per World (Success vs Failure) for MLP Trained on Asymetric Obstacles')
+ax.set_xlabel('Worlds (easy → hard)')
+ax.set_ylim(0, 10)                 # top at 10
+ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
+ax.set_ylabel('# Trials')
+ax.legend()
+plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+nice_grid(ax)
+fig.tight_layout()
+save_plot(fig, 'success_vs_failure_per_world.png')
+plt.close(fig)
+
+# ---- 3) Average fraction of LG reached ----
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.bar(worlds, avg_frac, color='C0')
+ax.set_title('Average Fraction of Local Goals Reached per World for MLP Trained on Asymetric Obstacles')
+ax.set_xlabel('Worlds (easy → hard)')
+ax.set_ylabel('Average fraction (0–1)')
+ax.set_ylim(0, 1)
+plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+nice_grid(ax, y_major=0.2)  # fixed 0.2 grid for 0–1 axis
+fig.tight_layout()
+save_plot(fig, 'avg_fraction_per_world.png')
+plt.close(fig)
+
+# ---- 4) Max fraction ----
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.bar(worlds, max_frac, color='C0')
+ax.set_title('Max Fraction of Local Goals Reached per World for MLP Trained on Asymetric Obstacles')
+ax.set_xlabel('Worlds (easy → hard)')
+ax.set_ylabel('Max fraction (0–1)')
+ax.set_ylim(0, 1)
+plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+nice_grid(ax, y_major=0.2)  # fixed 0.2 grid for 0–1 axis
+fig.tight_layout()
+save_plot(fig, 'max_fraction_per_world.png')
+plt.close(fig)
+
 def mean_or_nan(vals):
     return (sum(vals) / len(vals)) if vals else float('nan')
 
