@@ -6,7 +6,7 @@ from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, EnvironmentVariable
 from launch_ros.actions import Node
-
+import os, yaml
 ARGUMENTS = [
     DeclareLaunchArgument('namespace', default_value='turtle', description='Robot namespace (no leading slash)'),
     DeclareLaunchArgument('rviz', default_value='false', choices=['true','false'], description='Start RViz'),
@@ -18,7 +18,24 @@ ARGUMENTS = [
     DeclareLaunchArgument('auto_start_nav', default_value='true', choices=['true','false'], description='Autostart Nav2 lifecycle'),
 ]
 
+def yaml_reader():
+    """Read the configs from config.yaml"""
+    filepath = os.path.join(os.path.expanduser(
+        '~'), 'ros_ws', 'hardware.yaml')  # Fixed typo: trail -> trial
+    with open(filepath, "r") as file:
+        config = yaml.safe_load(file)
+
+        # Example access
+        init_x = config["INIT_X"]
+        init_y = config["INIT_Y"]
+        init_yaw = config["INIT_YAW"]
+        goal_x = config["GOAL_X"]
+        goal_y = config["GOAL_Y"]
+        goal_yaw = config["GOAL_YAW"]
+        return (init_x, init_y, init_yaw, goal_x, goal_y, goal_yaw)
 def generate_launch_description():
+
+    init_x, init_y, init_yaw, goal_x, goal_y, goal_yaw = yaml_reader()
     ns = LaunchConfiguration('namespace')
 
     pkg_nav = get_package_share_directory('turtlebot4_navigation')
@@ -74,6 +91,23 @@ def generate_launch_description():
         output='screen',
         parameters=[{'obstacle_config': '/home/mobrob/ros_ws/config.yaml'}],
     )
+    hardware_node = Node(
+        package='my_robot_bringup',
+        executable='hardware',
+        name='hardware_test',
+        output='screen',
+        namespace=ns,
+        parameters=[{
+            'initial_x': init_x,
+            'initial_y': init_y,
+            'initial_yaw': init_yaw,
+            'goal_x': goal_x,
+            'goal_y': goal_y,
+            'goal_yaw': goal_yaw,
+            'wait_after_undock': 2.0,
+            'pose_init_delay': 1.0,
+        }]
+    )
 
     # Build LD in your style
     ld = LaunchDescription(ARGUMENTS)
@@ -82,6 +116,7 @@ def generate_launch_description():
     ld.add_action(TimerAction(period=0.0, actions=[rviz]))
     ld.add_action(TimerAction(period=0.0, actions=[localization]))
     ld.add_action(TimerAction(period=3.0, actions=[nav2]))
+    ld.add_action(TimerAction(period=5.0, actions=[hardware_node]))
     # ld.add_action(TimerAction(period=6.0, actions=[publish_features_node]))
     # ld.add_action(TimerAction(period=8.0, actions=[middle_man_node]))
 
