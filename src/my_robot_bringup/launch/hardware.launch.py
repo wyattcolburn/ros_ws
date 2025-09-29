@@ -116,7 +116,7 @@ def generate_launch_description():
     ld.add_action(TimerAction(period=0.0, actions=[rviz]))
     ld.add_action(TimerAction(period=0.0, actions=[localization]))
     ld.add_action(TimerAction(period=3.0, actions=[nav2]))
-    ld.add_action(TimerAction(period=5.0, actions=[hardware_node]))
+    # ld.add_action(TimerAction(period=5.0, actions=[hardware_node]))
     # ld.add_action(TimerAction(period=6.0, actions=[publish_features_node]))
     # ld.add_action(TimerAction(period=8.0, actions=[middle_man_node]))
 

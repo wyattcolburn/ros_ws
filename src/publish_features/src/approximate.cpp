@@ -40,8 +40,8 @@ class dataNode : public rclcpp::Node {
         // Create a subscriber to the /odom topic.
         // The message type is nav_msgs::msg::Odometry.
         rclcpp::QoS qos = rclcpp::QoS(10);
-        Odom_sub.subscribe(this, "/odom", qos.get_rmw_qos_profile());
-        LaserScan_sub.subscribe(this, "/scan", qos.get_rmw_qos_profile());
+        Odom_sub.subscribe(this, "/turtle/odom", qos.get_rmw_qos_profile());
+        LaserScan_sub.subscribe(this, "/turtle/scan", qos.get_rmw_qos_profile());
 
         // Create a publisher that publishes std_msgs::msg::String messages.
         publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("packetOut", qos);

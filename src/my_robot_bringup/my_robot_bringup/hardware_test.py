@@ -359,8 +359,6 @@ class BarnOneShot(Node):
 
             self.get_logger().info('Sending navigation goal...')
 
-            self.get_logger().info(
-                f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
             goal_msg = NavigateToPose.Goal()
             goal_msg.pose.header.frame_id = 'map'
             goal_msg.pose.header.stamp = self.get_clock().now().to_msg()

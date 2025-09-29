@@ -109,3 +109,9 @@ Tonight goal is to write a script which brings up
 2) initialize position 
 3) set goal pose (this should be using nav2.yaml, then once we wanna run our model we should be able to do nav2_copy.yaml)
 
+Cannot localize the robot:
+
+
+There is an issue that odom and scan timestamps are very different (6 weeks), therefore mismatch in the data for localization 
+
+https://github.com/turtlebot/turtlebot4/issues/613

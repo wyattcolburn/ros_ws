@@ -3,7 +3,7 @@
 NUM_VALID_OBSTACLES :  20
 OFFSET : 1.0
 RADIUS : .4
-CSV_FILE : "good_data/gauss_2_asym/baseline.csv"
+CSV_FILE : "hardware_test/baseline.csv"
 
 # Bash script parameters
 WORLD_NUMS: [12, 36, 75, 125, 203, 210, 69, 187, 266]
@@ -18,4 +18,4 @@ RESET_DELAY: 10
 BAG_DKR: "gauss_2"
 
 TRAINING_DKR: "gauss_2_asym_lg_random"
-MODEL_PATH: "created_models/gauss_2_200_sym"
+MODEL_PATH: "created_models/gauss_2_asym_combo"

@@ -29,7 +29,7 @@ class obsValid : public rclcpp::Node {
   public:
     obsValid() : Node("obs_valid") {
         std::string config_path =
-            this->declare_parameter<std::string>("obstacle_config", "/home/mobrob/ros_ws/config.yaml");
+            this->declare_parameter<std::string>("obstacle_config", "/home/wyatt/ros_ws/config.yaml");
         RCLCPP_INFO(this->get_logger(), "Loading config file: %s", config_path.c_str());
         try {
             load_obstacle_params(config_path);
@@ -42,17 +42,17 @@ class obsValid : public rclcpp::Node {
             "/packetOut", 10, std::bind(&obsValid::data_callback, this, std::placeholders::_1));
 
         path_sub_ = this->create_subscription<nav_msgs::msg::Path>(
-            "/plan_barn", 10, std::bind(&obsValid::path_callback_map, this, std::placeholders::_1));
+            "/turtle/plan", 10, std::bind(&obsValid::path_callback_map, this, std::placeholders::_1));
 
         scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-            "/scan", 10, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
+            "/turtle/scan", 10, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
 
         marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array", 10);
         // Add this to your constructor
         local_goal_marker_pub_ =
             this->create_publisher<visualization_msgs::msg::MarkerArray>("/local_goal_markers", 10);
 
-        hall_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("/HallScan", 10);
+        hall_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("/turtle/HallScan", 10);
 
         packetOut_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("neuralNetInput", 10);
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -112,7 +112,7 @@ class obsValid : public rclcpp::Node {
     void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
 
         if (path_flag == false) {
-            // std::cout << "Have yet to receive a path yet" << std::endl;
+            std::cout << "Have yet to receive a path yet" << std::endl;
             return;
         }
         processOdomLidar(packetin);
@@ -237,6 +237,9 @@ class obsValid : public rclcpp::Node {
 
     void path_callback_map(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
 
+        if (path_flag) {
+            return;
+        }
         RCLCPP_INFO(this->get_logger(), "Received %zu poses in frame %s", pathMsg->poses.size(),
                     pathMsg->header.frame_id.c_str());
 
@@ -265,7 +268,7 @@ class obsValid : public rclcpp::Node {
 
         try {
 
-            auto tf_map_to_odom = tf_buffer_->lookupTransform("odom", "map", tf2::TimePointZero);
+            auto tf_map_to_odom = tf_buffer_->lookupTransform("map", "odom", tf2::TimePointZero);
 
             local_goal_manager_.clean_data();
             for (const auto &pm : map_poses_) {
@@ -397,7 +400,7 @@ class obsValid : public rclcpp::Node {
             // min_lidar_ranges[i]);
         }
         hall_msg.ranges = hall_lidar_publish;
-
+        RCLCPP_INFO(this->get_logger(), "Publishing hallucinated lidar");
         hall_pub_->publish(hall_msg);
         return;
     }
