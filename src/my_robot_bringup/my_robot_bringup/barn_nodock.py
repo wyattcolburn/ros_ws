@@ -582,7 +582,7 @@ class BarnOneShot(Node):
             if future.cancelled():
                 self.get_logger().warn("Navigation goal was cancelled before completion")
                 self._trial_result = "CANCELLED"
-                self.current_state = SequenceState.RESTART
+                # self.current_state = SequenceState.RESTART
                 self._nav_sent = False
                 return
 
@@ -594,7 +594,7 @@ class BarnOneShot(Node):
             if result_msg is None:
                 self.get_logger().error("Navigation result returned None")
                 self._trial_result = "ERROR"
-                self.current_state = SequenceState.RESTART
+                # self.current_state = SequenceState.RESTART
                 self._nav_sent = False
                 return
 
@@ -623,16 +623,16 @@ class BarnOneShot(Node):
             else:
                 self.get_logger().error(
                     f'Navigation failed with unknown status: {status}.')
-                self._trial_result = "NAV_UNKNOWN_FAILURE"
+                # self._trial_result = "NAV_UNKNOWN_FAILURE"
 
             self.get_logger().info(f"trial_result : {self._trial_result}")
-            self.current_state = SequenceState.COMPLETED
+            # self.current_state = SequenceState.COMPLETED
             self._nav_sent = False
 
         except Exception as e:
             self.get_logger().error(f'Navigation result error: {e}')
             self._trial_result = "ERROR"
-            self.current_state = SequenceState.FAILED
+            # self.current_state = SequenceState.FAILED
             self._nav_sent = False
 
     def amcl_pose_callback(self, msg):
