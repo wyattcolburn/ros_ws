@@ -25,6 +25,11 @@ import csv
 import os
 from pathlib import Path
 
+from nav_msgs.msg import Path
+from geometry_msgs.msg import PoseStamped
+from tf2_ros import Buffer, TransformListener, LookupException, ConnectivityException, ExtrapolationException
+from tf2_geometry_msgs import do_transform_pose_stamped
+from rclpy.duration import Duration
 from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
 import numpy as np
 import tf2_ros
@@ -37,7 +42,8 @@ from rclpy.clock import Clock, ClockType
 from rclpy.duration import Duration
 from rclpy.time import Time as RclpyTime
 
-
+# imports for rosbag
+import signal
 class SequenceState(Enum):
     IDLE = 0
     UNDOCKING = 1
@@ -74,6 +80,10 @@ class BarnOneShot(Node):
         self.current_lg_counter = 0
         self.current_lg_xy = (0, 0)
 
+        # TF buffer/listener for lookups
+
+        # Publisher for the transformed plan
+        self.plan_barn_odom_pub = self.create_publisher(Path, "/plan_barn_odom", 10)
         # Timing
         self.steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
         self.clock_running = False
@@ -140,8 +150,10 @@ class BarnOneShot(Node):
 
         self.feedback_sub = self.create_subscription(NavigateToPose_FeedbackMessage, '/navigate_to_pose/_action/feedback',
                                                      self.nav_feedback_callback, 10)
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
+
+        self.tf_buffer = Buffer(cache_time=Duration(seconds=60.0))
+        self.tf_listener = TransformListener(self.tf_buffer, self, spin_thread=True)
 
         # Current position in map frame
         self.current_map_x = 0.0
@@ -180,7 +192,14 @@ class BarnOneShot(Node):
         self.distance_remaining = 0
         self.goal_x = 0
         self.goal_y = 0
-        # Timer for state machine
+
+        # ros bag variables
+        self.bag_proc = None
+        self.bag_outdir = None
+        self.bag_topics = ["/odom", "/cmd_vel", "/plan_barn", "/plan_barn_odom", "/tf", "/tf_static", "/scan"]
+
+
+            # Timer for state machine
         self.state_timer = self.create_timer(
             1.0, self.state_machine_callback,
             callback_group=self.callback_group
@@ -352,8 +371,17 @@ class BarnOneShot(Node):
         elif self.current_state == SequenceState.INITIALIZING_POSE:
             self.handle_pose_initialization()
         elif self.current_state == SequenceState.CREATE_PATH:
+            
+            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            outdir = os.path.expanduser(f"~/ros_ws/bags/world{self.world_num}_{ts}")
+            self.start_bag(outdir)
+            self.get_logger().info("Starting bag")
+
             self.gazebo_path = self.load_barn_path(self.world_num)
             self.gazebo_path_og = self.load_barn_path_og(self.world_num)
+            path_odom = self.path_to_frame(self.gazebo_path, target_frame="odom")
+            if path_odom is not None:
+                self.plan_barn_odom_pub.publish(path_odom)
             self.path_publisher.publish(self.gazebo_path)
             self.path_og_publisher.publish(self.gazebo_path_og)
             self.adaptive_path = self.adaptive_barn_path(
@@ -364,6 +392,8 @@ class BarnOneShot(Node):
                 smoothing=0.5
             )
             self.adaptive_path_publisher.publish(self.adaptive_path)
+
+
             self.current_state = SequenceState.NAVIGATING
         elif self.current_state == SequenceState.NAVIGATING:
             self.handle_navigation()
@@ -373,13 +403,17 @@ class BarnOneShot(Node):
                 self._completed_logged = True
                 self._failed_logged = True
                 self.record_results()  # end_trial_timer is called inside
+                self.stop_bag() 
                 self.terminate()
                 self.current_state = SequenceState.RESTART
+
+
         elif self.current_state == SequenceState.FAILED:
             if not hasattr(self, '_failed_logged'):
                 self.get_logger().info("Node failed - staying alive")
                 self._failed_logged = True
                 self.record_results()  # end_trial_timer is called inside
+                self.stop_bag() 
                 self.terminate()
                 self.current_state = SequenceState.RESTART
         elif self.current_state == SequenceState.RESTART:
@@ -547,8 +581,7 @@ class BarnOneShot(Node):
             self._nav_future.add_done_callback(self.nav_goal_response_callback)
             self._nav_sent = True
             self._nav_start_time = time.time()
-
-        elif time.time() - self._nav_start_time > 300.0:
+        elif time.time() - self._nav_start_time > 50.0:
             self.get_logger().warn('Navigation action timed out')
             if self._nav_goal_handle:
                 self._nav_goal_handle.cancel_goal_async()
@@ -557,6 +590,13 @@ class BarnOneShot(Node):
             self._nav_sent = False
 
         self.final_goal_tracker()
+
+        if getattr(self, "_nav_start_time", None) is not None:
+            elapsed = time.time() - self._nav_start_time
+            self.get_logger().info(f"current trial time: {elapsed:.2f}s")
+        else:
+            self.get_logger().info("current trial time: not started (no nav goal sent yet)")
+        print(f"current trial time is : {(time.time() - self._nav_start_time)}")
         if self.collision_detected:
             self.trial_result = "COLLISION"
             self.current_state = SequenceState.FAILED
@@ -847,7 +887,6 @@ class BarnOneShot(Node):
                 self.trial_start_time = self.steady_clock.now()
                 self._start_trial_metrics()  # start velocity accumulators
                 self.get_logger().info("TIMER HAS BEGUN")
-
             # Pose transform to map
             pose_stamped = PoseStamped()
             pose_stamped.header = odom_msg.header
@@ -883,7 +922,7 @@ class BarnOneShot(Node):
     def terminate(self):
         """Reset the simulation and should kill all the nodes"""
         self.get_logger().info("Terminating function")
-
+        self.stop_bag() 
         if hasattr(self, 'state_timer'):
             self.state_timer.cancel()
         self.get_logger().info("Resetting Gazebo simulation...")
@@ -1038,6 +1077,54 @@ class BarnOneShot(Node):
             )
 
         return out
+    def path_to_frame(self, path_msg: Path, target_frame: str = "odom",
+                      lookup_timeout_sec: float = 0.25) -> Path | None:
+        """
+        Transform a nav_msgs/Path into target_frame using the **latest available TF**.
+        (Ignores per-pose timestamps to avoid wall/sim-time mismatches.)
+        """
+        if not path_msg.poses:
+            return None
+
+        src_frame = (path_msg.header.frame_id or "map").lstrip("/")
+        out = Path()
+        out.header = path_msg.header
+        out.header.frame_id = target_frame
+
+        # latest TF (Time()=0) so we don't depend on pose/header stamps
+        latest = Time()
+
+        try:
+            tf_latest = self.tf_buffer.lookup_transform(
+                target_frame, src_frame, latest, timeout=Duration(seconds=lookup_timeout_sec)
+            )
+        except (LookupException, ConnectivityException, ExtrapolationException) as e:
+            self.get_logger().error(f"[path_to_frame/latest] TF {src_frame}->{target_frame} unavailable: {e}")
+            return None
+
+        n_ok = n_skip = 0
+        for ps in path_msg.poses:
+            try:
+                # ps is PoseStamped → use the *stamped* helper
+                ps_tf: PoseStamped = do_transform_pose_stamped(ps, tf_latest)
+                ps_tf.header.frame_id = target_frame
+                out.poses.append(ps_tf)
+                n_ok += 1
+            except Exception as e:
+                self.get_logger().warn(f"[path_to_frame/latest] skipping pose: {e}")
+                n_skip += 1
+
+        if not out.poses:
+            self.get_logger().error("[path_to_frame/latest] all poses skipped; no output path.")
+            return None
+
+        self.get_logger().info(
+            f"[path_to_frame/latest] transformed poses: {n_ok} ok, {n_skip} skipped "
+            f"(src='{src_frame}' -> '{target_frame}', latest TF)"
+        )
+        return out
+
+
 
     def load_barn_path(self, world_num, resample_step=0.20, smooth_window=5):
         import numpy as np
@@ -1213,6 +1300,76 @@ class BarnOneShot(Node):
         except Exception as e:
             self.get_logger().error(f"Error resetting sim: {e}")
 
+
+    def _bag_cmd(self, outdir: str) -> list[str]:
+        # Build the rosbag2 command. Add/remove topics as you like.
+        cmd = ["ros2", "bag", "record", "-o", outdir]
+        # If you want to record everything instead, replace the next line with: cmd += ["-a"]
+        cmd += self.bag_topics
+        # Optional compression
+        return cmd
+
+    def start_bag(self, outdir: str):
+        if self.bag_proc and self.bag_proc.poll() is None:
+            self.get_logger().warn("rosbag2 already running; not starting another.")
+            return
+        try:
+            # Make sure only the *parent* exists
+            parent = os.path.dirname(outdir) or "."
+            os.makedirs(parent, exist_ok=True)
+
+            # (optional) capture a log so you see errors instead of /dev/null
+            log_path = os.path.join(parent, f"{os.path.basename(outdir)}.record.log")
+            self.get_logger().info(f"Starting rosbag2 → {outdir} (log: {log_path})")
+            logf = open(log_path, "wb", buffering=0)
+
+            self.bag_outdir = outdir
+            self.bag_proc = subprocess.Popen(
+                self._bag_cmd(outdir),          # e.g. ["ros2","bag","record","-o",outdir,...]
+                preexec_fn=os.setsid,
+                stdout=logf,
+                stderr=subprocess.STDOUT,
+            )
+
+            # quick health check
+            time.sleep(1.0)
+            if self.bag_proc.poll() is not None:
+                self.get_logger().error(
+                    f"rosbag2 exited with code {self.bag_proc.returncode}. See log: {log_path}"
+                )
+                self.bag_proc = None
+        except Exception as e:
+            self.get_logger().error(f"Failed to start rosbag2: {e}")
+            self.bag_proc = None
+
+    def stop_bag(self, grace_sec: float = 10.0):
+        proc = self.bag_proc
+        if not proc:
+            return
+        if proc.poll() is not None:  # already exited
+            self.bag_proc = None
+            return
+
+        try:
+            pgid = os.getpgid(proc.pid)
+            self.get_logger().info("Stopping rosbag2 (SIGINT)...")
+            os.killpg(pgid, signal.SIGINT)  # graceful stop → writes metadata.yaml
+            try:
+                proc.wait(timeout=grace_sec)
+                self.get_logger().info("rosbag2 stopped cleanly.")
+            except subprocess.TimeoutExpired:
+                self.get_logger().warn("rosbag2 did not stop in time; escalating (SIGTERM → SIGKILL if needed).")
+                os.killpg(pgid, signal.SIGTERM)
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except Exception as e:
+            self.get_logger().error(f"Error while stopping rosbag2: {e}")
+        finally:
+            self.bag_proc = None
 
 def main():
     rclpy.init()

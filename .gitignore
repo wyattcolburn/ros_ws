@@ -3,7 +3,7 @@
 **/build/
 **/install/
 **/log/
-
+bags/
 ros_bag/
 may15_medium/
 may19_large/

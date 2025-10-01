@@ -77,8 +77,8 @@ for mi in "${!MODEL_PATHS[@]}"; do
   [[ -f "$MAXS_FILE" ]] || MAXS_FILE=$(ls -1t "$MODEL_DIR"/*maxs*.txt 2>/dev/null | head -n1 || true)
   export CONTROLLER_VARIANT=MLP
 
-  colcon build --packages-select onnx --cmake-clean-cache
-  source "$HOME/ros_ws/install/setup.bash"
+    colcon build --packages-select onnx --cmake-clean-cache
+    source "$HOME/ros_ws/install/setup.bash"
   if [[ ! -f "$MINS_FILE" || ! -f "$MAXS_FILE" ]]; then
     echo "WARN: scaler mins/maxs not found matching $(basename "$LATEST_ONNX")"
     echo "      mins: $MINS_FILE"
