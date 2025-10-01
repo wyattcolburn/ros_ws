@@ -12,7 +12,7 @@ ARGUMENTS = [
                           description='Robot namespace'),
     DeclareLaunchArgument('rviz', default_value='false',
                           choices=['true', 'false'], description='Start rviz.'),
-    DeclareLaunchArgument('world', default_value='sandbox',
+    DeclareLaunchArgument('world', default_value='world_266',
                           description='Ignition World'), DeclareLaunchArgument('model', default_value='standard',
                           choices=['standard', 'lite'],
                           description='Turtlebot4 Model'),
@@ -52,11 +52,21 @@ def generate_launch_description():
         launch_arguments=[
             ('namespace', LaunchConfiguration('namespace')),
             ('rviz', LaunchConfiguration('rviz')),
-            ('x', LaunchConfiguration('x')),
-            ('y', LaunchConfiguration('y')),
+            ('x', '-2.0'),
+            ('y', '1.0'),
             ('z', LaunchConfiguration('z')),
             ('yaw', LaunchConfiguration('yaw'))]
     )
+    # robot_spawn = IncludeLaunchDescription(
+    #     PythonLaunchDescriptionSource([robot_spawn_launch]),
+    #     launch_arguments=[
+    #         ('namespace', LaunchConfiguration('namespace')),
+    #         ('rviz', LaunchConfiguration('rviz')),
+    #         ('x', LaunchConfiguration('x')),
+    #         ('y', LaunchConfiguration('y')),
+    #         ('z', LaunchConfiguration('z')),
+    #         ('yaw', LaunchConfiguration('yaw'))]
+    # )
 
     localization = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([localization_launch]),

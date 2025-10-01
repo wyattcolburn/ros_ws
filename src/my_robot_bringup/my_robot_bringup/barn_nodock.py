@@ -581,7 +581,7 @@ class BarnOneShot(Node):
             self._nav_future.add_done_callback(self.nav_goal_response_callback)
             self._nav_sent = True
             self._nav_start_time = time.time()
-        elif time.time() - self._nav_start_time > 50.0:
+        elif time.time() - self._nav_start_time > 300.0:
             self.get_logger().warn('Navigation action timed out')
             if self._nav_goal_handle:
                 self._nav_goal_handle.cancel_goal_async()
