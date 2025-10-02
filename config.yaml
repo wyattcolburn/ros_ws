@@ -1,6 +1,6 @@
 ---
 # This is stuff regarding the c++ poriton of the project, robot configurations
-NUM_VALID_OBSTACLES :  20
+NUM_VALID_OBSTACLES :  60
 OFFSET : 1.0
 RADIUS : .4
 CSV_FILE : "hardware_test/baseline.csv"

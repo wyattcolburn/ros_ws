@@ -47,7 +47,7 @@ class obsValid : public rclcpp::Node {
         scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             "/turtle/scan", 10, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
 
-        marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array", 10);
+        marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/turtle/hall_corridor", 10);
         // Add this to your constructor
         local_goal_marker_pub_ =
             this->create_publisher<visualization_msgs::msg::MarkerArray>("/local_goal_markers", 10);
@@ -109,62 +109,83 @@ class obsValid : public rclcpp::Node {
 
     static constexpr double GOAL_THRESHOLD = .5;
 
+    bool have_odom_ = false;
+    bool goals_built_ = false;
+
+    // ------------------------------------
     void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
-
-        if (path_flag == false) {
-            std::cout << "Have yet to receive a path yet" << std::endl;
-            return;
-        }
+        // 1) Read odom+cmds from packet
         processOdomLidar(packetin);
-        // std::cout << "**************** yaw value : " << yaw << std::endl;
+        have_odom_ = true; // we have some odom now
 
+        // 2) Transform current pose to map; bail if TF not ready yet
         geometry_msgs::msg::PoseStamped odom_pose;
         odom_pose.header.frame_id = "odom";
-        odom_pose.header.stamp = rclcpp::Time(0); // latest available transform
+        odom_pose.header.stamp = rclcpp::Time(0);
         odom_pose.pose.position.x = odom_x;
         odom_pose.pose.position.y = odom_y;
-        odom_pose.pose.position.z = 0.0;
-
-        // If you have yaw:
         tf2::Quaternion q;
-        q.setRPY(0, 0, yaw); // only yaw
+        q.setRPY(0, 0, yaw);
         odom_pose.pose.orientation = tf2::toMsg(q);
 
         geometry_msgs::msg::PoseStamped map_pose;
         try {
             map_pose = tf_buffer_->transform(odom_pose, "map");
-
-            // Transformed output
             map_x = map_pose.pose.position.x;
             map_y = map_pose.pose.position.y;
-
-            // Extract yaw if needed
             tf2::Quaternion q_map;
             tf2::fromMsg(map_pose.pose.orientation, q_map);
-            double roll, pitch, yaw;
-            tf2::Matrix3x3(q_map).getRPY(roll, pitch, yaw);
-            map_yaw = yaw;
-
+            double r, p, yy;
+            tf2::Matrix3x3(q_map).getRPY(r, p, yy);
+            map_yaw = yy;
         } catch (const tf2::TransformException &ex) {
-            RCLCPP_ERROR(rclcpp::get_logger("raytracing"), "Failed to transform odom pose: %s", ex.what());
+            RCLCPP_INFO(this->get_logger(), "Waiting for map<-odom TF: %s", ex.what());
+            return; // don't proceed yet
+        }
+
+        // 3) Now that pose/TF is good, we can require a path
+        if (!path_flag) {
+            RCLCPP_INFO(this->get_logger(), "Waiting for path...");
             return;
         }
 
-        // RCLCPP_INFO(this->get_logger(), "odom (%.2f, %.2f) -> map (%.2f, %.2f) yaw %.2f), map_yaw %.2f", odom_x,
-        // odom_y,
-        //             map_x, map_y, yaw, map_yaw);
-        if (rebuild_local_goal_counter >= rebuild_local_goal_limit) {
+        // 4) Build odom-frame local goals once, when TF is ready
+        if (!goals_built_) {
+            if (tf_buffer_->canTransform("map", "odom", tf2::TimePointZero, tf2::durationFromSec(0.2))) {
+                rebuild_local_goals(); // uses current map->odom
+                local_goal_manager_.current_local_goal_counter = 0;
 
+                // sanity: first LG shouldn't be far if total path is short
+                if (local_goal_manager_.get_num_lg() > 0) {
+                    const auto &lg0 = local_goal_manager_.data_vector.front();
+                    double d0 = std::hypot(lg0.x_point - odom_x, lg0.y_point - odom_y);
+                    if (d0 > 2.0) { // path is ~1.4 m per your logs; 2m means TF wasn’t really right
+                        RCLCPP_WARN(this->get_logger(), "First LG %.2fm away; deferring goal build.", d0);
+                        return; // try again next callback
+                    }
+                }
+                goals_built_ = true;
+            } else {
+                RCLCPP_INFO(this->get_logger(), "TF map->odom not steady yet; deferring goal build.");
+                return;
+            }
+        }
+
+        // 5) Periodic rebuild (only if you really need it)
+        if (rebuild_local_goal_counter >= rebuild_local_goal_limit) {
             rebuild_local_goals();
             rebuild_local_goal_counter = 0;
-        } else
+        } else {
             rebuild_local_goal_counter++;
+        }
 
-        local_goal_manager_.updateLocalGoal(odom_x, odom_y); // local goals have already been converted to odom
+        // 6) Normal pipeline
+        local_goal_manager_.updateLocalGoal(odom_x, odom_y);
         obstacle_manager_.update_obstacles_sliding(local_goal_manager_);
 
         auto local_goal_markers = make_local_goal_markers();
         local_goal_marker_pub_->publish(local_goal_markers);
+
         int num_obs;
         auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
         auto marker_array = make_markers(obs_list, static_cast<size_t>(num_obs));
@@ -172,30 +193,103 @@ class obsValid : public rclcpp::Node {
 
         map_compute_lidar_distances(map_x, map_y, map_yaw, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges,
                                     *tf_buffer_);
+
         processPacketOut();
 
-        int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
         std_msgs::msg::Float64MultiArray msg;
-        msg.data.resize(packetOut_size);
-        // RCLCPP_INFO(this->get_logger(), "SIZE OF packetOUt %d", packetOut_size);
-
-        // RCLCPP_INFO(this->get_logger(), "Size of neural net output %zu", msg.data.size());
-        // Test with a simpler message
-        if (!packetOut_publisher_) {
-            RCLCPP_ERROR(this->get_logger(), "Publisher is null!");
-        }
-        //
-        for (size_t i = 0; i < packetOut_size; ++i) {
-            msg.data[i] = static_cast<double>(packetOut[i]);
-        }
+        msg.data.resize(sizeof(packetOut) / sizeof(packetOut[0]));
+        for (size_t i = 0; i < msg.data.size(); ++i)
+            msg.data[i] = packetOut[i];
         RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
-        // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL VEC SIZE, and current position %zu, %d",
-        // local_goal_manager_.data_vector.size(), local_goal_manager_.current_local_goal_counter);
-        // RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
         packetOut_publisher_->publish(msg);
-        // reached_goal(odom_x, odom_y);
-        return;
     }
+    // void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
+    //
+    //     processOdomLidar(packetin);
+    //     // std::cout << "**************** yaw value : " << yaw << std::endl;
+    //
+    //     geometry_msgs::msg::PoseStamped odom_pose;
+    //     odom_pose.header.frame_id = "odom";
+    //     odom_pose.header.stamp = rclcpp::Time(0); // latest available transform
+    //     odom_pose.pose.position.x = odom_x;
+    //     odom_pose.pose.position.y = odom_y;
+    //     odom_pose.pose.position.z = 0.0;
+    //
+    //     // If you have yaw:
+    //     tf2::Quaternion q;
+    //     q.setRPY(0, 0, yaw); // only yaw
+    //     odom_pose.pose.orientation = tf2::toMsg(q);
+    //
+    //     geometry_msgs::msg::PoseStamped map_pose;
+    //     try {
+    //         map_pose = tf_buffer_->transform(odom_pose, "map");
+    //
+    //         // Transformed output
+    //         map_x = map_pose.pose.position.x;
+    //         map_y = map_pose.pose.position.y;
+    //
+    //         // Extract yaw if needed
+    //         tf2::Quaternion q_map;
+    //         tf2::fromMsg(map_pose.pose.orientation, q_map);
+    //         double roll, pitch, yaw;
+    //         tf2::Matrix3x3(q_map).getRPY(roll, pitch, yaw);
+    //         map_yaw = yaw;
+    //
+    //     } catch (const tf2::TransformException &ex) {
+    //         RCLCPP_ERROR(rclcpp::get_logger("raytracing"), "Failed to transform odom pose: %s", ex.what());
+    //         return;
+    //     }
+    //
+    //     if (path_flag == false) {
+    //         std::cout << "Have yet to receive a path yet" << std::endl;
+    //         return;
+    //     }
+    //     // RCLCPP_INFO(this->get_logger(), "odom (%.2f, %.2f) -> map (%.2f, %.2f) yaw %.2f), map_yaw %.2f", odom_x,
+    //     // odom_y,
+    //     //             map_x, map_y, yaw, map_yaw);
+    //     if (rebuild_local_goal_counter >= rebuild_local_goal_limit) {
+    //
+    //         rebuild_local_goals();
+    //         rebuild_local_goal_counter = 0;
+    //     } else
+    //         rebuild_local_goal_counter++;
+    //
+    //     local_goal_manager_.updateLocalGoal(odom_x, odom_y); // local goals have already been converted to odom
+    //     obstacle_manager_.update_obstacles_sliding(local_goal_manager_);
+    //
+    //     auto local_goal_markers = make_local_goal_markers();
+    //     local_goal_marker_pub_->publish(local_goal_markers);
+    //     int num_obs;
+    //     auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
+    //     auto marker_array = make_markers(obs_list, static_cast<size_t>(num_obs));
+    //     marker_pub_->publish(marker_array);
+    //
+    //     map_compute_lidar_distances(map_x, map_y, map_yaw, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges,
+    //                                 *tf_buffer_);
+    //     processPacketOut();
+    //
+    //     int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
+    //     std_msgs::msg::Float64MultiArray msg;
+    //     msg.data.resize(packetOut_size);
+    //     // RCLCPP_INFO(this->get_logger(), "SIZE OF packetOUt %d", packetOut_size);
+    //
+    //     // RCLCPP_INFO(this->get_logger(), "Size of neural net output %zu", msg.data.size());
+    //     // Test with a simpler message
+    //     if (!packetOut_publisher_) {
+    //         RCLCPP_ERROR(this->get_logger(), "Publisher is null!");
+    //     }
+    //     //
+    //     for (size_t i = 0; i < packetOut_size; ++i) {
+    //         msg.data[i] = static_cast<double>(packetOut[i]);
+    //     }
+    //     RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
+    //     // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL VEC SIZE, and current position %zu, %d",
+    //     // local_goal_manager_.data_vector.size(), local_goal_manager_.current_local_goal_counter);
+    //     // RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
+    //     packetOut_publisher_->publish(msg);
+    //     // reached_goal(odom_x, odom_y);
+    //     return;
+    // }
 
     void processPacketOut() {
         packetOut[0] = current_cmd_v;
@@ -236,63 +330,119 @@ class obsValid : public rclcpp::Node {
     }
 
     void path_callback_map(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
-
-        if (path_flag) {
+        if (path_flag)
             return;
-        }
-        RCLCPP_INFO(this->get_logger(), "Received %zu poses in frame %s", pathMsg->poses.size(),
-                    pathMsg->header.frame_id.c_str());
 
+        // 1) Smooth + resample to match training path stats
+        //    Pick step to match your dataset (e.g., 0.20 m), and a light window (e.g., 5).
+        const double STEP = 0.20; // <<< match training!
+        const int WINDOW = 5;     // 1 disables smoothing
+        nav_msgs::msg::Path prepped = smoothAndResample(*pathMsg, STEP, WINDOW);
+
+        double L = 0.0;
+        for (size_t i = 1; i < pathMsg->poses.size(); ++i) {
+            const auto &a = pathMsg->poses[i - 1].pose.position;
+            const auto &b = pathMsg->poses[i].pose.position;
+            L += std::hypot(b.x - a.x, b.y - a.y);
+        }
+
+        RCLCPP_INFO(this->get_logger(), "Current Position %f %f", odom_x, odom_y);
+        RCLCPP_INFO(this->get_logger(), "Raw path length L=%.3f m", L);
+        RCLCPP_INFO(this->get_logger(), "Using STEP=%.3f m, WINDOW=%d", STEP, WINDOW);
+        RCLCPP_INFO(this->get_logger(), "Prepped poses: %zu", prepped.poses.size());
+        RCLCPP_INFO(this->get_logger(), "A*->prepped: %zu -> %zu poses", pathMsg->poses.size(), prepped.poses.size());
+
+        // 2) Replace original with prepped for downstream logic
         map_poses_.clear();
-        map_poses_.reserve(pathMsg->poses.size()); // capacity set up front
-                                                   //
-                                                   //
-        geometry_msgs::msg::TransformStamped transform;
-        try {
-            transform = tf_buffer_->lookupTransform("odom", "map", tf2::TimePointZero);
-            // RCLCPP_INFO(this->get_logger(), "Successfully got transform from map to odom");
-        } catch (tf2::TransformException &ex) {
-            RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
-            return;
+        map_poses_.reserve(prepped.poses.size());
+        for (const auto &p : prepped.poses) {
+            geometry_msgs::msg::PoseStamped pm = p;
+            pm.header.frame_id = "map";
+            if (pm.header.stamp.sec == 0 && pm.header.stamp.nanosec == 0)
+                pm.header.stamp = this->now();
+            map_poses_.push_back(pm);
         }
 
-        for (size_t i = 0; i < pathMsg->poses.size(); i++) {
-            geometry_msgs::msg::PoseStamped p = pathMsg->poses[i];
-            p.header.frame_id = "map"; // ensure frame is map
-
-            if (p.header.stamp.sec == 0 && p.header.stamp.nanosec == 0) {
-                p.header.stamp = this->now(); // give it a sensible time
-            }
-            map_poses_.push_back(p);
-        }
-
+        // 3) Build odom-frame local goals as you already do
         try {
-
             auto tf_map_to_odom = tf_buffer_->lookupTransform("map", "odom", tf2::TimePointZero);
-
             local_goal_manager_.clean_data();
             for (const auto &pm : map_poses_) {
                 geometry_msgs::msg::PoseStamped po;
                 tf2::doTransform(pm, po, tf_map_to_odom);
-
                 const double yaw = tf2::getYaw(po.pose.orientation);
                 local_goal_manager_.add_local_goal(po.pose.position.x, po.pose.position.y, yaw);
             }
         } catch (const tf2::TransformException &ex) {
-            RCLCPP_WARN(this->get_logger(), "Initial map->odom transform failed: %s", ex.what());
-            // It's fine—downstream can transform on the fly using map_poses_ each tick.
+            RCLCPP_WARN(this->get_logger(), "map->odom transform failed: %s", ex.what());
         }
 
-        // 3) Post-process if you built local goals now
         if (local_goal_manager_.get_num_lg() > 0) {
             obstacle_manager_.local_goals_to_obs(local_goal_manager_);
             path_flag = true;
-
             GOAL = local_goal_manager_.data_vector.back();
         } else {
-            RCLCPP_WARN(this->get_logger(), "No local goals were added after transformation");
+            RCLCPP_WARN(this->get_logger(), "No local goals after smoothing/resampling");
         }
     }
+    // void path_callback_map(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
+    //
+    //     if (path_flag) {
+    //         return;
+    //     }
+    //     RCLCPP_INFO(this->get_logger(), "Received %zu poses in frame %s", pathMsg->poses.size(),
+    //                 pathMsg->header.frame_id.c_str());
+    //
+    //     map_poses_.clear();
+    //     map_poses_.reserve(pathMsg->poses.size()); // capacity set up front
+    //                                                //
+    //                                                //
+    //     geometry_msgs::msg::TransformStamped transform;
+    //     try {
+    //         transform = tf_buffer_->lookupTransform("odom", "map", tf2::TimePointZero);
+    //         // RCLCPP_INFO(this->get_logger(), "Successfully got transform from map to odom");
+    //     } catch (tf2::TransformException &ex) {
+    //         RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
+    //         return;
+    //     }
+    //
+    //     for (size_t i = 0; i < pathMsg->poses.size(); i++) {
+    //         geometry_msgs::msg::PoseStamped p = pathMsg->poses[i];
+    //         p.header.frame_id = "map"; // ensure frame is map
+    //
+    //         if (p.header.stamp.sec == 0 && p.header.stamp.nanosec == 0) {
+    //             p.header.stamp = this->now(); // give it a sensible time
+    //         }
+    //         map_poses_.push_back(p);
+    //     }
+    //
+    //     try {
+    //
+    //         auto tf_map_to_odom = tf_buffer_->lookupTransform("map", "odom", tf2::TimePointZero);
+    //
+    //         local_goal_manager_.clean_data();
+    //         for (const auto &pm : map_poses_) {
+    //             geometry_msgs::msg::PoseStamped po;
+    //             tf2::doTransform(pm, po, tf_map_to_odom);
+    //
+    //             const double yaw = tf2::getYaw(po.pose.orientation);
+    //             local_goal_manager_.add_local_goal(po.pose.position.x, po.pose.position.y, yaw);
+    //         }
+    //     } catch (const tf2::TransformException &ex) {
+    //         RCLCPP_WARN(this->get_logger(), "Initial map->odom transform failed: %s", ex.what());
+    //         // It's fine—downstream can transform on the fly using map_poses_ each tick.
+    //     }
+    //
+    //     // 3) Post-process if you built local goals now
+    //     if (local_goal_manager_.get_num_lg() > 0) {
+    //         obstacle_manager_.local_goals_to_obs(local_goal_manager_);
+    //         path_flag = true;
+    //
+    //         GOAL = local_goal_manager_.data_vector.back();
+    //     } else {
+    //         RCLCPP_WARN(this->get_logger(), "No local goals were added after transformation");
+    //     }
+    // }
 
     void path_callback(const nav_msgs::msg::Path::ConstSharedPtr pathMsg) {
         // With barn should only get called once
@@ -624,6 +774,125 @@ class obsValid : public rclcpp::Node {
         std::cout << "  RADIUS = " << RADIUS << "\n";
         std::cout << "  NUM_VALID_OBSTACLES = " << NUM_VALID_OBSTACLES << "\n";
         std::cout << "  OFFSET = " << OFFSET << "\n";
+    }
+
+    struct Vec2 {
+        double x, y;
+    };
+
+    double segLen(double x0, double y0, double x1, double y1) {
+        const double dx = x1 - x0, dy = y1 - y0;
+        return std::hypot(dx, dy);
+    }
+
+    void headingToQuat(double yaw, geometry_msgs::msg::Quaternion &q) {
+        tf2::Quaternion tq;
+        tq.setRPY(0.0, 0.0, yaw);
+        q = tf2::toMsg(tq);
+    }
+
+    // Moving average (odd window). window=1 disables smoothing.
+    std::vector<Vec2> smoothXY(const std::vector<Vec2> &pts, int window) {
+        if (window < 3 || (window % 2) == 0 || (int)pts.size() < window)
+            return pts;
+        const int k = window / 2;
+        std::vector<Vec2> out;
+        out.reserve(pts.size());
+        for (int i = 0; i < (int)pts.size(); ++i) {
+            int a = std::max(0, i - k), b = std::min((int)pts.size() - 1, i + k);
+            double sx = 0.0, sy = 0.0;
+            int n = b - a + 1;
+            for (int j = a; j <= b; ++j) {
+                sx += pts[j].x;
+                sy += pts[j].y;
+            }
+            out.push_back({sx / n, sy / n});
+        }
+        return out;
+    }
+
+    // Resample by arc length with fixed step (meters).
+    std::vector<Vec2> resampleArc(const std::vector<Vec2> &xy, double step) {
+        if (xy.size() < 2 || step <= 1e-6)
+            return xy;
+        std::vector<double> s;
+        s.reserve(xy.size());
+        s.push_back(0.0);
+        for (size_t i = 1; i < xy.size(); ++i) {
+            s.push_back(s.back() + segLen(xy[i - 1].x, xy[i - 1].y, xy[i].x, xy[i].y));
+        }
+        const double L = s.back();
+        if (L < step)
+            return xy;
+
+        std::vector<Vec2> out;
+        const int N = std::max(2, int(std::floor(L / step)) + 1);
+        out.reserve(N);
+
+        size_t seg = 0;
+        for (int i = 0; i < N; ++i) {
+            double target = std::min(L, i * step);
+            while (seg + 1 < s.size() && s[seg + 1] < target)
+                ++seg;
+            const double s0 = s[seg], s1 = s[seg + 1];
+            const double t = (s1 - s0) > 1e-9 ? (target - s0) / (s1 - s0) : 0.0;
+            const Vec2 &P0 = xy[seg], &P1 = xy[seg + 1];
+            out.push_back({P0.x + t * (P1.x - P0.x), P0.y + t * (P1.y - P0.y)});
+        }
+        if (std::hypot(out.back().x - xy.back().x, out.back().y - xy.back().y) > 1e-6)
+            out.back() = xy.back();
+        return out;
+    }
+
+    nav_msgs::msg::Path buildPathMsg(const std::vector<Vec2> &xy, const std::string &frame_id) {
+        nav_msgs::msg::Path out;
+        out.header.frame_id = frame_id.empty() ? "map" : frame_id;
+        out.header.stamp = this->now();
+
+        if (xy.empty())
+            return out;
+
+        for (size_t i = 0; i < xy.size(); ++i) {
+            geometry_msgs::msg::PoseStamped ps;
+            ps.header = out.header;
+            ps.pose.position.x = xy[i].x;
+            ps.pose.position.y = xy[i].y;
+            ps.pose.position.z = 0.0;
+
+            double yaw = 0.0;
+            if (i + 1 < xy.size()) {
+                yaw = std::atan2(xy[i + 1].y - xy[i].y, xy[i + 1].x - xy[i].x);
+            } else if (xy.size() >= 2) {
+                yaw = std::atan2(xy[i].y - xy[i - 1].y, xy[i].x - xy[i - 1].x);
+            }
+            headingToQuat(yaw, ps.pose.orientation);
+            out.poses.push_back(ps);
+        }
+        return out;
+    }
+
+    nav_msgs::msg::Path smoothAndResample(const nav_msgs::msg::Path &in,
+                                          double step_m,    // e.g. 0.20 (match training)
+                                          int smooth_window // e.g. 5   (1 = off)
+    ) {
+        std::vector<Vec2> xy;
+        xy.reserve(in.poses.size());
+        for (const auto &p : in.poses)
+            xy.push_back({p.pose.position.x, p.pose.position.y});
+
+        // drop exact duplicates
+        std::vector<Vec2> dedup;
+        dedup.reserve(xy.size());
+        for (const auto &pt : xy) {
+            if (dedup.empty() || (std::hypot(pt.x - dedup.back().x, pt.y - dedup.back().y) > 1e-8))
+                dedup.push_back(pt);
+        }
+        if (dedup.size() < 2)
+            return in;
+
+        auto smoothed = smoothXY(dedup, smooth_window);
+        auto resampled = resampleArc(smoothed, step_m);
+        return buildPathMsg(resampled, in.header.frame_id);
     }
 };
 

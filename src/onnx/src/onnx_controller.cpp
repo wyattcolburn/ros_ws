@@ -176,7 +176,7 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
                                                                          nav2_core::GoalChecker *) {
 
     static const float min_linear_vel = 0.003;
-    static const float max_linear_vel = .3;
+    static const float max_linear_vel = .4;
     static const float min_angular_vel = -1.4;
     static const float max_angular_vel = 1.4;
 

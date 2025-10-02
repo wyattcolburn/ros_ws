@@ -121,6 +121,9 @@ class dataNode : public rclcpp::Node {
     void printPacketOut() {
         // Calculate the total number of elements in the packetOut array.
         size_t totalElements = ODOM_FIELD_COUNT + LIDAR_COUNT;
+
+        RCLCPP_INFO(this->get_logger(), "odom_x : %f odom_y : %f odom_yaw : %f", packetOut[0], packetOut[1],
+                    packetOut[4]);
         for (size_t i = 0; i < totalElements; ++i) {
             // Print each element to the console.
             std::cout << "packetOut[" << i << "] = " << packetOut[i] << std::endl;
