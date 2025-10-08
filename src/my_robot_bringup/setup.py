@@ -31,6 +31,9 @@ setup(
             'barn_one_shot = my_robot_bringup.barn_one_shot:main',
             'barn_nodock= my_robot_bringup.barn_nodock:main',
             'gaussian= my_robot_bringup.gaussian_random_walk:main',
+            'new_gaussian= my_robot_bringup.new_gaussian_random_walk:main',
+            'agro_gaus= my_robot_bringup.agro_gaussian:main',
+            'gentle_agro= my_robot_bringup.gentle_agro:main',
         ]
     },
 )

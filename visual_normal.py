@@ -3,8 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 
-RUN_DIR = "gauss_2/2025-08-21_19-38-54_gaus"
-META_YAML = os.path.join(RUN_DIR, "config_meta_data.yaml")
+RUN_DIR = "ros_bag/new_gauss/2025-10-02_21-22-39_gaus/"
+# META_YAML = os.path.join(RUN_DIR, "config_meta_data.yaml")
 ODOM_CSV  = os.path.join(RUN_DIR, "input_data", "odom_data.csv")
 
 # --- load params ---
@@ -64,19 +64,19 @@ obs = obstacles_from_goals(lg, OFFSET, RADIUS)
 # --- plot ---
 plt.figure(figsize=(10,8))
 ax = plt.gca(); ax.set_aspect('equal')
-plt.plot(lg[:,0], lg[:,1], '-', linewidth=1.0, alpha=0.4, label='Path (map frame from LG)')
-plt.scatter(lg[:,0], lg[:,1], s=10, alpha=0.6, label='Local goals')
+plt.plot(odom_x, odom_y, '-', linewidth=1.0, alpha=0.4, label='Path (map frame from LG)')
+# plt.scatter(lg[:,0], lg[:,1], s=10, alpha=0.6, label='Local goals')
 
-for cx,cy,r in obs:
-    ax.add_patch(Circle((cx,cy), r, fill=False, linewidth=1.0, alpha=0.9))
+# for cx,cy,r in obs:
+#     ax.add_patch(Circle((cx,cy), r, fill=False, linewidth=1.0, alpha=0.9))
 
 plt.title('Odom path with reconstructed obstacles')
 plt.xlabel('X'); plt.ylabel('Y'); plt.grid(True, alpha=0.3); plt.legend(); plt.tight_layout()
 plt.show()
 
-print("segments used:",
-      [os.path.basename(os.path.dirname(os.path.dirname(p))) for p in
-       sorted(glob.glob(os.path.join(RUN_DIR, "seg_*", "input_data", "local_goals.csv")),
-              key=lambda p: int(re.search(r"seg_(\d+)", p).group(1)))])
-print("local goals loaded:", len(lg), "odom points:", len(odom_x))
+# print("segments used:",
+#       [os.path.basename(os.path.dirname(os.path.dirname(p))) for p in
+#        sorted(glob.glob(os.path.join(RUN_DIR, "seg_*", "input_data", "local_goals.csv")),
+#               key=lambda p: int(re.search(r"seg_(\d+)", p).group(1)))])
+# print("local goals loaded:", len(lg), "odom points:", len(odom_x))
 

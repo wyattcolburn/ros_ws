@@ -1,0 +1,21 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1759571895.578822586] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1759571895.579566085] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/bags/world36_1004_025815/world36_1004_025815_0.db3' for READ_WRITE.
+[INFO] [1759571895.580027645] [rosbag2_recorder]: Listening for topics...
+[INFO] [1759571895.580040569] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1759571895.580095942] [rosbag2_recorder]: Recording...
+[INFO] [1759571895.983895691] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1759571896.085988252] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1759571896.087543372] [rosbag2_recorder]: Subscribed to topic '/tf'
+[WARN] [1759571896.447083080] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1759571896.451504262] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1759571896.492343891] [rosbag2_recorder]: A new publisher for subscribed topic /tf was found offering RMW_QOS_POLICY_DURABILITY_VOLATILE, but rosbag2 already subscribed requesting RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL. Messages from this new publisher will not be recorded.
+[WARN] [1759571896.492373471] [rosbag2_recorder]: A new publisher for subscribed topic /tf was found offering RMW_QOS_POLICY_DURABILITY_VOLATILE, but rosbag2 already subscribed requesting RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL. Messages from this new publisher will not be recorded.
+[INFO] [1759571896.493316586] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[WARN] [1759571896.580224981] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[INFO] [1759571896.606019967] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1759571897.645928274] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1759571897.647829522] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1759571897.647864920] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[INFO] [1759571956.439745094] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1759571956.440559003] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1759571956.440601066] [rosbag2_recorder]: Recording stopped

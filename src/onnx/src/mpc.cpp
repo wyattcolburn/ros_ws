@@ -60,9 +60,9 @@ std::pair<float, float> modulation_onnx_lidar(float odom_x, float odom_y, float 
         return {input_cmd_v, input_cmd_w};
     }
     // modulate low angular velocity
-    if (std::abs(input_cmd_w) < .04) {
-        input_cmd_w = 0;
-    }
+    // if (std::abs(input_cmd_w) < .04) {
+    //     input_cmd_w = 0;
+    // }
 
     Obstacle T_BOT;
     T_BOT.radius = TURTLEBOT_RADIUS;

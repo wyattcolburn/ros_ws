@@ -57,17 +57,15 @@ def generate_launch_description():
     world_num = int(os.environ.get('WORLD_NUM', '0'))
     path = np.load(os.path.expanduser(
         f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
-    starting_location_path = path[1]
-    start_location_gazebo = path_coord_to_gazebo_coord(
-        starting_location_path[0], starting_location_path[1])
+    starting_location_path = path[0]
 
     # we dont start the path until path[3:0], so maybe starting orientation should be based on that?
-    second_location_gazebo = path_coord_to_gazebo_coord(path[2][0], path[2][1])
-    third_location_gazebo = path_coord_to_gazebo_coord(path[3][0], path[3][1])
-    fourth_location_gazebo = path_coord_to_gazebo_coord(path[4][0], path[4][1])
+    first_location_gazebo = path_coord_to_gazebo_coord(path[0][0], path[0][1])
+    second_location_gazebo = path_coord_to_gazebo_coord(path[1][0], path[1][1])
+    # third_location_gazebo = path_coord_to_gazebo_coord(path[3][0], path[3][1])
+    # fourth_location_gazebo = path_coord_to_gazebo_coord(path[4][0], path[4][1])
     # yaw = yaw_calculation(start_location_gazebo[0], start_location_gazebo[1], second_location_gazebo[0], second_location_gazebo[1])
-    yaw = yaw_calculation(third_location_gazebo[0], third_location_gazebo[1],
-                          fourth_location_gazebo[0], fourth_location_gazebo[1])
+    yaw = yaw_calculation(first_location_gazebo[0], first_location_gazebo[1], second_location_gazebo[0], second_location_gazebo[1])
 
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')
@@ -95,8 +93,8 @@ def generate_launch_description():
         launch_arguments=[
             ('namespace', LaunchConfiguration('namespace')),
             ('rviz', LaunchConfiguration('rviz')),
-            ('x', f'{third_location_gazebo[0]}'),
-            ('y', f'{third_location_gazebo[1]}'),
+            ('x', f'{first_location_gazebo[0]}'),
+            ('y', f'{first_location_gazebo[1]}'),
             ('z', LaunchConfiguration('z')),
             ('yaw', f'{yaw}')]
     )
@@ -136,8 +134,8 @@ def generate_launch_description():
         name='one_shot_trial',
         output='screen',
         parameters=[{
-            'initial_x':  float(third_location_gazebo[0]),
-            'initial_y': float(third_location_gazebo[1]),
+            'initial_x':  float(first_location_gazebo[0]),
+            'initial_y': float(first_location_gazebo[1]),
             'initial_yaw': float(yaw),
             'wait_after_undock': 2.0,
             'pose_init_delay': 1.0,

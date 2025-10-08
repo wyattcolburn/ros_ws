@@ -60,7 +60,7 @@ def generate_launch_description():
         period=15.0,
         actions=[Node(
             package='my_robot_bringup',
-            executable='gaussian',  # You need to create this
+            executable='agro_gaus',  # You need to create this
             output='screen')]
 
     )

@@ -1,0 +1,167 @@
+run:
+  timestamp: '2025_10_03_12_12'
+  output_dir: data_set/2025_10_03_12_12
+datasets:
+- name: 2025-10-02_22-50-46_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_22-50-46_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_22-50-46_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_22-50-46_gaus/combined_labels.csv
+  features_shape:
+    rows: 24312
+    cols: 1085
+  labels_shape:
+    rows: 24312
+    cols: 2
+  seg_directories_processed: 6
+- name: 2025-10-02_23-24-17_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-24-17_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-24-17_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-24-17_gaus/combined_labels.csv
+  features_shape:
+    rows: 10313
+    cols: 1085
+  labels_shape:
+    rows: 10313
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-10-02_23-05-13_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-05-13_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-05-13_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-05-13_gaus/combined_labels.csv
+  features_shape:
+    rows: 935
+    cols: 1085
+  labels_shape:
+    rows: 935
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-10-03_10-53-20_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_10-53-20_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_10-53-20_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_10-53-20_gaus/combined_labels.csv
+  features_shape:
+    rows: 12278
+    cols: 1085
+  labels_shape:
+    rows: 12278
+    cols: 2
+  seg_directories_processed: 3
+- name: 2025-10-02_23-07-17_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-07-17_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-07-17_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-07-17_gaus/combined_labels.csv
+  features_shape:
+    rows: 7931
+    cols: 1085
+  labels_shape:
+    rows: 7931
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-10-02_23-09-55_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-09-55_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-09-55_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-09-55_gaus/combined_labels.csv
+  features_shape:
+    rows: 10613
+    cols: 1085
+  labels_shape:
+    rows: 10613
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-10-03_11-01-20_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_11-01-20_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_11-01-20_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_11-01-20_gaus/combined_labels.csv
+  features_shape:
+    rows: 15626
+    cols: 1085
+  labels_shape:
+    rows: 15626
+    cols: 2
+  seg_directories_processed: 5
+- name: 2025-10-02_23-00-49_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-00-49_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-00-49_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-00-49_gaus/combined_labels.csv
+  features_shape:
+    rows: 14238
+    cols: 1085
+  labels_shape:
+    rows: 14238
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-10-03_10-57-13_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_10-57-13_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_10-57-13_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_10-57-13_gaus/combined_labels.csv
+  features_shape:
+    rows: 12355
+    cols: 1085
+  labels_shape:
+    rows: 12355
+    cols: 2
+  seg_directories_processed: 2
+- name: 2025-10-03_11-06-30_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_11-06-30_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_11-06-30_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_11-06-30_gaus/combined_labels.csv
+  features_shape:
+    rows: 30450
+    cols: 1085
+  labels_shape:
+    rows: 30450
+    cols: 2
+  seg_directories_processed: 1
+- name: 2025-10-02_23-27-45_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-27-45_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-27-45_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-27-45_gaus/combined_labels.csv
+  features_shape:
+    rows: 16674
+    cols: 1085
+  labels_shape:
+    rows: 16674
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-10-02_23-13-34_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-13-34_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-13-34_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-13-34_gaus/combined_labels.csv
+  features_shape:
+    rows: 20381
+    cols: 1085
+  labels_shape:
+    rows: 20381
+    cols: 2
+  seg_directories_processed: 4
+- name: 2025-10-03_10-44-30_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_10-44-30_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_10-44-30_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-03_10-44-30_gaus/combined_labels.csv
+  features_shape:
+    rows: 27598
+    cols: 1085
+  labels_shape:
+    rows: 27598
+    cols: 2
+  seg_directories_processed: 5
+- name: 2025-10-02_23-20-36_gaus
+  path: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-20-36_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-20-36_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/new_gauss_2/2025-10-02_23-20-36_gaus/combined_labels.csv
+  features_shape:
+    rows: 11517
+    cols: 1085
+  labels_shape:
+    rows: 11517
+    cols: 2
+  seg_directories_processed: 4
+combined:
+  features_shape:
+    rows: 215221
+    cols: 1085
+  labels_shape:
+    rows: 215221
+    cols: 2
+  num_datasets: 14
+  total_rows: 215221

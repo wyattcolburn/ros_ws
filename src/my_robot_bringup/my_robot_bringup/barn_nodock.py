@@ -73,7 +73,7 @@ class BarnOneShot(Node):
         self._nav_timeout_limit = 3
 
         self._nav_feedback_counter = 0
-        self._nav_feedback_limit = 30
+        self._nav_feedback_limit = 20
         self.prev_distance_flag = False
 
         self.total_lg = 0
@@ -193,6 +193,14 @@ class BarnOneShot(Node):
         self.goal_x = 0
         self.goal_y = 0
 
+
+        # timer for whole script, max time is 350 after odom starts 
+        self.trial_hard_timeout_sec = 350
+        self.watchdog_timer = self.create_timer(
+    1.0, self.watchdog_cb, callback_group=self.callback_group
+)
+        self.no_odom_timeout_sec    = 1.5     # if no odom for this long → fail
+        self.last_odom_steady       = None  
         # ros bag variables
         self.bag_proc = None
         self.bag_outdir = None
@@ -372,7 +380,7 @@ class BarnOneShot(Node):
             self.handle_pose_initialization()
         elif self.current_state == SequenceState.CREATE_PATH:
             
-            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            ts = datetime.datetime.now().strftime("%m%d_%H%M%S")
             outdir = os.path.expanduser(f"~/ros_ws/bags/world{self.world_num}_{ts}")
             self.start_bag(outdir)
             self.get_logger().info("Starting bag")
@@ -870,7 +878,7 @@ class BarnOneShot(Node):
 
         dx = self.current_map_x - self.final_goal_x
         dy = self.current_map_y - self.final_goal_y
-        final_distance = ((dx*dx) + (dy*dy)**.5)
+        final_distance = math.hypot(dx, dy)
         if final_distance < self.goal_tolerance_xy:
             self._trial_result = "SUCCESS"
             self.current_state = SequenceState.COMPLETED
@@ -881,7 +889,7 @@ class BarnOneShot(Node):
         try:
             v = (odom_msg.twist.twist.linear.x ** 2 + odom_msg.twist.twist.linear.y ** 2) ** 0.5
             moving = v > 0.02  # tune threshold
-
+            self.last_odom_steady = self.steady_clock.now()
             if moving and not self.clock_running:
                 self.clock_running = True
                 self.trial_start_time = self.steady_clock.now()
@@ -904,6 +912,39 @@ class BarnOneShot(Node):
         # Accumulate achieved velocity stats regardless of transform success
         self._accumulate_from_odom(odom_msg)
 
+    def watchdog_cb(self):
+        # Only care during active navigation
+        if self.current_state != SequenceState.NAVIGATING:
+            return
+
+        now = self.steady_clock.now()
+
+        # Hard trial timeout (steady time, unaffected by sim clock)
+        if self.clock_running and self.trial_start_time is not None:
+            elapsed = (now - self.trial_start_time).nanoseconds / 1e9
+            if elapsed > self.trial_hard_timeout_sec:
+                self.get_logger().error(f"Hard timeout ({elapsed:.1f}s) — cancelling nav & failing.")
+                if self._nav_goal_handle:
+                    try:
+                        self._nav_goal_handle.cancel_goal_async()
+                    except Exception:
+                        pass
+                self._trial_result = "TIMEOUT"
+                self.current_state = SequenceState.FAILED
+                return
+
+        # Odom liveliness (don’t let a stalled odom hide failures)
+        if self.last_odom_steady is not None:
+            since_odom = (now - self.last_odom_steady).nanoseconds / 1e9
+            if since_odom > self.no_odom_timeout_sec:
+                self.get_logger().error(f"No /odom for {since_odom:.2f}s — assuming system stalled.")
+                if self._nav_goal_handle:
+                    try:
+                        self._nav_goal_handle.cancel_goal_async()
+                    except Exception:
+                        pass
+                self._trial_result = "NO_ODOM"
+                self.current_state = SequenceState.FAILED
     def end_trial_timer(self):
         # Safe no-op if never started
         if self.clock_running and self.trial_start_time is not None:
@@ -1178,7 +1219,6 @@ class BarnOneShot(Node):
             os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy')
         ).astype(float)
 
-        barn_path = barn_path[2:]
 
         xy = np.array([self.path_coord_to_gazebo_coord(x, y) for x, y in barn_path], dtype=float)
         xy = resample_by_arclen(xy, step=resample_step)
