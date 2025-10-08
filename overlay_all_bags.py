@@ -39,15 +39,16 @@ for directory in result_list:
         if obstacle_type == "ASYM":
             obstacle_title = "Asymmetric Obstacle Placement"
         else: 
-            obstacle_type = "Symmetric Obstacle Placement"
+            obstacle_title = "Symmetric Obstacle Placement"
+
         cmd = [
             sys.executable, "plot_bag_overlay.py",
             "--bags", f"{world_path}/*", 
             "--odom", "/odom",
-            "--plan", "/plan_barn_odom",
-            "--out", f"{world_path}/{world}_{model}_overlay.png",
-            "--title", f"All Odometry Overlays of World {world_num} for {model_type} with {obstacle_title}"
+            "--plan", "/plan_barn",
+            "--out", f"{bags_dkr}/{world}_{model}_overlay.png",
+            "--title", f"All Odometry Overlays of World {world_num} for {model_type} with {obstacle_title}",
+            "--map",  f"yaml_{world_num}.yaml"
         ]
         print(cmd)
         subprocess.run(cmd)
-        sys.exit(1)
