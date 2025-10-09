@@ -34,6 +34,77 @@ for pose_element in ['x', 'y', 'z', 'yaw']:
     ARGUMENTS.append(DeclareLaunchArgument(pose_element, default_value='0.0',
                      description=f'{pose_element} component of the robot pose.'))
 
+def load_barn_path(world_num, resample_step=0.20, smooth_window=5):
+    import numpy as np
+    import math
+    from nav_msgs.msg import Path
+    from geometry_msgs.msg import PoseStamped
+
+    def arc_lengths(xy):
+        d = np.diff(xy, axis=0)
+        seg = np.hypot(d[:, 0], d[:, 1])
+        s = np.concatenate([[0.0], np.cumsum(seg)])
+        return s, seg
+
+    def resample_by_arclen(xy, step=0.12):
+        keep = [0]
+        for i in range(1, len(xy)):
+            if not np.allclose(xy[i], xy[keep[-1]], atol=1e-8):
+                keep.append(i)
+        xy = xy[keep]
+        if len(xy) < 2:
+            return xy
+        s, _ = arc_lengths(xy)
+        if s[-1] < step:
+            return xy
+        s_new = np.arange(0.0, s[-1] + 1e-6, step)
+        x = np.interp(s_new, s, xy[:, 0])
+        y = np.interp(s_new, s, xy[:, 1])
+        return np.stack([x, y], axis=1)
+
+    def smooth_xy(xy, window=5):
+        if window < 3 or window % 2 == 0 or len(xy) < window:
+            return xy
+        k = window // 2
+        pad = np.pad(xy, ((k, k), (0, 0)), mode='edge')
+        kern = np.ones((window, 1)) / window
+        xs = np.convolve(pad[:, 0], kern[:, 0], mode='valid')
+        ys = np.convolve(pad[:, 1], kern[:, 0], mode='valid')
+        return np.stack([xs, ys], axis=1)
+
+    def yaw_from_diffs(dx, dy, last_yaw=None):
+        if abs(dx) < 1e-9 and abs(dy) < 1e-9:
+            return last_yaw if last_yaw is not None else 0.0
+        return math.atan2(dy, dx)
+
+    def yaw_to_quat(yaw):
+        qz = math.sin(yaw / 2.0)
+        qw = math.cos(yaw / 2.0)
+        return 0.0, 0.0, qz, qw
+
+    barn_path = np.load(
+        os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy')
+    ).astype(float)
+
+
+    xy = np.array([path_coord_to_gazebo_coord(x, y) for x, y in barn_path], dtype=float)
+    xy = resample_by_arclen(xy, step=resample_step)
+    xy = smooth_xy(xy, window=smooth_window)
+
+    yaws = []
+    last_yaw = None
+    for i in range(len(xy)):
+        if i == len(xy) - 1:
+            yaw = last_yaw if last_yaw is not None else 0.0
+        else:
+            dx = xy[i + 1, 0] - xy[i, 0]
+            dy = xy[i + 1, 1] - xy[i, 1]
+            yaw = yaw_from_diffs(dx, dy, last_yaw)
+        yaws.append(yaw)
+        last_yaw = yaw
+
+    return xy
+
 
 def path_coord_to_gazebo_coord(x, y):
     # Tis is from the jackal_timer github repo from dperille (UT-AUSTIN LAB)
@@ -57,11 +128,11 @@ def generate_launch_description():
     world_num = int(os.environ.get('WORLD_NUM', '0'))
     path = np.load(os.path.expanduser(
         f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
-    starting_location_path = path[0]
 
-    # we dont start the path until path[3:0], so maybe starting orientation should be based on that?
-    first_location_gazebo = path_coord_to_gazebo_coord(path[0][0], path[0][1])
-    second_location_gazebo = path_coord_to_gazebo_coord(path[1][0], path[1][1])
+    preprocessed_path = load_barn_path(world_num)
+    first_location_gazebo= (preprocessed_path[0][0], preprocessed_path[0][1])
+    second_location_gazebo= (preprocessed_path[1][0], preprocessed_path[1][1])
+    # second_location_gazebo = path_coord_to_gazebo_coord(path[1][0], path[1][1])
     # third_location_gazebo = path_coord_to_gazebo_coord(path[3][0], path[3][1])
     # fourth_location_gazebo = path_coord_to_gazebo_coord(path[4][0], path[4][1])
     # yaw = yaw_calculation(start_location_gazebo[0], start_location_gazebo[1], second_location_gazebo[0], second_location_gazebo[1])
