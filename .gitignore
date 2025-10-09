@@ -5,6 +5,7 @@
 **/log/
 bags/
 ros_bag/
+bags_backup/
 may15_medium/
 may19_large/
 # Ignore ROS 2 bag files
