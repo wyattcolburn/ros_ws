@@ -28,3 +28,4 @@ robot_data/
 # .venv stuff
 .venv*
 *.zip
+bags_backup.zip
