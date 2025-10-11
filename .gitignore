@@ -27,4 +27,4 @@ robot_data/
 
 # .venv stuff
 .venv*
-
+*.zip
