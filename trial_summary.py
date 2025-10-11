@@ -6,7 +6,6 @@ import re
 import math
 import matplotlib.pyplot as plt
 import sys
-
 import matplotlib as mpl
 mpl.rcParams.update({
     "font.size": 13,        # base size
@@ -149,6 +148,16 @@ def world_id(w):
     m = re.search(r'\d+', str(w))
     return m.group(0) if m else str(w)
 
+title_end = ""
+if "mlp_sym" in input_dir:
+    title_end = "MLP Trained on Symmetric Obstacles"
+elif "mlp_asym" in input_dir:
+    title_end = "MLP Trained on Asymmetric Obstacles"
+elif "cnn_sym" in input_dir:
+    title_end = "CNN Trained on Symmetric Obstacles"
+else:
+    title_end = "CNN Trained on Asymmetric Obstacles"
+print(f"title end is {title_end}")
 labels = [world_id(w) for w in worlds]
 def _reord(a): return [a[i] for i in order_idx]
 worlds    = _reord(worlds)
@@ -160,7 +169,7 @@ max_frac  = _reord(max_frac)
 # ---- 1) Successes per world ----
 fig, ax = plt.subplots(figsize=(10, 6))
 ax.bar(worlds, successes, color='C0')
-ax.set_title('Successful Trials per World for CNN Trained on Asymmetric Obstacles')
+ax.set_title(f'Successful Trials per World for {title_end}')
 ax.set_xlabel('Worlds (easy → hard)')
 ax.set_ylim(0, 10)                 # top at 10
 ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
@@ -177,7 +186,7 @@ plt.close(fig)
 fig, ax = plt.subplots(figsize=(10, 6))
 ax.bar(worlds, successes, label='Successes', color='C0')
 ax.bar(worlds, failures, bottom=successes, label='Failures', color='C1')
-ax.set_title('Trials per World (Success vs Failure) for CNN Trained on Asymmetric Obstacles')
+ax.set_title(f'Trials per World (Success vs Failure) for {title_end}')
 ax.set_xlabel('Worlds (easy → hard)')
 ax.set_ylim(0, 10)                 # top at 10
 ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
@@ -192,7 +201,7 @@ plt.close(fig)
 # ---- 3) Average fraction of LG reached ----
 fig, ax = plt.subplots(figsize=(10, 5))
 ax.bar(worlds, avg_frac, color='C0')
-ax.set_title('Average Fraction of Local Goals Reached per World for CNN Trained on Asymmetric Obstacles')
+ax.set_title(f'Average Fraction of Local Goals Reached per World for {title_end}')
 ax.set_xlabel('Worlds (easy → hard)')
 ax.set_ylabel('Average fraction (0–1)')
 ax.set_ylim(0, 1)
@@ -205,7 +214,7 @@ plt.close(fig)
 # ---- 4) Max fraction ----
 fig, ax = plt.subplots(figsize=(10, 5))
 ax.bar(worlds, max_frac, color='C0')
-ax.set_title('Max Fraction of Local Goals Reached per World for CNN Trained on Asymmetric Obstacles')
+ax.set_title(f'Max Fraction of Local Goals Reached per World for {title_end}')
 ax.set_xlabel('Worlds (easy → hard)')
 ax.set_ylabel('Max fraction (0–1)')
 ax.set_ylim(0, 1)
