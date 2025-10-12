@@ -144,6 +144,11 @@ class BarnOneShot(Node):
         self.distance_remaining = 0
         self.goal_x = 0
         self.goal_y = 0
+
+
+        self.bag_proc = None
+        self.bag_outdir = None
+        self.bag_topics = ["/odom", "/cmd_vel", "/plan_barn", "/plan_barn_odom", "/tf", "/tf_static", "/scan"]
         # Timer for state machine
         self.state_timer = self.create_timer(
             1.0, self.state_machine_callback,
@@ -178,6 +183,10 @@ class BarnOneShot(Node):
             self.get_logger().info("Undocking sequence completed successfully!")
             self.current_state = SequenceState.INITIALIZING_POSE
         elif self.current_state == SequenceState.INITIALIZING_POSE:
+
+            self.bag_proc = None
+            self.bag_outdir = None
+            self.bag_topics = ["/odom", "/cmd_vel", "/plan_barn", "/plan_barn_odom", "/tf", "/tf_static", "/scan"]
             self.handle_pose_initialization()
         elif self.current_state == SequenceState.NAVIGATING:
             self.handle_navigation()
@@ -188,13 +197,15 @@ class BarnOneShot(Node):
                 self._failed_logged = True
                 self._failed_logged = True
                 self.record_results()
+                self.stop_bag() 
                 self.terminate()
                 self.current_state = SequenceState.RESTART
         elif self.current_state == SequenceState.FAILED:
             if not hasattr(self, '_failed_logged'):
                 self.get_logger().info("Node failed - staying alive")
                 self._failed_logged = True
-                self.record_results()
+                self.record_results()      
+                self.stop_bag() 
                 self.terminate()
                 self.current_state = SequenceState.RESTART
         elif self.current_state == SequenceState.RESTART:
@@ -609,6 +620,68 @@ class BarnOneShot(Node):
             self.get_logger().warn(
                 f'Could not transform odom to map: {str(e)}')
 
+
+    def start_bag(self, outdir: str):
+            if self.bag_proc and self.bag_proc.poll() is None:
+                self.get_logger().warn("rosbag2 already running; not starting another.")
+                return
+            try:
+                # Make sure only the *parent* exists
+                parent = os.path.dirname(outdir) or "."
+                os.makedirs(parent, exist_ok=True)
+
+                # (optional) capture a log so you see errors instead of /dev/null
+                log_path = os.path.join(parent, f"{os.path.basename(outdir)}.record.log")
+                self.get_logger().info(f"Starting rosbag2 → {outdir} (log: {log_path})")
+                logf = open(log_path, "wb", buffering=0)
+
+                self.bag_outdir = outdir
+                self.bag_proc = subprocess.Popen(
+                    self._bag_cmd(outdir),          # e.g. ["ros2","bag","record","-o",outdir,...]
+                    preexec_fn=os.setsid,
+                    stdout=logf,
+                    stderr=subprocess.STDOUT,
+                )
+
+                # quick health check
+                time.sleep(1.0)
+                if self.bag_proc.poll() is not None:
+                    self.get_logger().error(
+                        f"rosbag2 exited with code {self.bag_proc.returncode}. See log: {log_path}"
+                    )
+                    self.bag_proc = None
+            except Exception as e:
+                self.get_logger().error(f"Failed to start rosbag2: {e}")
+                self.bag_proc = None
+
+    def stop_bag(self, grace_sec: float = 10.0):
+        proc = self.bag_proc
+        if not proc:
+            return
+        if proc.poll() is not None:  # already exited
+            self.bag_proc = None
+            return
+
+        try:
+            pgid = os.getpgid(proc.pid)
+            self.get_logger().info("Stopping rosbag2 (SIGINT)...")
+            os.killpg(pgid, signal.SIGINT)  # graceful stop → writes metadata.yaml
+            try:
+                proc.wait(timeout=grace_sec)
+                self.get_logger().info("rosbag2 stopped cleanly.")
+            except subprocess.TimeoutExpired:
+                self.get_logger().warn("rosbag2 did not stop in time; escalating (SIGTERM → SIGKILL if needed).")
+                os.killpg(pgid, signal.SIGTERM)
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except Exception as e:
+            self.get_logger().error(f"Error while stopping rosbag2: {e}")
+        finally:
+            self.bag_proc = None
 
 def main():
     rclpy.init()

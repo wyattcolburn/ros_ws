@@ -119,8 +119,8 @@ local_costmap:
       plugins: ["static_layer", "voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 1.0
-        inflation_radius: 0.35
+        cost_scaling_factor: 0.5
+        inflation_radius: 0.45
         enabled: True
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"

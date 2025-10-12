@@ -115,3 +115,8 @@ Cannot localize the robot:
 There is an issue that odom and scan timestamps are very different (6 weeks), therefore mismatch in the data for localization 
 
 https://github.com/turtlebot/turtlebot4/issues/613
+
+
+
+ros2 run middle_man middle_man_barn --ros-args --remap tf:=/turtle/tf --remap tf_static:=/turtle/tf_static
+

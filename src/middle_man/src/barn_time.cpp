@@ -44,6 +44,9 @@ class obsValid : public rclcpp::Node {
         path_sub_ = this->create_subscription<nav_msgs::msg::Path>(
             "/turtle/plan", 10, std::bind(&obsValid::path_callback_map, this, std::placeholders::_1));
 
+        path_to_onnx_odom_pub = this->create_publisher<nav_msgs::msg::Path>("/turtle/plan_to_onnx_odom", 10);
+
+        path_to_onnx_map_pub = this->create_publisher<nav_msgs::msg::Path>("/turtle/plan_to_onnx_map", 10);
         scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             "/turtle/scan", 10, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
 
@@ -68,6 +71,8 @@ class obsValid : public rclcpp::Node {
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
     rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr hall_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr packetOut_publisher_;
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_to_onnx_odom_pub_;
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_to_onnx_map_pub_;
     // Add this to your private members
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr local_goal_marker_pub_;
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -381,6 +386,49 @@ class obsValid : public rclcpp::Node {
             obstacle_manager_.local_goals_to_obs(local_goal_manager_);
             path_flag = true;
             GOAL = local_goal_manager_.data_vector.back();
+        } else {
+            RCLCPP_WARN(this->get_logger(), "No local goals after smoothing/resampling");
+        }
+        nav_msgs::msg::Path smoothed_map_path;
+        smoothed_map_path.header.frame_id = "map";
+        smoothed_map_path.header.stamp = this->now();
+        smoothed_map_path.poses = map_poses_;
+        smoothed_path_pub_map->publish(smoothed_map_path);
+
+        // Publish smoothed path in odom frame
+        if (local_goal_manager_.get_num_lg() > 0) {
+            nav_msgs::msg::Path smoothed_odom_path;
+            smoothed_odom_path.header.frame_id = "odom";
+            smoothed_odom_path.header.stamp = this->now();
+
+            // Convert local goals back to PoseStamped messages
+            for (size_t i = 0; i < local_goal_manager_.get_num_lg(); ++i) {
+                geometry_msgs::msg::PoseStamped pose;
+                pose.header.frame_id = "odom";
+                pose.header.stamp = this->now();
+
+                // Assuming local_goal_manager_ has x, y, yaw data
+                const auto &lg = local_goal_manager_.data_vector[i];
+                pose.pose.position.x = lg.x; // adjust based on your actual data structure
+                pose.pose.position.y = lg.y;
+                pose.pose.position.z = 0.0;
+
+                // Convert yaw to quaternion
+                tf2::Quaternion q;
+                q.setRPY(0, 0, lg.yaw); // adjust field name as needed
+                pose.pose.orientation = tf2::toMsg(q);
+
+                smoothed_odom_path.poses.push_back(pose);
+            }
+
+            smoothed_path_pub_odom->publish(smoothed_odom_path);
+
+            obstacle_manager_.local_goals_to_obs(local_goal_manager_);
+            path_flag = true;
+            GOAL = local_goal_manager_.data_vector.back();
+
+            RCLCPP_INFO(this->get_logger(), "Published smoothed paths: map=%zu poses, odom=%zu poses",
+                        smoothed_map_path.poses.size(), smoothed_odom_path.poses.size());
         } else {
             RCLCPP_WARN(this->get_logger(), "No local goals after smoothing/resampling");
         }

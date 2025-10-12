@@ -2,18 +2,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Overlay trajectories from multiple rosbag2 runs with a single, per-run
-reference plan and a single, per-run constant TF (map→odom).
-
-- Learn TF once from the first N bags (median of samples), reuse for all.
-- Choose one plan once (tries /plan_barn_odom then /plan_barn), reuse for all.
-- Plot odom (solid) and the reference plan (dashed) over a map (YAML→PGM).
+Overlay trajectories from multiple rosbag2 runs.
+- Learn one constant map->odom TF per run (median), but prefer per-bag TF when available.
+- Choose one reference plan once (tries /plan_barn_odom, then /plan_barn).
+- Plot odom overlays + reference plan over the occupancy map (YAML->PGM).
 """
 
 import argparse, glob, math, os
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple
-
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -27,7 +24,6 @@ from rosidl_runtime_py.utilities import get_message
 import rosbag2_py
 from tf2_msgs.msg import TFMessage
 
-
 # ------------------------- Data structures -------------------------
 
 @dataclass
@@ -36,10 +32,10 @@ class Series:
     ys: List[float]
     ts: Optional[List[float]] = None  # seconds (for /odom timing if needed)
 
-
 # ------------------------- Map loading -------------------------
 
 def load_occ_grid(yaml_path: str, emphasize: bool = False):
+    """Load map_server YAML+PGM. Return (image[0..1], extent[xmin,xmax,ymin,ymax], res)."""
     with open(yaml_path, "r") as f:
         meta = yaml.safe_load(f)
 
@@ -56,14 +52,14 @@ def load_occ_grid(yaml_path: str, emphasize: bool = False):
     img = np.array(Image.open(pgm_path)).astype(np.float32) / 255.0
     if negate == 1:
         img = 1.0 - img
-    img = np.flipud(img)  # origin='lower'
+    img = np.flipud(img)  # origin='lower' for imshow
+
     if emphasize:
         img = np.clip((img - free_th) / max(1e-6, (occ_th - free_th)), 0, 1)
 
     h, w = img.shape[:2]
     extent = [ox, ox + w * res, oy, oy + h * res]
-    return img, extent
-
+    return img, extent, res
 
 # ------------------------- Bag reading -------------------------
 
@@ -135,7 +131,6 @@ def _extract_series_for_topics(bag_path: str, odom_topic: str, plan_topic: str) 
 
     return od, pl
 
-
 # ------------------------- TF utilities -------------------------
 
 def _quat_to_yaw(x, y, z, w):
@@ -144,7 +139,7 @@ def _quat_to_yaw(x, y, z, w):
     return math.atan2(siny_cosp, cosy_cosp)
 
 def _collect_map_to_odom_series(bag_path, parent="map", child="odom"):
-    """Collect many (t, tx, ty, yaw) samples from /tf_static and /tf."""
+    """Collect (t, tx, ty, yaw) samples from /tf_static and /tf."""
     r = _open_reader(bag_path, ["/tf_static", "/tf"])
     series = []
     while r.has_next():
@@ -160,6 +155,33 @@ def _collect_map_to_odom_series(bag_path, parent="map", child="odom"):
                 series.append((t, tr.transform.translation.x, tr.transform.translation.y, yaw))
     series.sort(key=lambda a: a[0])
     return series
+
+def _interp_tf(series, t_query):
+    if not series: return 0, 0, 0
+    times = [s[0] for s in series]
+    idx = np.searchsorted(times, t_query)
+    if idx <= 0:  idx = 1
+    if idx >= len(series): idx = len(series) - 1
+    t0, tx0, ty0, yaw0 = series[idx-1]
+    t1, tx1, ty1, yaw1 = series[idx]
+    w = (t_query - t0) / max(1e-6, (t1 - t0))
+    tx = tx0 + w*(tx1 - tx0)
+    ty = ty0 + w*(ty1 - ty0)
+    yaw = yaw0 + w*(yaw1 - yaw0)
+    return tx, ty, yaw
+def _nearest_tf(series, t_query):
+    if not series: return None
+    # binary search nearest by time
+    lo, hi = 0, len(series)-1
+    while lo < hi:
+        mid = (lo+hi)//2
+        if series[mid][0] < t_query: lo = mid+1
+        else: hi = mid
+    idx = max(0, min(lo, len(series)-1))
+    if idx > 0 and abs(series[idx-1][0]-t_query) < abs(series[idx][0]-t_query):
+        idx -= 1
+    _, tx, ty, yaw = series[idx]
+    return tx, ty, yaw
 
 def _apply_SE2(xs, ys, tx, ty, yaw):
     c, s = math.cos(yaw), math.sin(yaw)
@@ -178,9 +200,8 @@ def _median_tf_of_series(series):
     ty = np.median([s[2] for s in series])
     yaw_un = _unwrap([s[3] for s in series])
     yaw = float(np.median(yaw_un))
-    yaw = (yaw + math.pi) % (2 * math.pi) - math.pi  # wrap to [-pi, pi]
+    yaw = (yaw + math.pi) % (2 * math.pi) - math.pi
     return {"tx": float(tx), "ty": float(ty), "yaw": yaw}
-
 
 # ------------------------- Discovery -------------------------
 
@@ -203,15 +224,14 @@ def discover_bag_dirs(pattern: str, recursive: bool) -> List[str]:
             seen.add(d); out.append(d)
     return sorted(out)
 
-
 # ------------------------- Main -------------------------
 
 def main():
     ap = argparse.ArgumentParser("Overlay odom + one reference plan across rosbag2 runs.")
-    ap.add_argument("--bags", required=True, help="Glob or dir of bag folders.")
+    ap.add_argument("--bags", required=True, help="Glob or dir of bag folders (containing metadata.yaml).")
     ap.add_argument("--recursive", action="store_true")
     ap.add_argument("--odom", default="/odom")
-    ap.add_argument("--plan", default="/plan_barn_odom", help="Preferred plan topic; script also tries /plan_barn.")
+    ap.add_argument("--plan", default="/plan_barn_odom", help="Preferred plan topic; also tries /plan_barn.")
     ap.add_argument("--out", default="overlay.png")
     ap.add_argument("--title", default="")
     ap.add_argument("--max-bags", type=int, default=9999)
@@ -225,10 +245,18 @@ def main():
     ap.add_argument("--map-vmax", type=float, default=1.0)
     ap.add_argument("--dpi", type=int, default=300)
 
-    # TF learning (once per run)
+    # TF learning (once per run) + tiny trims
     ap.add_argument("--tf-parent", default="map")
     ap.add_argument("--tf-child",  default="odom")
     ap.add_argument("--learn-from", type=int, default=5, help="Bags to sample when learning constant TF (median).")
+    ap.add_argument("--tf-dx", type=float, default=0.0, help="Trim meters added to tx for cached TF fallback.")
+    ap.add_argument("--tf-dy", type=float, default=0.0, help="Trim meters added to ty for cached TF fallback.")
+    ap.add_argument("--tf-dyaw", type=float, default=0.0, help="Trim radians added to yaw for cached TF fallback.")
+
+    # Plan options
+    ap.add_argument("--drop-first-plan-point", action="store_true",
+                    help="Drop first plan pose (e.g., if it’s pre-spawn).")
+    ap.add_argument("--goal-radius", type=float, default=0.5, help="Goal tolerance radius (m).")
 
     args = ap.parse_args()
 
@@ -236,19 +264,18 @@ def main():
     if not bag_dirs:
         raise SystemExit(f"No bag directories for: {args.bags}")
 
-    # Figure & map
+    # ----- Figure & map -----
     plt.figure(figsize=(7.8, 6.6), dpi=args.dpi)
     ax = plt.gca()
     map_extent = None
     if args.map:
         try:
-            grid, extent = load_occ_grid(args.map, emphasize=args.emphasize_occupied)
-            res = .15
+            grid, extent, res = load_occ_grid(args.map, emphasize=args.emphasize_occupied)
+            # Half-cell shift so pixel centers align with world coords
             extent = [extent[0] - 0.5*res,
-                          extent[1] - 0.5*res,
-                          extent[2] - 0.5*res,
-                          extent[3] - 0.5*res]
-
+                      extent[1] - 0.5*res,
+                      extent[2] - 0.5*res,
+                      extent[3] - 0.5*res]
             ax.imshow(grid, extent=extent, cmap="gray", origin="lower",
                       alpha=args.map_alpha, interpolation="nearest",
                       vmin=args.map_vmin, vmax=args.map_vmax, zorder=0)
@@ -256,23 +283,24 @@ def main():
         except Exception as e:
             print(f"[WARN] Could not render map '{args.map}': {e}")
 
-    # ---------- Learn one constant TF (map→odom) once ----------
+    # ----- Learn one constant TF (map->odom) once (for fallback only) -----
     samples = []
     for bag in bag_dirs[: max(1, args.learn_from)]:
-        s = _collect_map_to_odom_series(bag, args.tf_parent, args.tf_child)
-        samples.extend(s)
+        samples.extend(_collect_map_to_odom_series(bag, args.tf_parent, args.tf_child))
     cached_tf = _median_tf_of_series(samples)
-    if not cached_tf:
-        print("[WARN] No TF samples found; odom will be raw (map overlay may not line up).")
+    if cached_tf:
+        cached_tf["tx"]  += args.tf_dx
+        cached_tf["ty"]  += args.tf_dy
+        cached_tf["yaw"] += args.tf_dyaw
+        print(f"[TF-fallback] tx={cached_tf['tx']:.3f} ty={cached_tf['ty']:.3f} yaw={cached_tf['yaw']:.4f} rad")
     else:
-        print(f"[TF] Using constant {args.tf_parent}->{args.tf_child} "
-              f"tx={cached_tf['tx']:.3f}, ty={cached_tf['ty']:.3f}, yaw={cached_tf['yaw']:.3f} rad")
+        print("[TF-fallback] none (no /tf samples found)")
 
-    # ---------- Choose one reference plan once ----------
-    cached_plan = None
+    # ----- Choose one reference plan once -----
+    cached_plan: Optional[Series] = None
     chosen_topic = None
     for bag in bag_dirs:
-        # try preferred, then /plan_barn
+        # try preferred topic, then fallback
         _, plan_pref = _extract_series_for_topics(bag, args.odom, args.plan)
         _, plan_alt  = _extract_series_for_topics(bag, args.odom, "/plan_barn")
         if len(plan_pref.xs) >= len(plan_alt.xs) and plan_pref.xs:
@@ -280,17 +308,18 @@ def main():
             break
         if plan_alt.xs:
             cached_plan = plan_alt; chosen_topic = "/plan_barn"
-            cached_plan = Series(cached_plan.xs[1:], cached_plan.ys[1:])
             break
+
+    # if cached_plan and args.drop_first_plan_point and len(cached_plan.xs) > 1:
+    #     cached_plan = Series(cached_plan.xs[1:], cached_plan.ys[1:])
+
     if cached_plan:
-        print(f"[PLAN] Using '{chosen_topic}' with {len(cached_plan.xs)} poses as the reference plan.")
+        print(f"[PLAN] Using '{chosen_topic}' with {len(cached_plan.xs)} poses as reference plan.")
     else:
-        print("[PLAN] No plan found in any bag; proceeding without a plan.")
+        print("[PLAN] No plan found in any bag; continuing without a plan.")
 
-    # ---------- Loop over all bags, transform odom with the constant TF ----------
+    # ----- Plot all bags -----
     legend_labels = []
-    any_plot = False
-
     for bag in bag_dirs:
         label = os.path.basename(bag) or bag.rstrip("/").split("/")[-1]
 
@@ -304,41 +333,53 @@ def main():
             odom = Series(odom.xs[::args.downsample], odom.ys[::args.downsample],
                           odom.ts[::args.downsample] if odom.ts else None)
 
-        # Apply constant TF to odom (if available)
-        if cached_tf and odom.xs:
-            tx, ty, yaw = cached_tf["tx"], cached_tf["ty"], cached_tf["yaw"]
-            xs2, ys2 = _apply_SE2(odom.xs, odom.ys, tx, ty, yaw)
-            odom = Series(xs2, ys2, odom.ts)
+        # ---- Transform ODOM -> MAP: prefer per-bag TF; fallback to cached TF ----
+        used = None
+        if odom.xs:
+            tf_series = _collect_map_to_odom_series(bag, args.tf_parent, args.tf_child)
+            if tf_series:  # per-bag (best)
+                xs2, ys2 = [], []
+                for x, y, tsec in zip(odom.xs, odom.ys, odom.ts or [tf_series[0][0]]*len(odom.xs)):
+                    tx, ty, yaw = _interp_tf(tf_series, tsec)
+                    x2, y2 = _apply_SE2([x], [y], tx, ty, yaw)
+                    xs2.append(x2[0]); ys2.append(y2[0])
+                odom = Series(xs2, ys2, odom.ts); used = "per-bag TF"
+            elif cached_tf:  # fallback
+                tx, ty, yaw = cached_tf["tx"], cached_tf["ty"], cached_tf["yaw"]
+                ox, oy = _apply_SE2(odom.xs, odom.ys, tx, ty, yaw)
+                odom = Series(ox, oy, odom.ts); used = "cached TF"
+            else:
+                used = "raw odom"
+            print(f"[TF] {label}: {used}")
 
-        # Plot odom
+        # plot odom
         if odom.xs:
             ax.plot(odom.xs, odom.ys, linewidth=1.0, alpha=0.85, zorder=2)
             legend_labels.append(f"{label} (odom)")
-            any_plot = True
         else:
             print(f"[INFO] {label}: topic '{args.odom}' not found or had no data.")
 
-    # Plot the single reference plan once
+    # plot reference plan once
     if cached_plan and cached_plan.xs:
-        ax.plot(cached_plan.xs, cached_plan.ys,
-                linestyle="--", linewidth=2.2, color="red",
-                alpha=0.78, zorder=6, label=f"plan")
-        # ax.scatter(cached_plan.xs, cached_plan.ys, s=14,
-        #            color="yellow", edgecolor="black", linewidths=0.6, zorder=7)
-        ax.plot(cached_plan.xs[0],  cached_plan.ys[0],  marker="o", markersize=5,
+        ax.plot(cached_plan.xs, cached_plan.ys, linestyle="--", linewidth=2.2,
+                color="red", alpha=0.85, zorder=6, label="plan")
+        # start/goal markers
+        ax.plot(cached_plan.xs[0],  cached_plan.ys[0],  marker="o", markersize=6,
                 color="lime", markeredgecolor="black", zorder=8, label="start")
-        ax.plot(cached_plan.xs[-1], cached_plan.ys[-1], marker="o", markersize=5,
+        ax.plot(cached_plan.xs[-1], cached_plan.ys[-1], marker="o", markersize=6,
                 color="cyan", markeredgecolor="black", zorder=8, label="goal")
-
-        goal_tol = Circle((cached_plan.xs[-1], cached_plan.ys[-1]), .5, fill=False, linestyle='--',
-                  linewidth=1, edgecolor='cyan', alpha=0.5, zorder=5, label="goal tolerance")
+        # goal tolerance circle
+        gx, gy = cached_plan.xs[-1], cached_plan.ys[-1]
+        goal_tol = Circle((gx, gy), args.goal_radius, fill=False, linestyle='--',
+                          linewidth=1.4, edgecolor='cyan', alpha=0.6, zorder=5, label="goal tolerance")
         ax.add_patch(goal_tol)
-        any_plot = True
 
+    # axes cosmetics
     ax.set_xlabel("X (m)")
     ax.set_ylabel("Y (m)")
     ax.set_aspect("equal", adjustable="box")
-    if legend_labels:
+
+    if legend_labels or (cached_plan and cached_plan.xs):
         ax.legend(fontsize=7, loc="upper left", ncol=1, framealpha=0.75)
 
     # Union limits so nothing is clipped (map + paths)
@@ -361,14 +402,16 @@ def main():
         ax.set_xlim(map_extent[0], map_extent[1])
         ax.set_ylim(map_extent[2], map_extent[3])
 
-    title = args.title or f"Overlays • odom: {args.odom} • ref plan (auto-picked)"
+    ax.set_ylim(bottom=4.5)
+    # You can crop here if desired, e.g.:
+    # ax.set_ylim(bottom=5.0)
+
+    title = args.title or f"Overlays • odom: {args.odom} • ref plan"
     ax.set_title(title, fontsize=11)
 
-    ax.set_ylim(bottom=4)
     plt.tight_layout()
     plt.savefig(args.out, bbox_inches="tight", dpi=args.dpi)
     print(f"[OK] Saved {args.out}")
-
 
 if __name__ == "__main__":
     main()

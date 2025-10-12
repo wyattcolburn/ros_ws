@@ -1,10 +1,10 @@
 ---
 # Parameters for HARDWARE tests
 #
-INIT_X : 0.80 
-INIT_Y : -0.09
-INIT_YAW : 0.0
+INIT_X : 7.227 
+INIT_Y : -2.258
+INIT_YAW : 2.462
 
-GOAL_X : 7.74
-GOAL_Y : 0.67
-GOAL_YAW : 0.0
+GOAL_X : 2.77
+GOAL_Y : 1.55
+GOAL_YAW : 2.462
