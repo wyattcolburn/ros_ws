@@ -6,10 +6,10 @@ RADIUS: 0.4
 
 # NEW: per-model lists
 CSV_FILES:
-  # - "results_oct9_04/baseline.csv"
-  - "results_oct8/baseline.csv"
-  - "results_oct8/baseline.csv"
-  - "results_oct8/baseline.csv"
+  - "results_oct10_different_sliding_window/baseline.csv"
+  # - "results_oct8/baseline.csv"
+  # - "results_oct8/baseline.csv"
+  # - "results_oct8/baseline.csv"
 
 MODEL_PATHS:
   # - "created_models/gauss_2_asym_combo"         # can be a directory name under ~/ros_ws/created_models/
@@ -18,7 +18,8 @@ MODEL_PATHS:
   - "created_models/cnn"
 
 # Worlds & trials
-WORLD_NUMS: [12, 36, 75, 125, 203, 210, 69, 187, 266]
+# WORLD_NUMS: [12, 36, 75, 125, 203, 210, 69, 187, 266]
+WORLD_NUMS: [125, 203, 210, 69, 187, 266]
 # WORLD_NUMS: [266]
 NUM_TRIALS: 10
 RESET_DELAY: 5

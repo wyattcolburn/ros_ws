@@ -111,6 +111,15 @@ struct ObstacleManager {
         for (int i = 0; i < obstacle_count; ++i) {
             is_active[i] = (i >= start && i <= end);
         }
+        // int g = local_manager_.get_local_goal_counter();
+        // int start_offset = NUM_VALID_OBSTACLES / 4;
+        // int start = std::max(0, 2 * g - start_offset);
+        // start = std::min(start, std::max(0, obstacle_count - 1));
+        // int end = std::min(start + NUM_VALID_OBSTACLES - 1, obstacle_count - 1);
+        //
+        // for (int i = 0; i < obstacle_count; ++i) {
+        //     is_active[i] = (i >= start && i <= end);
+        // }
 
         // Get array of active obstacles for passing to functions
         const Obstacle *get_active_obstacles(int &out_count) {
