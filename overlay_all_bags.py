@@ -3,7 +3,7 @@ import sys, subprocess
 import os
 from pathlib import Path
 
-bags_dkr = Path('result_bags')
+bags_dkr = Path('asym_runtime_bags')
 
 sub_dkr_list = os.listdir(bags_dkr)
 print(sub_dkr_list)
