@@ -2,10 +2,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Overlay trajectories from multiple rosbag2 runs.
-- Learn one constant map->odom TF per run (median), but prefer per-bag TF when available.
-- Choose one reference plan once (tries /plan_barn_odom, then /plan_barn).
-- Plot odom overlays + reference plan over the occupancy map (YAML->PGM).
+Overlay trajectories from multiple rosbag2 runs on a map, with robust TF handling.
+
+Key fixes vs. the original:
+- Uses *header* timestamps for /odom and TF (not the bag read time).
+- Interpolates yaw safely by unwrapping angles before interpolation.
+- Optional constant (median) map->odom TF per run for the smoothest overlays.
+
+CLI:
+  --bags <glob/dir>         : rosbag2 directories (with metadata.yaml)
+  --recursive               : discover nested bag dirs
+  --odom /odom              : odometry topic
+  --plan /plan_barn_odom    : reference plan topic (tries /plan_barn as fallback)
+  --map <map.yaml>          : map_server YAML to render
+  --tf-mode {auto,dynamic,constant}
+                             auto: prefer dynamic per-bag TF, fallback to constant
+                             dynamic: always use time-varying TF
+                             constant: always use one median map->odom TF
+  --downsample N            : sample every Nth odom message
 """
 
 import argparse, glob, math, os
@@ -30,7 +44,7 @@ from tf2_msgs.msg import TFMessage
 class Series:
     xs: List[float]
     ys: List[float]
-    ts: Optional[List[float]] = None  # seconds (for /odom timing if needed)
+    ts: Optional[List[float]] = None  # seconds (odom time base)
 
 # ------------------------- Map loading -------------------------
 
@@ -79,9 +93,10 @@ def _open_reader(bag_path: str, filter_topics: Optional[List[str]] = None) -> ro
 def _topic_types(reader) -> Dict[str, str]:
     return {t.name: t.type for t in reader.get_all_topics_and_types()}
 
-def _read_xy_from_odom(msg):  # nav_msgs/Odometry
+def _read_xy_t_from_odom(msg):  # nav_msgs/Odometry
     p = msg.pose.pose.position
-    return float(p.x), float(p.y)
+    t = float(msg.header.stamp.sec) + 1e-9 * float(msg.header.stamp.nanosec)
+    return float(p.x), float(p.y), t
 
 def _read_xy_from_pose(msg):  # geometry_msgs/PoseStamped
     p = msg.pose.position
@@ -94,7 +109,7 @@ def _extract_series_for_topics(bag_path: str, odom_topic: str, plan_topic: str) 
 
     des: Dict[str, Tuple[type, Callable]] = {}
     if odom_topic in types:
-        des[odom_topic] = (get_message(types[odom_topic]), _read_xy_from_odom)
+        des[odom_topic] = (get_message(types[odom_topic]), _read_xy_t_from_odom)
     if plan_topic in types:
         tname = types[plan_topic]
         if tname.endswith("/Path"):
@@ -112,14 +127,14 @@ def _extract_series_for_topics(bag_path: str, odom_topic: str, plan_topic: str) 
     needed = {t for t in (odom_topic, plan_topic) if t in des}
 
     while r.has_next():
-        topic, data, t_ns = r.read_next()
+        topic, data, _t_ns = r.read_next()
         if topic not in needed:
             continue
         mtype, fn = des[topic]
         msg = deserialize_message(data, mtype)
         if topic == odom_topic:
-            x, y = fn(msg)
-            od.xs.append(x); od.ys.append(y); od.ts.append(t_ns / 1e9)
+            x, y, t = fn(msg)
+            od.xs.append(x); od.ys.append(y); od.ts.append(t)
         else:
             out = fn(msg)
             if isinstance(out, list):
@@ -139,69 +154,81 @@ def _quat_to_yaw(x, y, z, w):
     return math.atan2(siny_cosp, cosy_cosp)
 
 def _collect_map_to_odom_series(bag_path, parent="map", child="odom"):
-    """Collect (t, tx, ty, yaw) samples from /tf_static and /tf."""
+    """Collect (t, tx, ty, yaw) samples from /tf_static and /tf, using *header* stamps."""
     r = _open_reader(bag_path, ["/tf_static", "/tf"])
     series = []
     while r.has_next():
-        topic, data, t_ns = r.read_next()
+        topic, data, _t_ns = r.read_next()
         if topic not in ("/tf_static", "/tf"):
             continue
         msg = deserialize_message(data, TFMessage)
-        t = t_ns / 1e9
         for tr in msg.transforms:
             if tr.header.frame_id == parent and (tr.child_frame_id == child or tr.child_frame_id.startswith(child)):
+                ts = tr.header.stamp
+                t = float(ts.sec) + 1e-9 * float(ts.nanosec)
                 yaw = _quat_to_yaw(tr.transform.rotation.x, tr.transform.rotation.y,
                                    tr.transform.rotation.z, tr.transform.rotation.w)
                 series.append((t, tr.transform.translation.x, tr.transform.translation.y, yaw))
     series.sort(key=lambda a: a[0])
+    # Remove duplicate timestamps by keeping the last occurrence
+    if series:
+        times = np.array([s[0] for s in series])
+        _, idx_last = np.unique(times, return_index=False, return_inverse=False, return_counts=False), None
+        # A simpler dedupe pass:
+        deduped = []
+        last_t = None
+        for s in series:
+            if last_t is None or s[0] != last_t:
+                deduped.append(s); last_t = s[0]
+            else:
+                deduped[-1] = s  # keep last duplicate
+        series = deduped
     return series
 
-def _interp_tf(series, t_query):
-    if not series: return 0, 0, 0
-    times = [s[0] for s in series]
-    idx = np.searchsorted(times, t_query)
-    if idx <= 0:  idx = 1
-    if idx >= len(series): idx = len(series) - 1
-    t0, tx0, ty0, yaw0 = series[idx-1]
-    t1, tx1, ty1, yaw1 = series[idx]
-    w = (t_query - t0) / max(1e-6, (t1 - t0))
-    tx = tx0 + w*(tx1 - tx0)
-    ty = ty0 + w*(ty1 - ty0)
-    yaw = yaw0 + w*(yaw1 - yaw0)
-    return tx, ty, yaw
-def _nearest_tf(series, t_query):
-    if not series: return None
-    # binary search nearest by time
-    lo, hi = 0, len(series)-1
-    while lo < hi:
-        mid = (lo+hi)//2
-        if series[mid][0] < t_query: lo = mid+1
-        else: hi = mid
-    idx = max(0, min(lo, len(series)-1))
-    if idx > 0 and abs(series[idx-1][0]-t_query) < abs(series[idx][0]-t_query):
-        idx -= 1
-    _, tx, ty, yaw = series[idx]
-    return tx, ty, yaw
-
-def _apply_SE2(xs, ys, tx, ty, yaw):
-    c, s = math.cos(yaw), math.sin(yaw)
-    xs2 = [tx + c * x - s * y for x, y in zip(xs, ys)]
-    ys2 = [ty + s * x + c * y for x, y in zip(xs, ys)]
-    return xs2, ys2
-
 def _unwrap(angles):
-    return np.unwrap(np.array(angles))
+    return np.unwrap(np.array(angles, dtype=float))
 
 def _median_tf_of_series(series):
     """Robust constant TF: median tx, ty, yaw (yaw unwrapped then rewrapped)."""
     if not series:
         return None
-    tx = np.median([s[1] for s in series])
-    ty = np.median([s[2] for s in series])
+    tx = float(np.median([s[1] for s in series]))
+    ty = float(np.median([s[2] for s in series]))
     yaw_un = _unwrap([s[3] for s in series])
     yaw = float(np.median(yaw_un))
     yaw = (yaw + math.pi) % (2 * math.pi) - math.pi
-    return {"tx": float(tx), "ty": float(ty), "yaw": yaw}
+    return {"tx": tx, "ty": ty, "yaw": yaw}
+
+def _apply_SE2_arrays(xs, ys, tx, ty, yaw):
+    """Vectorized SE(2) application when tx,ty,yaw are arrays matching xs/ys."""
+    xs = np.asarray(xs, dtype=float)
+    ys = np.asarray(ys, dtype=float)
+    tx = np.asarray(tx, dtype=float)
+    ty = np.asarray(ty, dtype=float)
+    yaw = np.asarray(yaw, dtype=float)
+    c = np.cos(yaw); s = np.sin(yaw)
+    x2 = tx + c * xs - s * ys
+    y2 = ty + s * xs + c * ys
+    return x2.tolist(), y2.tolist()
+
+def _interp_tf_to_times(series, t_query_array):
+    """Interpolate tx, ty, yaw (with unwrap) of TF series to query times."""
+    if not series:
+        z = np.zeros_like(t_query_array, dtype=float)
+        return z, z, z
+    times = np.array([s[0] for s in series], dtype=float)
+    txs   = np.array([s[1] for s in series], dtype=float)
+    tys   = np.array([s[2] for s in series], dtype=float)
+    yaws  = _unwrap([s[3] for s in series])
+
+    # clamp queries into range (extrapolate as boundary values)
+    tq = np.clip(np.asarray(t_query_array, dtype=float), times[0], times[-1])
+
+    txq = np.interp(tq, times, txs)
+    tyq = np.interp(tq, times, tys)
+    yawq = np.interp(tq, times, yaws)
+    yawq = (yawq + math.pi) % (2.0 * math.pi) - math.pi
+    return txq, tyq, yawq
 
 # ------------------------- Discovery -------------------------
 
@@ -245,13 +272,15 @@ def main():
     ap.add_argument("--map-vmax", type=float, default=1.0)
     ap.add_argument("--dpi", type=int, default=300)
 
-    # TF learning (once per run) + tiny trims
+    # TF options
     ap.add_argument("--tf-parent", default="map")
     ap.add_argument("--tf-child",  default="odom")
     ap.add_argument("--learn-from", type=int, default=5, help="Bags to sample when learning constant TF (median).")
     ap.add_argument("--tf-dx", type=float, default=0.0, help="Trim meters added to tx for cached TF fallback.")
     ap.add_argument("--tf-dy", type=float, default=0.0, help="Trim meters added to ty for cached TF fallback.")
     ap.add_argument("--tf-dyaw", type=float, default=0.0, help="Trim radians added to yaw for cached TF fallback.")
+    ap.add_argument("--tf-mode", choices=["auto", "dynamic", "constant"], default="constant",
+                    help="auto: prefer dynamic per-bag TF, fallback to constant; dynamic: force time-varying; constant: force median constant.")
 
     # Plan options
     ap.add_argument("--drop-first-plan-point", action="store_true",
@@ -283,7 +312,7 @@ def main():
         except Exception as e:
             print(f"[WARN] Could not render map '{args.map}': {e}")
 
-    # ----- Learn one constant TF (map->odom) once (for fallback only) -----
+    # ----- Learn one constant TF (map->odom) once (for fallback/constant mode) -----
     samples = []
     for bag in bag_dirs[: max(1, args.learn_from)]:
         samples.extend(_collect_map_to_odom_series(bag, args.tf_parent, args.tf_child))
@@ -292,9 +321,9 @@ def main():
         cached_tf["tx"]  += args.tf_dx
         cached_tf["ty"]  += args.tf_dy
         cached_tf["yaw"] += args.tf_dyaw
-        print(f"[TF-fallback] tx={cached_tf['tx']:.3f} ty={cached_tf['ty']:.3f} yaw={cached_tf['yaw']:.4f} rad")
+        print(f"[TF-constant] tx={cached_tf['tx']:.3f} ty={cached_tf['ty']:.3f} yaw={cached_tf['yaw']:.4f} rad")
     else:
-        print("[TF-fallback] none (no /tf samples found)")
+        print("[TF-constant] none (no /tf samples found)")
 
     # ----- Choose one reference plan once -----
     cached_plan: Optional[Series] = None
@@ -310,10 +339,9 @@ def main():
             cached_plan = plan_alt; chosen_topic = "/plan_barn"
             break
 
-    # if cached_plan and args.drop_first_plan_point and len(cached_plan.xs) > 1:
-    #     cached_plan = Series(cached_plan.xs[1:], cached_plan.ys[1:])
-
     if cached_plan:
+        if args.drop_first_plan_point and len(cached_plan.xs) > 1:
+            cached_plan = Series(cached_plan.xs[1:], cached_plan.ys[1:])
         print(f"[PLAN] Using '{chosen_topic}' with {len(cached_plan.xs)} poses as reference plan.")
     else:
         print("[PLAN] No plan found in any bag; continuing without a plan.")
@@ -329,37 +357,49 @@ def main():
             print(f"[WARN] Skipping {label}: {e}")
             continue
 
+        if not odom.xs:
+            print(f"[INFO] {label}: topic '{args.odom}' not found or had no data.")
+            continue
+
         if args.downsample > 1:
             odom = Series(odom.xs[::args.downsample], odom.ys[::args.downsample],
                           odom.ts[::args.downsample] if odom.ts else None)
 
-        # ---- Transform ODOM -> MAP: prefer per-bag TF; fallback to cached TF ----
-        used = None
-        if odom.xs:
-            tf_series = _collect_map_to_odom_series(bag, args.tf_parent, args.tf_child)
-            if tf_series:  # per-bag (best)
-                xs2, ys2 = [], []
-                for x, y, tsec in zip(odom.xs, odom.ys, odom.ts or [tf_series[0][0]]*len(odom.xs)):
-                    tx, ty, yaw = _interp_tf(tf_series, tsec)
-                    x2, y2 = _apply_SE2([x], [y], tx, ty, yaw)
-                    xs2.append(x2[0]); ys2.append(y2[0])
-                odom = Series(xs2, ys2, odom.ts); used = "per-bag TF"
-            elif cached_tf:  # fallback
+        # ---- Transform ODOM -> MAP according to tf-mode ----
+        tf_series = _collect_map_to_odom_series(bag, args.tf_parent, args.tf_child)
+        used = "raw odom"
+        if args.tf_mode == "constant":
+            if cached_tf:
                 tx, ty, yaw = cached_tf["tx"], cached_tf["ty"], cached_tf["yaw"]
-                ox, oy = _apply_SE2(odom.xs, odom.ys, tx, ty, yaw)
-                odom = Series(ox, oy, odom.ts); used = "cached TF"
+                ox, oy = _apply_SE2_arrays(odom.xs, odom.ys, tx, ty, yaw)
+                odom = Series(ox, oy, odom.ts); used = "constant TF"
             else:
-                used = "raw odom"
-            print(f"[TF] {label}: {used}")
+                print(f"[TF] {label}: no constant TF available; using raw odom.")
+        elif args.tf_mode == "dynamic":
+            if tf_series and odom.ts:
+                txq, tyq, yawq = _interp_tf_to_times(tf_series, odom.ts)
+                ox, oy = _apply_SE2_arrays(odom.xs, odom.ys, txq, tyq, yawq)
+                odom = Series(ox, oy, odom.ts); used = "per-bag dynamic TF"
+            else:
+                print(f"[TF] {label}: missing TF or timestamps for dynamic; using raw odom.")
+        else:  # auto
+            if tf_series and odom.ts:
+                txq, tyq, yawq = _interp_tf_to_times(tf_series, odom.ts)
+                ox, oy = _apply_SE2_arrays(odom.xs, odom.ys, txq, tyq, yawq)
+                odom = Series(ox, oy, odom.ts); used = "per-bag dynamic TF"
+            elif cached_tf:
+                tx, ty, yaw = cached_tf["tx"], cached_tf["ty"], cached_tf["yaw"]
+                ox, oy = _apply_SE2_arrays(odom.xs, odom.ys, tx, ty, yaw)
+                odom = Series(ox, oy, odom.ts); used = "constant TF"
+            # else leave as raw odom
 
-        # plot odom
-        if odom.xs:
-            ax.plot(odom.xs, odom.ys, linewidth=1.0, alpha=0.85, zorder=2)
-            legend_labels.append(f"{label} (odom)")
-        else:
-            print(f"[INFO] {label}: topic '{args.odom}' not found or had no data.")
+        print(f"[TF] {label}: {used}")
 
-    # plot reference plan once
+        # plot odom (now in map frame if TF applied)
+        ax.plot(odom.xs, odom.ys, linewidth=1.0, alpha=0.9, zorder=2)
+        legend_labels.append(f"{label}")
+
+    # ----- Plot reference plan once (optional) -----
     if cached_plan and cached_plan.xs:
         ax.plot(cached_plan.xs, cached_plan.ys, linestyle="--", linewidth=2.2,
                 color="red", alpha=0.85, zorder=6, label="plan")
@@ -374,7 +414,7 @@ def main():
                           linewidth=1.4, edgecolor='cyan', alpha=0.6, zorder=5, label="goal tolerance")
         ax.add_patch(goal_tol)
 
-    # axes cosmetics
+    # ----- Axes cosmetics -----
     ax.set_xlabel("X (m)")
     ax.set_ylabel("Y (m)")
     ax.set_aspect("equal", adjustable="box")
@@ -382,31 +422,7 @@ def main():
     if legend_labels or (cached_plan and cached_plan.xs):
         ax.legend(fontsize=7, loc="upper left", ncol=1, framealpha=0.75)
 
-    # Union limits so nothing is clipped (map + paths)
-    xs_all, ys_all = [], []
-    for line in ax.get_lines():
-        x = line.get_xdata(orig=False); y = line.get_ydata(orig=False)
-        if len(x): xs_all.extend(x)
-        if len(y): ys_all.extend(y)
-    if xs_all and ys_all:
-        xmin, xmax = min(xs_all), max(xs_all)
-        ymin, ymax = min(ys_all), max(ys_all)
-        if map_extent:
-            xmin = min(xmin, map_extent[0]); xmax = max(xmax, map_extent[1])
-            ymin = min(ymin, map_extent[2]); ymax = max(ymax, map_extent[3])
-        pad_x = 0.03 * (xmax - xmin if xmax > xmin else 1.0)
-        pad_y = 0.03 * (ymax - ymin if ymax > ymin else 1.0)
-        ax.set_xlim(xmin - pad_x, xmax + pad_x)
-        ax.set_ylim(ymin - pad_y, ymax + pad_y)
-    elif map_extent:
-        ax.set_xlim(map_extent[0], map_extent[1])
-        ax.set_ylim(map_extent[2], map_extent[3])
-
-    ax.set_ylim(bottom=4.5)
-    # You can crop here if desired, e.g.:
-    # ax.set_ylim(bottom=5.0)
-
-    title = args.title or f"Overlays • odom: {args.odom} • ref plan"
+    title = args.title or f"Overlays • odom: {args.odom} • tf-mode: {args.tf_mode}"
     ax.set_title(title, fontsize=11)
 
     plt.tight_layout()

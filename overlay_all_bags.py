@@ -52,3 +52,4 @@ for directory in result_list:
         ]
         print(cmd)
         subprocess.run(cmd)
+        sys.exit(1)
