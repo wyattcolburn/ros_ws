@@ -1,0 +1,17 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1760359461.399617932] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1760359461.400376224] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/bags_2/world210_1013_054421/world210_1013_054421_0.db3' for READ_WRITE.
+[INFO] [1760359461.400994900] [rosbag2_recorder]: Listening for topics...
+[INFO] [1760359461.401009489] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1760359461.401067998] [rosbag2_recorder]: Recording...
+[INFO] [1760359461.503962469] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1760359461.504853600] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1760359461.505330892] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1760359461.506068157] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1760359461.506855975] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1760359462.526702249] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1760359462.527676918] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1760359462.527696724] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[WARN] [1760359463.399243891] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[INFO] [1760359685.268686617] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1760359685.269394308] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1760359685.269427569] [rosbag2_recorder]: Recording stopped
