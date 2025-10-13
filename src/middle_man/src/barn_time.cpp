@@ -33,7 +33,12 @@ class obsValid : public rclcpp::Node {
         RCLCPP_INFO(this->get_logger(), "Loading config file: %s", config_path.c_str());
         try {
             load_obstacle_params(config_path);
-            obstacle_manager_.set_params(RADIUS, NUM_VALID_OBSTACLES, OFFSET);
+            // obstacle_manager_.set_params(RADIUS, NUM_VALID_OBSTACLES, OFFSET);
+            gen_params_.OFFSET = OFFSET;   // from YAML
+            gen_params_.RADIUS = RADIUS;   // from YAML
+            gen_params_.clean_mode = true; // set false for full randomness
+            gen_params_.rng_seed = 42;     // reproducible
+            obstacle_manager_.set_generator_params(gen_params_);
         } catch (const std::exception &e) {
             RCLCPP_FATAL(this->get_logger(), "Failed to load obstacle params: %s", e.what());
             throw;
@@ -62,6 +67,7 @@ class obsValid : public rclcpp::Node {
   private:
     Local_Goal_Manager local_goal_manager_;
     ObstacleManager obstacle_manager_;
+    ObstacleGenParams gen_params_;
     rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr data_subscriber_;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
@@ -290,7 +296,7 @@ class obsValid : public rclcpp::Node {
 
         // 3) Post-process if you built local goals now
         if (local_goal_manager_.get_num_lg() > 0) {
-            obstacle_manager_.local_goals_to_obs(local_goal_manager_);
+            obstacle_manager_.local_goals_to_obs_like_training(local_goal_manager_);
             path_flag = true;
 
             GOAL = local_goal_manager_.data_vector.back();
@@ -357,7 +363,7 @@ class obsValid : public rclcpp::Node {
         // with BARN, only one plan is used so no need to constiently update
         //
         if (local_goal_manager_.get_num_lg() > 0) {
-            obstacle_manager_.local_goals_to_obs(local_goal_manager_);
+            obstacle_manager_.local_goals_to_obs_like_training(local_goal_manager_);
             path_flag = true;
 
             GOAL.x_point = local_goal_manager_.data_vector.back().x_point;
@@ -524,7 +530,7 @@ class obsValid : public rclcpp::Node {
             const double yaw = tf2::getYaw(po.pose.orientation);
             local_goal_manager_.add_local_goal(po.pose.position.x, po.pose.position.y, yaw);
         }
-        obstacle_manager_.local_goals_to_obs(local_goal_manager_);
+        obstacle_manager_.local_goals_to_obs_like_training(local_goal_manager_);
     }
 
     visualization_msgs::msg::MarkerArray make_local_goal_markers() {
