@@ -44,9 +44,9 @@ class obsValid : public rclcpp::Node {
         path_sub_ = this->create_subscription<nav_msgs::msg::Path>(
             "/turtle/plan", 10, std::bind(&obsValid::path_callback_map, this, std::placeholders::_1));
 
-        path_to_onnx_odom_pub = this->create_publisher<nav_msgs::msg::Path>("/turtle/plan_to_onnx_odom", 10);
+        path_to_onnx_odom_pub_ = this->create_publisher<nav_msgs::msg::Path>("/turtle/plan_to_onnx_odom", 10);
 
-        path_to_onnx_map_pub = this->create_publisher<nav_msgs::msg::Path>("/turtle/plan_to_onnx_map", 10);
+        path_to_onnx_map_pub_ = this->create_publisher<nav_msgs::msg::Path>("/turtle/plan_to_onnx_map", 10);
         scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             "/turtle/scan", 10, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
 
@@ -180,6 +180,7 @@ class obsValid : public rclcpp::Node {
         if (rebuild_local_goal_counter >= rebuild_local_goal_limit) {
             rebuild_local_goals();
             rebuild_local_goal_counter = 0;
+            RCLCPP_INFO(this->get_logger(), "RELOADING local goals");
         } else {
             rebuild_local_goal_counter++;
         }
@@ -207,6 +208,7 @@ class obsValid : public rclcpp::Node {
             msg.data[i] = packetOut[i];
         RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
         packetOut_publisher_->publish(msg);
+        RCLCPP_INFO(this->get_logger(), "Full pass");
     }
     // void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
     //
@@ -393,7 +395,7 @@ class obsValid : public rclcpp::Node {
         smoothed_map_path.header.frame_id = "map";
         smoothed_map_path.header.stamp = this->now();
         smoothed_map_path.poses = map_poses_;
-        smoothed_path_pub_map->publish(smoothed_map_path);
+        path_to_onnx_map_pub_->publish(smoothed_map_path);
 
         // Publish smoothed path in odom frame
         if (local_goal_manager_.get_num_lg() > 0) {
@@ -409,8 +411,8 @@ class obsValid : public rclcpp::Node {
 
                 // Assuming local_goal_manager_ has x, y, yaw data
                 const auto &lg = local_goal_manager_.data_vector[i];
-                pose.pose.position.x = lg.x; // adjust based on your actual data structure
-                pose.pose.position.y = lg.y;
+                pose.pose.position.x = lg.x_point;
+                pose.pose.position.y = lg.y_point;
                 pose.pose.position.z = 0.0;
 
                 // Convert yaw to quaternion
@@ -421,7 +423,7 @@ class obsValid : public rclcpp::Node {
                 smoothed_odom_path.poses.push_back(pose);
             }
 
-            smoothed_path_pub_odom->publish(smoothed_odom_path);
+            path_to_onnx_odom_pub_->publish(smoothed_odom_path);
 
             obstacle_manager_.local_goals_to_obs(local_goal_manager_);
             path_flag = true;

@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -140,11 +139,12 @@ def _quat_to_yaw(x, y, z, w):
 
 def _collect_map_to_odom_series(bag_path, parent="map", child="odom"):
     """Collect (t, tx, ty, yaw) samples from /tf_static and /tf."""
-    r = _open_reader(bag_path, ["/tf_static", "/tf"])
+    tf_topics = ["/turtle/tf_static", "/turtle/tf"]
+    r = _open_reader(bag_path, tf_topics)
     series = []
     while r.has_next():
         topic, data, t_ns = r.read_next()
-        if topic not in ("/tf_static", "/tf"):
+        if topic not in tf_topics:
             continue
         msg = deserialize_message(data, TFMessage)
         t = t_ns / 1e9
@@ -169,6 +169,7 @@ def _interp_tf(series, t_query):
     ty = ty0 + w*(ty1 - ty0)
     yaw = yaw0 + w*(yaw1 - yaw0)
     return tx, ty, yaw
+
 def _nearest_tf(series, t_query):
     if not series: return None
     # binary search nearest by time
@@ -230,8 +231,8 @@ def main():
     ap = argparse.ArgumentParser("Overlay odom + one reference plan across rosbag2 runs.")
     ap.add_argument("--bags", required=True, help="Glob or dir of bag folders (containing metadata.yaml).")
     ap.add_argument("--recursive", action="store_true")
-    ap.add_argument("--odom", default="/odom")
-    ap.add_argument("--plan", default="/plan_barn_odom", help="Preferred plan topic; also tries /plan_barn.")
+    ap.add_argument("--odom", default="/turtle/odom")
+    ap.add_argument("--plan", default="/turtle/plan_to_onnx_map", help="ONNX smoothed plan topic")
     ap.add_argument("--out", default="overlay.png")
     ap.add_argument("--title", default="")
     ap.add_argument("--max-bags", type=int, default=9999)
@@ -254,8 +255,6 @@ def main():
     ap.add_argument("--tf-dyaw", type=float, default=0.0, help="Trim radians added to yaw for cached TF fallback.")
 
     # Plan options
-    ap.add_argument("--drop-first-plan-point", action="store_true",
-                    help="Drop first plan pose (e.g., if it’s pre-spawn).")
     ap.add_argument("--goal-radius", type=float, default=0.5, help="Goal tolerance radius (m).")
 
     args = ap.parse_args()
@@ -296,35 +295,12 @@ def main():
     else:
         print("[TF-fallback] none (no /tf samples found)")
 
-    # ----- Choose one reference plan once -----
-    cached_plan: Optional[Series] = None
-    chosen_topic = None
-    for bag in bag_dirs:
-        # try preferred topic, then fallback
-        _, plan_pref = _extract_series_for_topics(bag, args.odom, args.plan)
-        _, plan_alt  = _extract_series_for_topics(bag, args.odom, "/plan_barn")
-        if len(plan_pref.xs) >= len(plan_alt.xs) and plan_pref.xs:
-            cached_plan = plan_pref; chosen_topic = args.plan
-            break
-        if plan_alt.xs:
-            cached_plan = plan_alt; chosen_topic = "/plan_barn"
-            break
-
-    # if cached_plan and args.drop_first_plan_point and len(cached_plan.xs) > 1:
-    #     cached_plan = Series(cached_plan.xs[1:], cached_plan.ys[1:])
-
-    if cached_plan:
-        print(f"[PLAN] Using '{chosen_topic}' with {len(cached_plan.xs)} poses as reference plan.")
-    else:
-        print("[PLAN] No plan found in any bag; continuing without a plan.")
-
     # ----- Plot all bags -----
-    legend_labels = []
     for bag in bag_dirs:
         label = os.path.basename(bag) or bag.rstrip("/").split("/")[-1]
 
         try:
-            odom, _ = _extract_series_for_topics(bag, args.odom, args.plan)
+            odom, onnx_plan = _extract_series_for_topics(bag, args.odom, args.plan)
         except Exception as e:
             print(f"[WARN] Skipping {label}: {e}")
             continue
@@ -353,65 +329,62 @@ def main():
             print(f"[TF] {label}: {used}")
 
         # plot odom
-        # if odom.xs:
-        #     ax.plot(odom.xs, odom.ys, linewidth=1.0, alpha=0.85, zorder=2)
-        #     legend_labels.append(f"{label} (odom)")
-        # else:
-        #     print(f"[INFO] {label}: topic '{args.odom}' not found or had no data.")
-
-        if cached_plan.xs:
-            ax.plot(cached_plan.xs, cached_plan.ys, linewidth=1.0, alpha=0.85, zorder=2)
-            legend_labels.append(f"{label} (plan)")
+        if odom.xs:
+            ax.plot(odom.xs, odom.ys, linewidth=1.5, alpha=0.85, zorder=2, label=f"{label} (odom)")
         else:
             print(f"[INFO] {label}: topic '{args.odom}' not found or had no data.")
-    # plot reference plan once
-    # if cached_plan and cached_plan.xs:
-    #     ax.plot(cached_plan.xs, cached_plan.ys, linestyle="--", linewidth=2.2,
-    #             color="red", alpha=0.85, zorder=6, label="plan")
-    #     # start/goal markers
-    #     ax.plot(cached_plan.xs[0],  cached_plan.ys[0],  marker="o", markersize=6,
-    #             color="lime", markeredgecolor="black", zorder=8, label="start")
-    #     ax.plot(cached_plan.xs[-1], cached_plan.ys[-1], marker="o", markersize=6,
-    #             color="cyan", markeredgecolor="black", zorder=8, label="goal")
-    #     # goal tolerance circle
-    #     gx, gy = cached_plan.xs[-1], cached_plan.ys[-1]
-    #     goal_tol = Circle((gx, gy), args.goal_radius, fill=False, linestyle='--',
-    #                       linewidth=1.4, edgecolor='cyan', alpha=0.6, zorder=5, label="goal tolerance")
-    #     ax.add_patch(goal_tol)
+
+        # Transform and plot ONNX plan
+# Plot ONNX plan (in map or odom frame depending on topic)
+        if onnx_plan.xs:
+            # Check if plan is already in map frame or needs transformation
+            is_map_frame = args.plan.endswith("_map")
+            
+            if is_map_frame:
+                # Already in map frame, plot directly
+                print(f"[INFO] Plotting {label} plan directly (already in map frame)")
+                ax.plot(onnx_plan.xs, onnx_plan.ys, linewidth=1.5, alpha=0.85, zorder=3, 
+                       linestyle='--', label=f"{label} (ONNX plan)")
+                # Start/goal markers
+                ax.plot(onnx_plan.xs[0], onnx_plan.ys[0], marker="o", markersize=6,
+                       color="lime", markeredgecolor="black", zorder=8)
+                ax.plot(onnx_plan.xs[-1], onnx_plan.ys[-1], marker="o", markersize=6,
+                       color="cyan", markeredgecolor="black", zorder=8)
+                # Goal tolerance circle
+                goal_tol = Circle((onnx_plan.xs[-1], onnx_plan.ys[-1]), args.goal_radius, 
+                                fill=False, linestyle='--', linewidth=1.4, 
+                                edgecolor='cyan', alpha=0.6, zorder=5)
+                ax.add_patch(goal_tol)
+            else:
+                # Need to transform from odom to map
+                print(f"[INFO] Transforming {label} plan from odom to map frame")
+                tf_series = _collect_map_to_odom_series(bag, args.tf_parent, args.tf_child)
+                if tf_series or cached_tf:
+                    if tf_series:
+                        first_t = tf_series[0][0]
+                        tx, ty, yaw = _interp_tf(tf_series, first_t)
+                    elif cached_tf:
+                        tx, ty, yaw = cached_tf["tx"], cached_tf["ty"], cached_tf["yaw"]
+                    
+                    xs2, ys2 = _apply_SE2(onnx_plan.xs, onnx_plan.ys, tx, ty, yaw)
+                    ax.plot(xs2, ys2, linewidth=1.5, alpha=0.85, zorder=3, 
+                           linestyle='--', label=f"{label} (ONNX plan)")
+                    ax.plot(xs2[0], ys2[0], marker="o", markersize=6,
+                           color="lime", markeredgecolor="black", zorder=8)
+                    ax.plot(xs2[-1], ys2[-1], marker="o", markersize=6,
+                           color="cyan", markeredgecolor="black", zorder=8)
+                    goal_tol = Circle((xs2[-1], ys2[-1]), args.goal_radius, 
+                                    fill=False, linestyle='--', linewidth=1.4, 
+                                    edgecolor='cyan', alpha=0.6, zorder=5)
+                    ax.add_patch(goal_tol)
 
     # axes cosmetics
     ax.set_xlabel("X (m)")
     ax.set_ylabel("Y (m)")
     ax.set_aspect("equal", adjustable="box")
+    ax.legend(fontsize=7, loc="upper left", ncol=1, framealpha=0.75)
 
-    if legend_labels or (cached_plan and cached_plan.xs):
-        ax.legend(fontsize=7, loc="upper left", ncol=1, framealpha=0.75)
-
-    # Union limits so nothing is clipped (map + paths)
-    # xs_all, ys_all = [], []
-    # for line in ax.get_lines():
-    #     x = line.get_xdata(orig=False); y = line.get_ydata(orig=False)
-    #     if len(x): xs_all.extend(x)
-    #     if len(y): ys_all.extend(y)
-    # if xs_all and ys_all:
-    #     xmin, xmax = min(xs_all), max(xs_all)
-    #     ymin, ymax = min(ys_all), max(ys_all)
-    #     if map_extent:
-    #         xmin = min(xmin, map_extent[0]); xmax = max(xmax, map_extent[1])
-    #         ymin = min(ymin, map_extent[2]); ymax = max(ymax, map_extent[3])
-    #     pad_x = 0.03 * (xmax - xmin if xmax > xmin else 1.0)
-    #     pad_y = 0.03 * (ymax - ymin if ymax > ymin else 1.0)
-    #     ax.set_xlim(xmin - pad_x, xmax + pad_x)
-    #     ax.set_ylim(ymin - pad_y, ymax + pad_y)
-    # elif map_extent:
-    #     ax.set_xlim(map_extent[0], map_extent[1])
-    #     ax.set_ylim(map_extent[2], map_extent[3])
-    #
-    # ax.set_ylim(bottom=4.5)
-    # You can crop here if desired, e.g.:
-    # ax.set_ylim(bottom=5.0)
-
-    title = args.title or f"Overlays • odom: {args.odom} • ref plan"
+    title = args.title or f"Overlays • odom: {args.odom} • ONNX plan"
     ax.set_title(title, fontsize=11)
 
     plt.tight_layout()
