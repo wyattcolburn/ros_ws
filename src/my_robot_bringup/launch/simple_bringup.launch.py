@@ -34,7 +34,7 @@ def generate_launch_description():
     ignition_launch = PathJoinSubstitution(
         [pkg_turtlebot4_ignition_bringup, 'launch', 'ignition.launch.py'])
     robot_spawn_launch = PathJoinSubstitution(
-        [pkg_turtlebot4_ignition_bringup, 'launch', 'turtlebot4_spawn_nodock.launch.py'])
+        [pkg_turtlebot4_ignition_bringup, 'launch', 'turtlebot4_spawn.launch.py'])
     ignition = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([ignition_launch]),
         launch_arguments=[
@@ -52,10 +52,10 @@ def generate_launch_description():
         launch_arguments=[
             ('namespace', LaunchConfiguration('namespace')),
             ('rviz', LaunchConfiguration('rviz')),
-            ('x', '-2.0'),
-            ('y', '1.0'),
+            ('x', f'0.0'),
+            ('y', f'0.0'),
             ('z', LaunchConfiguration('z')),
-            ('yaw', LaunchConfiguration('yaw'))]
+            ('yaw', f'0.0')]
     )
     # robot_spawn = IncludeLaunchDescription(
     #     PythonLaunchDescriptionSource([robot_spawn_launch]),

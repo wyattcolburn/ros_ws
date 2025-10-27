@@ -12,3 +12,5 @@ stdin is not a terminal device. Keyboard handling disabled.[INFO] [1760312109.07
 [INFO] [1760312110.112887400] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
 [INFO] [1760312111.146060430] [rosbag2_recorder]: Subscribed to topic '/scan'
 [INFO] [1760312111.146107674] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+terminate called after throwing an instance of 'rosbag2_storage_plugins::SqliteException'
+  what():  Error when processing SQL statement. SQLite error (13): database or disk is full

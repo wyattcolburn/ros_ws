@@ -70,8 +70,8 @@ def main():
     leg = ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0),
                     borderaxespad=0., frameon=True)
     fig.subplots_adjust(right=0.8)  # make room on the right
-    plt.xlabel("odom_x")
-    plt.ylabel("odom_y")
+    plt.xlabel("x-coordinate")
+    plt.ylabel("y-coordinate")
     plt.show()
     # ax.grid(True, linestyle='--', alpha=0.3)
     # ax.legend(loc='upper right')  # legend in top right

@@ -1075,7 +1075,7 @@ class MapTraining(Node):
             self.input_bag = input_bag_path
         else:
             # Keep your default for backward compatibility
-            self.input_bag = "/home/mobrob/ros_ws/gauss_2_asym_cap/2025-08-21_19-38-54_gaus"
+            self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_14-46-15_gaus/"
         # self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_15-40-10_gaus"
 
         self.adaptive_flag = True
@@ -1502,7 +1502,7 @@ class MapTraining(Node):
                 seg.global_path.poses[i].pose, seg, active_obstacles)
             self.ray_data_append(filename=f"{output_folder}/lidar_data.csv")
 
-            if i % 500 != 0:
+            if i % 50 != 0:
                 counter += 1
                 self.current_odom_index += 1
                 continue

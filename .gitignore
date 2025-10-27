@@ -4,6 +4,8 @@
 **/install/
 **/log/
 bags/
+bags_2/
+bags*
 ros_bag/
 bags_backup/
 may15_medium/

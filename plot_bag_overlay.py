@@ -418,6 +418,7 @@ def main():
     ax.set_xlabel("X (m)")
     ax.set_ylabel("Y (m)")
     ax.set_aspect("equal", adjustable="box")
+    ax.set_ylim(bottom=4.5)
 
     if legend_labels or (cached_plan and cached_plan.xs):
         ax.legend(fontsize=7, loc="upper left", ncol=1, framealpha=0.75)

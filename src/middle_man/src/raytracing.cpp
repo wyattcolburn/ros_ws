@@ -104,7 +104,7 @@ void map_compute_lidar_distances(double map_origin_x, double map_origin_y, doubl
                 }
             }
         }
-
+        distances[index] = std::clamp(distances[index], MIN_RANGE, MAX_RANGE);
         // If no intersection was found, mark with -1
         if (distances[index] == std::numeric_limits<float>::max()) {
             distances[index] = MAX_RANGE;
