@@ -7,7 +7,7 @@ RADIUS: 0.4
 # NEW: per-model lists
 CSV_FILES:
 
-  - "gauss_2_noisy/baseline.csv"
+  - "gauss_2_mlp_adaptive_11_03/baseline.csv"
   # - "results_oct10_different_sliding_window/baseline.csv"
   # - "results_oct8/baseline.csv"
   # - "results_oct15_mlp_asym_sym_runtime/baseline.csv"
@@ -17,7 +17,7 @@ CSV_FILES:
   
 
 MODEL_PATHS:
-  - "created_models/gauss_2_noisy"         # can be a directory name under ~/ros_ws/created_models/
+  - "created_models/gauss_2_asym_combo"         # can be a directory name under ~/ros_ws/created_models/
   # - "created_models/gauss_2_200_sym"     # or an absolute dir path
   # - "created_models/cnn_sym"
   # - "created_models/cnn"

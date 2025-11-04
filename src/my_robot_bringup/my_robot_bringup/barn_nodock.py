@@ -385,7 +385,7 @@ class BarnOneShot(Node):
             self.start_bag(outdir)
             self.get_logger().info("Starting bag")
 
-            self.gazebo_path = self.load_barn_path(self.world_num)
+            self.gazebo_path = self.load_barn_path_adaptive(self.world_num)
             self.gazebo_path_og = self.load_barn_path_og(self.world_num)
             path_odom = self.path_to_frame(self.gazebo_path, target_frame="odom")
             if path_odom is not None:
@@ -1167,6 +1167,113 @@ class BarnOneShot(Node):
 
 
 
+    def load_barn_path_adaptive(self, world_num, base_step=0.20, min_step=0.10, max_step=0.25, smooth_window=5):
+        """
+        Loads, smooths, and resamples a BARN path with adaptive local-goal spacing
+        based on curvature (denser sampling in turns).
+        """
+        import numpy as np
+        import math
+        from nav_msgs.msg import Path
+        from geometry_msgs.msg import PoseStamped
+        import os
+
+        # Helper: cumulative arc lengths
+        def arc_lengths(xy):
+            d = np.diff(xy, axis=0)
+            seg = np.hypot(d[:, 0], d[:, 1])
+            s = np.concatenate([[0.0], np.cumsum(seg)])
+            return s, seg
+
+        # Helper: curvature between three consecutive points
+        def local_curvature(p_prev, p_curr, p_next):
+            # Triangle method: κ ≈ 4A / (abc)
+            a = np.linalg.norm(p_curr - p_prev)
+            b = np.linalg.norm(p_next - p_curr)
+            c = np.linalg.norm(p_next - p_prev)
+            if a * b * c < 1e-8:
+                return 0.0
+            s = (a + b + c) / 2.0
+            area = max(s * (s - a) * (s - b) * (s - c), 0.0)
+            area = math.sqrt(area)
+            return 4.0 * area / (a * b * c)
+
+        # Load path and convert to Gazebo coordinates
+        barn_path = np.load(os.path.expanduser(
+            f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'
+        )).astype(float)
+        xy = np.array([self.path_coord_to_gazebo_coord(x, y) for x, y in barn_path], dtype=float)
+
+        # Smooth path for stable curvature estimation
+        def smooth_xy(xy, window=5):
+            if window < 3 or len(xy) < window:
+                return xy
+            k = window // 2
+            pad = np.pad(xy, ((k, k), (0, 0)), mode='edge')
+            kern = np.ones((window, 1)) / window
+            xs = np.convolve(pad[:, 0], kern[:, 0], mode='valid')
+            ys = np.convolve(pad[:, 1], kern[:, 0], mode='valid')
+            return np.stack([xs, ys], axis=1)
+
+        xy = smooth_xy(xy, smooth_window)
+
+        # Build adaptively spaced resampled path
+        adaptive_pts = [xy[0]]
+        i = 0
+        while i < len(xy) - 2:
+            kappa = local_curvature(xy[i], xy[i + 1], xy[i + 2])
+            # Map curvature to spacing (higher κ → smaller step)
+            factor = max(0.3, 1.0 - (kappa * 3.0))  # tweak multiplier as needed
+            step = np.clip(base_step * factor, min_step, max_step)
+            # Move along arc length until reaching the next step
+            j = i + 1
+            acc = 0.0
+            while j < len(xy):
+                seg = np.linalg.norm(xy[j] - xy[j - 1])
+                acc += seg
+                if acc >= step:
+                    adaptive_pts.append(xy[j])
+                    break
+                j += 1
+            i = j
+
+        # Compute yaws for each point
+        yaws = []
+        for i in range(len(adaptive_pts)):
+            if i == len(adaptive_pts) - 1:
+                yaw = yaws[-1] if yaws else 0.0
+            else:
+                dx = adaptive_pts[i + 1][0] - adaptive_pts[i][0]
+                dy = adaptive_pts[i + 1][1] - adaptive_pts[i][1]
+                yaw = math.atan2(dy, dx)
+            yaws.append(yaw)
+
+        # Create ROS Path message
+        path_msg = Path()
+        path_msg.header.frame_id = "map"
+        now = self.get_clock().now().to_msg()
+
+        for (x, y), yaw in zip(adaptive_pts, yaws):
+            ps = PoseStamped()
+            ps.header.frame_id = "map"
+            ps.header.stamp = now
+            ps.pose.position.x = float(x)
+            ps.pose.position.y = float(y)
+            ps.pose.position.z = 0.0
+            qz = math.sin(yaw / 2.0)
+            qw = math.cos(yaw / 2.0)
+            ps.pose.orientation.z = qz
+            ps.pose.orientation.w = qw
+            path_msg.poses.append(ps)
+
+        if path_msg.poses:
+            self.current_lg_xy = (
+                path_msg.poses[0].pose.position.x,
+                path_msg.poses[0].pose.position.y
+            )
+
+        self.total_lg = len(path_msg.poses)
+        return path_msg
     def load_barn_path(self, world_num, resample_step=0.20, smooth_window=5):
         import numpy as np
         import math
