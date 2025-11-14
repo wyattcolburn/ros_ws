@@ -381,11 +381,11 @@ class BarnOneShot(Node):
         elif self.current_state == SequenceState.CREATE_PATH:
             
             ts = datetime.datetime.now().strftime("%m%d_%H%M%S")
-            outdir = os.path.expanduser(f"~/ros_ws/bags_2/world{self.world_num}_{ts}")
+            outdir = os.path.expanduser(f"~/ros_ws/large_results/world{self.world_num}_{ts}")
             self.start_bag(outdir)
             self.get_logger().info("Starting bag")
 
-            self.gazebo_path = self.load_barn_path_adaptive(self.world_num)
+            self.gazebo_path = self.load_barn_path(self.world_num)
             self.gazebo_path_og = self.load_barn_path_og(self.world_num)
             path_odom = self.path_to_frame(self.gazebo_path, target_frame="odom")
             if path_odom is not None:
