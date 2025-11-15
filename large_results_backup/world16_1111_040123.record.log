@@ -1,0 +1,16 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1762862483.479922550] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1762862483.481007593] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/large_results/world16_1111_040123/world16_1111_040123_0.db3' for READ_WRITE.
+[INFO] [1762862483.481643726] [rosbag2_recorder]: Listening for topics...
+[INFO] [1762862483.481655008] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1762862483.481838878] [rosbag2_recorder]: Recording...
+[INFO] [1762862483.583508145] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1762862483.584598932] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1762862483.585232378] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1762862483.687510623] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1762862485.833399966] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1762862485.939928104] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1762862485.940922575] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1762862485.940954131] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[INFO] [1762862555.358788930] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1762862555.359639962] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1762862555.359681200] [rosbag2_recorder]: Recording stopped

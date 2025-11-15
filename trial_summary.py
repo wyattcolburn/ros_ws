@@ -157,7 +157,7 @@ elif "cnn_sym" in input_dir:
     title_end = "CNN Trained on Symmetric Obstacles"
 else:
     title_end = "CNN Trained on Asymmetric Obstacles"
-title_end = "MLP Trained on Noisy Symmetric Obstacles"
+title_end = "MLP Trained on Asymmetric Obstacles"
 print(f"title end is {title_end}")
 labels = [world_id(w) for w in worlds]
 def _reord(a): return [a[i] for i in order_idx]

@@ -1,0 +1,19 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1763085979.953099580] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1763085979.954348776] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/large_results/world218_1113_180619/world218_1113_180619_0.db3' for READ_WRITE.
+[INFO] [1763085979.955052870] [rosbag2_recorder]: Listening for topics...
+[INFO] [1763085979.955063516] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1763085979.955163588] [rosbag2_recorder]: Recording...
+[INFO] [1763085980.058926870] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1763085980.060025438] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1763085980.060929267] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1763085980.061636073] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1763085980.062804794] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1763085980.064117081] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1763085980.064938279] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1763085980.064955942] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[WARN] [1763085980.957455881] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763085981.948689403] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763085981.950343840] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[INFO] [1763086040.830773636] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1763086040.831667425] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1763086040.831718585] [rosbag2_recorder]: Recording stopped

@@ -1,0 +1,17 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1762890770.559541684] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1762890770.560771523] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/large_results/world47_1111_115250/world47_1111_115250_0.db3' for READ_WRITE.
+[INFO] [1762890770.561415869] [rosbag2_recorder]: Listening for topics...
+[INFO] [1762890770.561436012] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1762890770.561543793] [rosbag2_recorder]: Recording...
+[INFO] [1762890770.665105292] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1762890770.666727853] [rosbag2_recorder]: Subscribed to topic '/odom'
+[WARN] [1762890770.667152047] [ROSBAG2_TRANSPORT]: Some, but not all, publishers on topic "/tf" are offering RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL. Falling back to RMW_QOS_POLICY_DURABILITY_VOLATILE as it will connect to all publishers. Previously-published latched messages will not be retrieved.
+[INFO] [1762890770.668411914] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1762890770.669230782] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1762890771.591666461] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1762890771.592571146] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1762890771.594022903] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1762890771.594047601] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[INFO] [1762890856.430443683] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1762890856.431364580] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1762890856.431402919] [rosbag2_recorder]: Recording stopped
