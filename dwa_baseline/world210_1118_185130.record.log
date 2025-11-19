@@ -11,3 +11,4 @@ stdin is not a terminal device. Keyboard handling disabled.[INFO] [1763520691.11
 [INFO] [1763520692.143237114] [rosbag2_recorder]: Subscribed to topic '/tf'
 [INFO] [1763520693.177463882] [rosbag2_recorder]: Subscribed to topic '/odom'
 [INFO] [1763520693.177510733] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[WARN] [1763523846.998790719] [rosbag2_recorder.rclcpp]: failed to send response to /rosbag2_recorder/list_parameters (timeout): client will not receive response, at ./src/rmw_response.cpp:154, at ./src/rcl/service.c:314

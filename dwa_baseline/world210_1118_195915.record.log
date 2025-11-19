@@ -1,0 +1,34 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1763524755.563556696] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1763524755.564851096] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/dwa_baseline/world210_1118_195915/world210_1118_195915_0.db3' for READ_WRITE.
+[INFO] [1763524755.565849616] [rosbag2_recorder]: Listening for topics...
+[INFO] [1763524755.565980618] [rosbag2_recorder]: Recording...
+[INFO] [1763524755.569438796] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1763524755.672530348] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1763524755.675069369] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1763524756.595258806] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1763524756.598509018] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1763524756.600079350] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1763524756.601049806] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1763524756.601955461] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1763524756.601973191] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[WARN] [1763524757.558075380] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763524757.558865645] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763524757.562793220] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763524889.032117737] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763524889.109642456] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763524899.562337756] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525248.639507668] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525248.651478247] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525258.680237081] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525317.386346552] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525317.959927047] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525329.013582646] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525380.261047203] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525380.766367126] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525392.420930273] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525522.303308205] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525522.992954835] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525533.311947494] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525638.338877902] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525638.598035474] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1763525650.250562681] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
