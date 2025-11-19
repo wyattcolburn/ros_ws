@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import sys
 import shutil
-input_dkr = "large_results"
+input_dkr = "dwa_baseline/"
 folder = None
 if os.path.exists(input_dkr):
     folders = sorted([f for f in os.listdir(input_dkr) if os.path.isdir(os.path.join(input_dkr, f))])

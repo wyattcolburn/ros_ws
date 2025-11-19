@@ -122,6 +122,7 @@ std::pair<float, float> modulation_onnx_lidar(float odom_x, float odom_y, float 
 
     return {mod_cmd_v, mod_cmd_w};
 }
+
 std::pair<float, float> modulation_onnx(float odom_x, float odom_y, float input_cmd_v, float input_cmd_w,
                                         std::vector<Obstacle> obstacle_data) {
 
@@ -180,6 +181,84 @@ std::pair<float, float> modulation_onnx(float odom_x, float odom_y, float input_
 
     std::cout << "mod factor is " << mod_factor << std::endl;
 
+    float mod_cmd_v = input_cmd_v * mod_factor;
+    float mod_cmd_w = input_cmd_w * mod_factor;
+
+    return {mod_cmd_v, mod_cmd_w};
+}
+
+std::pair<float, float> mpc_heading_information(float odom_x, float odom_y, float robot_yaw, float input_cmd_v,
+                                                float input_cmd_w, const double *lidar_ranges, const size_t num_lidar) {
+
+    if (lidar_ranges == nullptr) {
+        return {input_cmd_v, input_cmd_w};
+    }
+    if (input_cmd_w <= .04) {
+        input_cmd_w = 0;
+    }
+
+    Obstacle T_BOT;
+    T_BOT.radius = TURTLEBOT_RADIUS;
+    // kinematic model projects
+    const int num_projections = 10;
+    int num_collisions = 0;
+    int num_timesteps = 10;
+    float p_safety = 0;
+    float angle_step = 2.0f * M_PI / num_lidar;
+    for (int projection_counter = 0; projection_counter < num_projections; projection_counter++) {
+
+        float robot_x = odom_x;
+        float robot_y = odom_y;
+        float robot_heading = robot_yaw;
+
+        float input_v = gaussian(input_cmd_v, 0, .1);
+        float input_w = gaussian(input_cmd_w, 0, .1);
+
+        bool collision = false;
+
+        for (int timestep_counter = 0; timestep_counter < num_timesteps; timestep_counter++) {
+
+            if (std::abs(input_w) < 1e-3f) {
+                robot_x = robot_x + input_v * std::cos(robot_heading) * TIMESTEP;
+                robot_y = robot_y + input_v * std::sin(robot_heading) * TIMESTEP;
+            } else {
+                float robot_heading_new = robot_heading + input_w * TIMESTEP;
+                float R = input_v / input_w;
+
+                robot_x = robot_x + R * (std::sin(robot_heading_new) - std::sin(robot_heading));
+                robot_y = robot_y - R * (std::cos(robot_heading_new) - std::cos(robot_heading));
+                robot_heading = robot_heading_new;
+            }
+
+            T_BOT.center_x = robot_x;
+            T_BOT.center_y = robot_y;
+
+            for (size_t lidar_counter = 0; lidar_counter < num_lidar; lidar_counter++) {
+
+                // float theta_prev = map_yaw - M_PI / 2 + angle_step * index;
+                double theta = robot_heading - M_PI / 2 + angle_step * lidar_counter;
+                double norm_theta = normalize_angle(theta);
+                float proj_x = robot_x + lidar_ranges[lidar_counter] * static_cast<float>(cos(norm_theta));
+                float proj_y = robot_y + lidar_ranges[lidar_counter] * static_cast<float>(sin(norm_theta));
+                Obstacle currentObs;
+                currentObs.center_x = proj_x;
+                currentObs.center_y = proj_y;
+                currentObs.radius = .1;
+                if (circles_intersect(T_BOT, currentObs)) {
+                    collision = true;
+                    break;
+                }
+            }
+            if (collision) // break from this integration project, not all projections
+                break;
+        }
+
+        if (collision)
+            num_collisions++;
+    }
+    p_safety = (float(num_projections - num_collisions) / num_projections);
+    float exponent = (W1 - W2 * (1 - p_safety));
+    float mod_factor = std::exp(exponent);
     float mod_cmd_v = input_cmd_v * mod_factor;
     float mod_cmd_w = input_cmd_w * mod_factor;
 

@@ -1,0 +1,5 @@
+<library path="one_shot_planner_plugin">
+	<class type="one_shot_planner::OneShotPlanner" base_class_type="nav2_core::GlobalPlanner">
+	  <description>This is a one shot planner that will load from the BARN_dataset and publish once, no replanning. This will used to benchmark DWA against our own custom controller</description>
+	</class>
+</library>

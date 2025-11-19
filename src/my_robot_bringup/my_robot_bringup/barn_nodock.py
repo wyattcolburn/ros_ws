@@ -381,7 +381,7 @@ class BarnOneShot(Node):
         elif self.current_state == SequenceState.CREATE_PATH:
             
             ts = datetime.datetime.now().strftime("%m%d_%H%M%S")
-            outdir = os.path.expanduser(f"~/ros_ws/large_results/world{self.world_num}_{ts}")
+            outdir = os.path.expanduser(f"~/ros_ws/dwa_baseline/world{self.world_num}_{ts}")
             self.start_bag(outdir)
             self.get_logger().info("Starting bag")
 
