@@ -196,7 +196,9 @@ class BarnOneShot(Node):
         self.goal_x = 0
         self.goal_y = 0
 
-
+        self.follow_timeout_sec = 300
+        self._nav_sent = None
+        self._nav_start_time = None
         # timer for whole script, max time is 350 after odom starts 
         self.trial_hard_timeout_sec = 350
         self.watchdog_timer = self.create_timer(
@@ -384,7 +386,7 @@ class BarnOneShot(Node):
         elif self.current_state == SequenceState.CREATE_PATH:
             
             ts = datetime.datetime.now().strftime("%m%d_%H%M%S")
-            outdir = os.path.expanduser(f"~/ros_ws/dwa_baseline/world{self.world_num}_{ts}")
+            outdir = os.path.expanduser(f"~/ros_ws/new_bt_mlp_asym/world{self.world_num}_{ts}")
             self.start_bag(outdir)
             self.get_logger().info("Starting bag")
 
@@ -613,51 +615,91 @@ class BarnOneShot(Node):
     #         self.current_state = SequenceState.FAILED
     #
     def handle_navigation(self):
+        # Only send once
+        if not self._nav_sent:
+            if not self.follow_client.wait_for_server(timeout_sec=5.0):
+                self.get_logger().error('FollowPath action server not available')
+                self._trial_result = "NAV_SERVER_UNAVAILABLE"
+                self.current_state = SequenceState.FAILED
+                return
 
-        # Wait for controller server
-        if not self.follow_client.wait_for_server(timeout_sec=5.0):
-            self.get_logger().error('FollowPath action server not available')
-            self._trial_result = "NAV_SERVER_UNAVAILABLE"
+            path_odom = self.path_to_frame(self.gazebo_path, target_frame="odom")
+            if path_odom is None or not path_odom.poses:
+                self.get_logger().error('No path available to send to FollowPath')
+                self._trial_result = "NO_PATH"
+                self.current_state = SequenceState.FAILED
+                return
+
+            goal = FollowPath.Goal()
+            goal.path = path_odom
+            goal.controller_id = 'FollowPath'     # must match your YAML key
+            goal.goal_checker_id = ''             # default
+
+            self.get_logger().info(f'Sending FollowPath with {len(path_odom.poses)} poses in odom')
+            self._follow_future = self.follow_client.send_goal_async(goal)
+            self._follow_future.add_done_callback(self._follow_goal_response_cb)
+
+            self._nav_sent = True
+            return  # let callbacks/watchdog drive the rest
+
+        # Already sent → just report elapsed
+        if self._nav_start_time is not None:
+            elapsed = time.time() - self._nav_start_time
+            self.get_logger().info(f"current trial time: {elapsed:.2f}s")
+
+        # Optional: lightweight progress checks you already have
+        self.final_goal_tracker()
+
+        if self.collision_detected:
+            self._trial_result = "COLLISION"
             self.current_state = SequenceState.FAILED
-            return
-
-        # Use your already-computed path; prefer odom-frame for the local controller:
-        path_odom = self.path_to_frame(self.gazebo_path, target_frame="odom")
-        if path_odom is None or not path_odom.poses:
-            self.get_logger().error('No path available to send to FollowPath')
-            self._trial_result = "NO_PATH"
-            self.current_state = SequenceState.FAILED
-            return
-
-        goal = FollowPath.Goal()
-        goal.path = path_odom
-        goal.controller_id = 'FollowPath'     # use default (FollowPath in YAML)
-        goal.goal_checker_id = ''   # use default
-
-        self.get_logger().info(f'Sending FollowPath with {len(path_odom.poses)} poses in odom')
-        self._follow_future = self.follow_client.send_goal_async(goal)
-        self._follow_future.add_done_callback(self._follow_goal_response_cb)
-        self._nav_sent = True
-        self._nav_start_time = time.time()
-        # if time.time() - self._nav_start_time > 300.0:
-        #     self.get_logger().warn('Navigation action timed out')
-        # if self._nav_goal_handle:
-        #     self._nav_goal_handle.cancel_goal_async()
-        # self._trial_result = "TIMEOUT"
-        # self.current_state = SequenceState.FAILED
-        # self._nav_sent = False
-        #
-        # self.final_goal_tracker()
-        #
-        # if getattr(self, "_nav_start_time", None) is not None:
-        #     elapsed = time.time() - self._nav_start_time
-        #     self.get_logger().info(f"current trial time: {elapsed:.2f}s")
-        # else:
-        #     self.get_logger().info("current trial time: not started (no nav goal sent yet)")
-        # print(f"current trial time is : {(time.time() - self._nav_start_time)}")
-        # if self.collision_detected:
-        #     self.trial_result = "COLLISION"
-        #     self.current_state = SequenceState.FAILED
+    # def handle_navigation(self):
+    #
+    #     # Wait for controller server
+    #     if not self.follow_client.wait_for_server(timeout_sec=5.0):
+    #         self.get_logger().error('FollowPath action server not available')
+    #         self._trial_result = "NAV_SERVER_UNAVAILABLE"
+    #         self.current_state = SequenceState.FAILED
+    #         return
+    #
+    #     # Use your already-computed path; prefer odom-frame for the local controller:
+    #     path_odom = self.path_to_frame(self.gazebo_path, target_frame="odom")
+    #     if path_odom is None or not path_odom.poses:
+    #         self.get_logger().error('No path available to send to FollowPath')
+    #         self._trial_result = "NO_PATH"
+    #         self.current_state = SequenceState.FAILED
+    #         return
+    #     
+    #     else:
+    #         goal = FollowPath.Goal()
+    #         goal.path = path_odom
+    #         goal.controller_id = 'FollowPath'     # use default (FollowPath in YAML)
+    #         goal.goal_checker_id = ''   # use default
+    #
+    #         self.get_logger().info(f'Sending FollowPath with {len(path_odom.poses)} poses in odom')
+    #         self._follow_future = self.follow_client.send_goal_async(goal)
+    #         self._follow_future.add_done_callback(self._follow_goal_response_cb)
+    #         self._nav_sent = True
+    #         self._nav_start_time = time.time()
+    #     if time.time() - self._nav_start_time > 300.0:
+    #         self.get_logger().warn('Navigation action timed out')
+    #     if self._nav_goal_handle:
+    #         self._nav_goal_handle.cancel_goal_async()
+    #         self._trial_result = "TIMEOUT"
+    #         self.current_state = SequenceState.FAILED
+    #         self._nav_sent = False
+    #     #
+    #     self.final_goal_tracker()
+    #
+    #     if getattr(self, "_nav_start_time", None) is not None:
+    #         elapsed = time.time() - self._nav_start_time
+    #         self.get_logger().info(f"current trial time: {elapsed:.2f}s")
+    #     else:
+    #         self.get_logger().info("current trial time: not started (no nav goal sent yet)")
+    #         print(f"current trial time is : {(time.time() - self._nav_start_time)}")
+    #     if self.collision_detected:
+    #         self.trial_result = "COLLISION"
+    #         self.current_state = SequenceState.FAILED
     def nav_goal_response_callback(self, future):
         """Callback for navigation goal response"""
         goal_handle = future.result()
@@ -783,7 +825,7 @@ class BarnOneShot(Node):
 
     def is_cmd_vel_subscribed(self):
         """Check if any node is subscribed to /cmd_vel."""
-        info = self.get_publishers_info_by_topic('/cmd_vel')
+        info = self.get_subscriber_info_by_topic('/cmd_vel')
         return len(info) > 0
 
     def yaml_reader(self):
@@ -956,6 +998,7 @@ class BarnOneShot(Node):
         return distance_remaining
 
     def final_goal_tracker(self):
+
         if self.final_goal_x is None and self.gazebo_path:
             self.final_goal_x = self.gazebo_path.poses[-1].pose.position.x
             self.final_goal_y = self.gazebo_path.poses[-1].pose.position.y
@@ -963,6 +1006,7 @@ class BarnOneShot(Node):
         dx = self.current_map_x - self.final_goal_x
         dy = self.current_map_y - self.final_goal_y
         final_distance = math.hypot(dx, dy)
+        print(f"Final Goal Tracker dist : {final_distance}")
         if final_distance < self.goal_tolerance_xy:
             self._trial_result = "SUCCESS"
             self.current_state = SequenceState.COMPLETED
@@ -979,6 +1023,13 @@ class BarnOneShot(Node):
                 self.trial_start_time = self.steady_clock.now()
                 self._start_trial_metrics()  # start velocity accumulators
                 self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
+                self.get_logger().info("TIMER HAS BEGUN")
             # Pose transform to map
             pose_stamped = PoseStamped()
             pose_stamped.header = odom_msg.header
@@ -987,8 +1038,8 @@ class BarnOneShot(Node):
 
             self.current_map_x = map_pose.pose.position.x
             self.current_map_y = map_pose.pose.position.y
-
-            self.get_logger().info(f'Map position: x={self.current_map_x:.2f}, y={self.current_map_y:.2f}')
+            if self.trial_start_time is not None:
+                self.get_logger().info(f'Map position: x={self.current_map_x:.2f}, y={self.current_map_y:.2f} current trial time : {self.steady_clock.now() - self.trial_start_time}')
 
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             self.get_logger().warn(f'Could not transform odom to map: {str(e)}')
