@@ -7,7 +7,10 @@
 #include "nav2_core/exceptions.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "nav2_util/node_utils.hpp"
+#include "visualization_msgs/msg/marker.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
 
+// In your ONNXController class:
 #include "std_msgs/msg/float64_multi_array.hpp"
 
 #include "mpc.hpp"
@@ -129,7 +132,7 @@ void ONNXController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr &p
     output_name_ = {outputName.get()};
     inputName.release();
     outputName.release();
-
+    trajectory_pub_ = node->create_publisher<visualization_msgs::msg::MarkerArray>("mpc_trajectories", 1);
     global_pub_ = node->create_publisher<nav_msgs::msg::Path>("received_global_plan", 1);
     onnx_sub_ = node->create_subscription<std_msgs::msg::Float64MultiArray>(
         "/neuralNetInput", rclcpp::QoS(10), std::bind(&ONNXController::onnxInputCallback, this, std::placeholders::_1)
@@ -169,6 +172,7 @@ void ONNXController::onnxInputCallback(const std_msgs::msg::Float64MultiArray::S
     latest_onnx_input_ = *msg;
     // RCLCPP_INFO(logger_, "Receiving Input from Middle man...");
 }
+
 geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const geometry_msgs::msg::PoseStamped &pose,
                                                                          const geometry_msgs::msg::Twist &,
                                                                          nav2_core::GoalChecker *) {
@@ -278,12 +282,43 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
     // Now we want to modulate the output of the network
 
     RCLCPP_INFO(logger_, "current_x, current_W, , %.3f, %.3f", current_v, current_w);
-    std::pair<float, float> cmds =
-        modulation_onnx_lidar(odom_x, odom_y, odom_yaw, predicted_linear, predicted_angular, lidar_pointer, num_lidar);
 
-    RCLCPP_INFO(logger_, "Final commands after modulation (lin, ang): %.3f, %.3f", cmds.first, cmds.second);
+    geometry_msgs::msg::PoseStamped odom_pose;
+    odom_pose.header.frame_id = "odom";
+    odom_pose.header.stamp = pose.header.stamp;
+    odom_pose.pose.position.x = odom_x;
+    odom_pose.pose.position.y = odom_y;
+    odom_pose.pose.position.z = 0.0;
+    tf2::Quaternion q;
+    q.setRPY(0, 0, odom_yaw);
+    odom_pose.pose.orientation = tf2::toMsg(q);
+
+    geometry_msgs::msg::PoseStamped map_pose;
+    std::pair<float, float> cmds;
+    try {
+        map_pose = tf_->transform(odom_pose, "map", tf2::durationFromSec(0.1));
+
+        // Extract map coordinates
+        float map_x = map_pose.pose.position.x;
+        float map_y = map_pose.pose.position.y;
+        float map_yaw = tf2::getYaw(map_pose.pose.orientation);
+
+        // Visualize in map frame
+        auto viz_markers = visualize_mpc_projections(map_x, map_y, map_yaw, predicted_linear, predicted_angular,
+                                                     lidar_pointer, num_lidar);
+        trajectory_pub_->publish(viz_markers);
+
+        cmds =
+            modulation_onnx_lidar(map_x, map_y, map_yaw, predicted_linear, predicted_angular, lidar_pointer, num_lidar);
+    } catch (tf2::TransformException &ex) {
+        RCLCPP_WARN(logger_, "Could not transform to map for visualization: %s", ex.what());
+
+        cmds = modulation_onnx_lidar(odom_x, odom_y, odom_yaw, predicted_linear, predicted_angular, lidar_pointer,
+                                     num_lidar);
+    }
 
     // Add safety clamping on final commands too
+    RCLCPP_INFO(logger_, "Final commands after modulation (lin, ang): %.3f, %.3f", cmds.first, cmds.second);
     cmds.first = std::clamp(cmds.first, min_linear_vel, max_linear_vel);
     cmds.second = std::clamp(cmds.second, min_angular_vel, max_angular_vel);
 
@@ -297,5 +332,4 @@ geometry_msgs::msg::TwistStamped ONNXController::computeVelocityCommands(const g
 
     return cmd_vel;
 }
-
 } // namespace onnx_controller

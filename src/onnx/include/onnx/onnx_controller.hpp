@@ -11,12 +11,12 @@
 #include <vector>
 
 #include "nav2_core/controller.hpp"
+#include "onnxruntime_cxx_api.h"
 #include "pluginlib/class_list_macros.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "rclcpp/rclcpp.hpp"
-
-#include "onnxruntime_cxx_api.h"
 #include "std_msgs/msg/float64_multi_array.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
 
 namespace onnx_controller {
 class ONNXController : public nav2_core::Controller {
@@ -43,6 +43,7 @@ class ONNXController : public nav2_core::Controller {
     rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
     std::shared_ptr<tf2_ros::Buffer> tf_;
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr trajectory_pub_;
 
     std::string plugin_name_;
     rclcpp::Logger logger_{rclcpp::get_logger("OnnxController")};

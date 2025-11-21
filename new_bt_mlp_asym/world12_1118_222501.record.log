@@ -1,0 +1,19 @@
+stdin is not a terminal device. Keyboard handling disabled.[37;1m2025-11-18 22:25:01.526 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7539: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2025-11-18 22:25:01.526 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7543: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2025-11-18 22:25:01.527 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7553: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[INFO] [1763533501.540093722] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1763533501.541155161] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/new_bt_mlp_asym/world12_1118_222501/world12_1118_222501_0.db3' for READ_WRITE.
+[INFO] [1763533501.543024174] [rosbag2_recorder]: Listening for topics...
+[INFO] [1763533501.543041329] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1763533501.543147737] [rosbag2_recorder]: Recording...
+[INFO] [1763533501.646584295] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1763533501.648431070] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1763533501.851839942] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1763533502.571877092] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1763533502.677226716] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1763533503.611595942] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1763533503.613487549] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1763533503.613511407] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[INFO] [1763533853.372210397] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1763533853.373150870] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1763533853.373186418] [rosbag2_recorder]: Recording stopped

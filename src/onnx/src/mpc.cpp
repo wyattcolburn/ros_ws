@@ -1,5 +1,6 @@
 #include "mpc.hpp"
 #include "obstacles.hpp"
+
 /* This function will take in a the output of NN (cmd_v, cmd_w)
  * and calculate the safety factor
  *
@@ -101,7 +102,7 @@ std::pair<float, float> modulation_onnx_lidar(float odom_x, float odom_y, float 
             Obstacle currentObs;
             currentObs.center_x = proj_x;
             currentObs.center_y = proj_y;
-            currentObs.radius = .1;
+            currentObs.radius = .05;
             if (circles_intersect(T_BOT, currentObs)) {
                 p_safety_counter++;
                 break;
@@ -263,4 +264,113 @@ std::pair<float, float> mpc_heading_information(float odom_x, float odom_y, floa
     float mod_cmd_w = input_cmd_w * mod_factor;
 
     return {mod_cmd_v, mod_cmd_w};
+}
+
+visualization_msgs::msg::MarkerArray visualize_mpc_projections(float odom_x, float odom_y, float robot_yaw,
+                                                               float input_cmd_v, float input_cmd_w,
+                                                               const double *lidar_ranges, const size_t num_lidar) {
+
+    visualization_msgs::msg::MarkerArray marker_array;
+
+    if (lidar_ranges == nullptr) {
+        return marker_array;
+    }
+
+    Obstacle T_BOT;
+    T_BOT.radius = TURTLEBOT_RADIUS;
+
+    const int num_projections = 10;
+    int num_timesteps = 10;
+
+    for (int projection_counter = 0; projection_counter < num_projections; projection_counter++) {
+
+        visualization_msgs::msg::Marker trajectory_marker;
+        trajectory_marker.header.frame_id = "map";
+        trajectory_marker.header.stamp = rclcpp::Clock().now();
+        trajectory_marker.ns = "mpc_trajectory";
+        trajectory_marker.id = projection_counter;
+        trajectory_marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+        trajectory_marker.action = visualization_msgs::msg::Marker::ADD;
+        trajectory_marker.scale.x = 0.10; // Line width
+        trajectory_marker.pose.orientation.w = 1.0;
+
+        float robot_x = odom_x;
+        float robot_y = odom_y;
+        float robot_heading = robot_yaw;
+
+        float input_v = gaussian(input_cmd_v, 0, .1);
+        float input_w = gaussian(input_cmd_w, 0, .1);
+
+        bool collision = false;
+
+        // Add starting point
+        geometry_msgs::msg::Point start_point;
+        start_point.x = robot_x;
+        start_point.y = robot_y;
+        start_point.z = 0.1;
+        trajectory_marker.points.push_back(start_point);
+
+        for (int timestep_counter = 0; timestep_counter < num_timesteps; timestep_counter++) {
+
+            // Kinematic model (same as your code)
+            if (std::abs(input_w) < 1e-3f) {
+                robot_x = robot_x + input_v * std::cos(robot_heading) * TIMESTEP;
+                robot_y = robot_y + input_v * std::sin(robot_heading) * TIMESTEP;
+            } else {
+                float robot_heading_new = robot_heading + input_w * TIMESTEP;
+                float R = input_v / input_w;
+
+                robot_x = robot_x + R * (std::sin(robot_heading_new) - std::sin(robot_heading));
+                robot_y = robot_y - R * (std::cos(robot_heading_new) - std::cos(robot_heading));
+                robot_heading = robot_heading_new;
+            }
+
+            // Add point to trajectory
+            geometry_msgs::msg::Point p;
+            p.x = robot_x;
+            p.y = robot_y;
+            p.z = 0.1;
+            trajectory_marker.points.push_back(p);
+
+            // Collision check (same as before)
+            T_BOT.center_x = robot_x;
+            T_BOT.center_y = robot_y;
+
+            float angle_step = 2.0f * M_PI / num_lidar;
+            for (size_t lidar_counter = 0; lidar_counter < num_lidar; lidar_counter++) {
+                double theta = robot_heading - M_PI / 2 + angle_step * lidar_counter;
+                double norm_theta = normalize_angle(theta);
+                float proj_x = robot_x + lidar_ranges[lidar_counter] * static_cast<float>(cos(norm_theta));
+                float proj_y = robot_y + lidar_ranges[lidar_counter] * static_cast<float>(sin(norm_theta));
+
+                Obstacle currentObs;
+                currentObs.center_x = proj_x;
+                currentObs.center_y = proj_y;
+                currentObs.radius = .1;
+
+                if (circles_intersect(T_BOT, currentObs)) {
+                    collision = true;
+                    break;
+                }
+            }
+            if (collision)
+                break;
+        }
+
+        // Color: Green if safe, Red if collision
+        if (collision) {
+            trajectory_marker.color.r = 0.0;
+            trajectory_marker.color.g = 0.0;
+            trajectory_marker.color.b = 1.0;
+        } else {
+            trajectory_marker.color.r = 0.0;
+            trajectory_marker.color.g = 1.0;
+            trajectory_marker.color.b = 0.0;
+        }
+        trajectory_marker.color.a = 0.7;
+
+        marker_array.markers.push_back(trajectory_marker);
+    }
+
+    return marker_array;
 }

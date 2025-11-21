@@ -1,0 +1,19 @@
+stdin is not a terminal device. Keyboard handling disabled.[37;1m2025-11-18 21:40:12.621 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7539: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2025-11-18 21:40:12.621 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7543: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2025-11-18 21:40:12.621 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7553: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[INFO] [1763530812.631638868] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1763530812.632981436] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/dwa_baseline/world12_1118_214012/world12_1118_214012_0.db3' for READ_WRITE.
+[INFO] [1763530812.633711359] [rosbag2_recorder]: Listening for topics...
+[INFO] [1763530812.633843809] [rosbag2_recorder]: Recording...
+[INFO] [1763530812.633966846] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1763530812.740548938] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1763530812.744803385] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1763530812.746347797] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1763530812.749597743] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1763530812.852368900] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1763530812.853837515] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1763530813.673978672] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1763530813.674020533] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[INFO] [1763530908.492789882] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1763530908.493732032] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1763530908.493777985] [rosbag2_recorder]: Recording stopped

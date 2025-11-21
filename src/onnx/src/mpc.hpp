@@ -1,9 +1,12 @@
 #ifndef MPC_HPP
 #define MPC_HPP
 #include "obstacles.hpp"
+#include "visualization_msgs/msg/marker.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
 #include <cmath>
 #include <iostream>
 #include <random>
+#include <rclcpp/rclcpp.hpp>
 
 const float W1 = .4;
 const float W2 = 1.0;
@@ -22,4 +25,8 @@ std::pair<float, float> modulation_onnx_lidar(float odom_x, float odom_y, float 
                                               float input_cmd_w, const double *lidar_ranges, const size_t num_lidar);
 std::pair<float, float> mpc_heading_information(float odom_x, float odom_y, float robot_yaw, float input_cmd_v,
                                                 float input_cmd_w, const double *lidar_ranges, const size_t num_lidar);
+
+visualization_msgs::msg::MarkerArray visualize_mpc_projections(float odom_x, float odom_y, float robot_yaw,
+                                                               float input_cmd_v, float input_cmd_w,
+                                                               const double *lidar_ranges, const size_t num_lidar);
 #endif

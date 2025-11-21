@@ -1,0 +1,21 @@
+stdin is not a terminal device. Keyboard handling disabled.[37;1m2025-11-18 20:30:44.727 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7449: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2025-11-18 20:30:44.727 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7457: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2025-11-18 20:30:44.727 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7463: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2025-11-18 20:30:44.728 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7539: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2025-11-18 20:30:44.728 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7547: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[INFO] [1763526644.736518028] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1763526644.737301094] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/dwa_baseline/world210_1118_203044/world210_1118_203044_0.db3' for READ_WRITE.
+[INFO] [1763526644.737866790] [rosbag2_recorder]: Listening for topics...
+[INFO] [1763526644.737878800] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1763526644.737947028] [rosbag2_recorder]: Recording...
+[INFO] [1763526645.130925091] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1763526645.133383931] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1763526645.135828998] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1763526645.138477832] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1763526646.078139271] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1763526646.184089253] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1763526646.806540966] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1763526646.806589543] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[INFO] [1763526759.604733891] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1763526759.605491210] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1763526759.605542925] [rosbag2_recorder]: Recording stopped

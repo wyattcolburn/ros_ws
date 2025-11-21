@@ -1,0 +1,16 @@
+stdin is not a terminal device. Keyboard handling disabled.[37;1m2025-11-18 21:42:49.714 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7539: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2025-11-18 21:42:49.714 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7543: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2025-11-18 21:42:49.714 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7553: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[INFO] [1763530969.725057197] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1763530969.726259196] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/dwa_baseline/world12_1118_214249/world12_1118_214249_0.db3' for READ_WRITE.
+[INFO] [1763530969.726705832] [rosbag2_recorder]: Listening for topics...
+[INFO] [1763530969.726716301] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1763530969.726778008] [rosbag2_recorder]: Recording...
+[INFO] [1763530969.930615986] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1763530969.931646826] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1763530970.751481839] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1763530970.753262444] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1763530970.763408039] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1763530970.771611631] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1763530970.877505170] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1763530970.877546026] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...

@@ -1,0 +1,15 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1763597018.304843926] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1763597018.305562858] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/new_bt_mlp_asym/world125_1119_160338/world125_1119_160338_0.db3' for READ_WRITE.
+[INFO] [1763597018.306032639] [rosbag2_recorder]: Listening for topics...
+[INFO] [1763597018.306044018] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1763597018.306109818] [rosbag2_recorder]: Recording...
+[INFO] [1763597018.409461137] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1763597018.410841466] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1763597019.330459150] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1763597019.332280811] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1763597019.333822879] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1763597019.335044200] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1763597019.439250877] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1763597019.439297668] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+terminate called after throwing an instance of 'rosbag2_storage_plugins::SqliteException'
+  what():  Error when processing SQL statement. SQLite error (13): database or disk is full
