@@ -2,7 +2,7 @@ NUM_VALID_OBSTACLES: 20
 OFFSET: 1.0
 RADIUS: 0.4
 CSV_FILES:
-- new_bt_mlp_asym/baseline.csv
+- test/baseline.csv
 MODEL_PATHS:
 - created_models/gauss_2_asym_combo
 # - "created_models/gauss_2_200_sym"     # or an absolute dir path

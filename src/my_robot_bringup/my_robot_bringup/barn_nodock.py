@@ -1048,6 +1048,7 @@ class BarnOneShot(Node):
 
         # Accumulate achieved velocity stats regardless of transform success
         self.final_goal_tracker()
+        self.local_goal_tracker()
         self._accumulate_from_odom(odom_msg)
 
     def watchdog_cb(self):
