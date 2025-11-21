@@ -123,10 +123,6 @@ class BarnOneShot(Node):
             self, Undock, '/undock',
             callback_group=self.callback_group
         )
-        self.navigate_client = ActionClient(
-            self, NavigateToPose, '/navigate_to_pose',
-            callback_group=self.callback_group
-        )
         self.follow_client = ActionClient(self, FollowPath, '/follow_path',
                                           callback_group=self.callback_group)
         # Subs/Pubs
@@ -393,12 +389,10 @@ class BarnOneShot(Node):
             self.get_logger().info("Starting bag")
 
             self.gazebo_path = self.load_barn_path(self.world_num)
-            self.gazebo_path_og = self.load_barn_path_og(self.world_num)
             path_odom = self.path_to_frame(self.gazebo_path, target_frame="odom")
             if path_odom is not None:
                 self.plan_barn_odom_pub.publish(path_odom)
             self.path_publisher.publish(self.gazebo_path)
-            self.path_og_publisher.publish(self.gazebo_path_og)
             self.adaptive_path = self.adaptive_barn_path(
                 self.gazebo_path,
                 min_spacing=0.12,
@@ -554,68 +548,6 @@ class BarnOneShot(Node):
         self._pose_sent = False
         self._pose_init_time = None
 
-    # def handle_navigation(self):
-    #     """Handle navigation to goal pose"""
-    #     if not hasattr(self, '_nav_sent') or not self._nav_sent:
-    #         if not self.navigate_client.wait_for_server(timeout_sec=5.0):
-    #             self.get_logger().error('Navigation action server not available')
-    #             self._nav_timeout_counter += 1
-    #
-    #             if self._nav_timeout_counter >= self._nav_timeout_limit:
-    #                 self.get_logger().error('Nav server has timed out')
-    #                 self._trial_result = "NAV_SERVER_UNAVAILABLE"
-    #                 self.current_state = SequenceState.FAILED
-    #             return
-    #
-    #         self.get_logger().info('Sending navigation goal...')
-    #
-    #         last_pose = self.gazebo_path.poses[-1]
-    #         self.get_logger().info(
-    #             f'Sending goal to: ({last_pose.pose.position.x}, {last_pose.pose.position.y})')
-    #         goal_msg = NavigateToPose.Goal()
-    #         goal_msg.pose.header.frame_id = 'map'
-    #         goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
-    #
-    #         goal_msg.pose.pose.position.x = self.gazebo_path.poses[-1].pose.position.x
-    #         goal_msg.pose.pose.position.y = self.gazebo_path.poses[-1].pose.position.y
-    #         goal_msg.pose.pose.position.z = 0.0
-    #
-    #         goal_msg.pose.pose.orientation.x = self.gazebo_path.poses[-1].pose.orientation.x
-    #         goal_msg.pose.pose.orientation.y = self.gazebo_path.poses[-1].pose.orientation.y
-    #         goal_msg.pose.pose.orientation.z = self.gazebo_path.poses[-1].pose.orientation.z
-    #         goal_msg.pose.pose.orientation.w = self.gazebo_path.poses[-1].pose.orientation.w
-    #
-    #         self.goal_x = goal_msg.pose.pose.position.x
-    #         self.goal_y = goal_msg.pose.pose.position.y
-    #
-    #         if not self.is_cmd_vel_subscribed():
-    #             self.get_logger().warn("cmd_vel has no subscribers — controller likely not active yet")
-    #             return
-    #
-    #         self._nav_future = self.navigate_client.send_goal_async(goal_msg)
-    #         self._nav_future.add_done_callback(self.nav_goal_response_callback)
-    #         self._nav_sent = True
-    #         self._nav_start_time = time.time()
-    #     elif time.time() - self._nav_start_time > 300.0:
-    #         self.get_logger().warn('Navigation action timed out')
-    #         if self._nav_goal_handle:
-    #             self._nav_goal_handle.cancel_goal_async()
-    #         self._trial_result = "TIMEOUT"
-    #         self.current_state = SequenceState.FAILED
-    #         self._nav_sent = False
-    #
-    #     self.final_goal_tracker()
-    #
-    #     if getattr(self, "_nav_start_time", None) is not None:
-    #         elapsed = time.time() - self._nav_start_time
-    #         self.get_logger().info(f"current trial time: {elapsed:.2f}s")
-    #     else:
-    #         self.get_logger().info("current trial time: not started (no nav goal sent yet)")
-    #     print(f"current trial time is : {(time.time() - self._nav_start_time)}")
-    #     if self.collision_detected:
-    #         self.trial_result = "COLLISION"
-    #         self.current_state = SequenceState.FAILED
-    #
     def handle_navigation(self):
         # Only send once
         if not self._nav_sent:
@@ -641,74 +573,12 @@ class BarnOneShot(Node):
             self._follow_future = self.follow_client.send_goal_async(goal)
             self._follow_future.add_done_callback(self._follow_goal_response_cb) # this will set if self._nav_sent is True or false
 
-            return  # let callbacks/watchdog drive the rest
+            return  # 
 
-        # Already sent → just report elapsed
-
-        # Optional: lightweight progress checks you already have
 
         if self.collision_detected:
             self._trial_result = "COLLISION"
             self.current_state = SequenceState.FAILED
-    # def handle_navigation(self):
-    #
-    #     # Wait for controller server
-    #     if not self.follow_client.wait_for_server(timeout_sec=5.0):
-    #         self.get_logger().error('FollowPath action server not available')
-    #         self._trial_result = "NAV_SERVER_UNAVAILABLE"
-    #         self.current_state = SequenceState.FAILED
-    #         return
-    #
-    #     # Use your already-computed path; prefer odom-frame for the local controller:
-    #     path_odom = self.path_to_frame(self.gazebo_path, target_frame="odom")
-    #     if path_odom is None or not path_odom.poses:
-    #         self.get_logger().error('No path available to send to FollowPath')
-    #         self._trial_result = "NO_PATH"
-    #         self.current_state = SequenceState.FAILED
-    #         return
-    #     
-    #     else:
-    #         goal = FollowPath.Goal()
-    #         goal.path = path_odom
-    #         goal.controller_id = 'FollowPath'     # use default (FollowPath in YAML)
-    #         goal.goal_checker_id = ''   # use default
-    #
-    #         self.get_logger().info(f'Sending FollowPath with {len(path_odom.poses)} poses in odom')
-    #         self._follow_future = self.follow_client.send_goal_async(goal)
-    #         self._follow_future.add_done_callback(self._follow_goal_response_cb)
-    #         self._nav_sent = True
-    #         self._nav_start_time = time.time()
-    #     if time.time() - self._nav_start_time > 300.0:
-    #         self.get_logger().warn('Navigation action timed out')
-    #     if self._nav_goal_handle:
-    #         self._nav_goal_handle.cancel_goal_async()
-    #         self._trial_result = "TIMEOUT"
-    #         self.current_state = SequenceState.FAILED
-    #         self._nav_sent = False
-    #     #
-    #     self.final_goal_tracker()
-    #
-    #     if getattr(self, "_nav_start_time", None) is not None:
-    #         elapsed = time.time() - self._nav_start_time
-    #         self.get_logger().info(f"current trial time: {elapsed:.2f}s")
-    #     else:
-    #         self.get_logger().info("current trial time: not started (no nav goal sent yet)")
-    #         print(f"current trial time is : {(time.time() - self._nav_start_time)}")
-    #     if self.collision_detected:
-    #         self.trial_result = "COLLISION"
-    #         self.current_state = SequenceState.FAILED
-    def nav_goal_response_callback(self, future):
-        """Callback for navigation goal response"""
-        goal_handle = future.result()
-        if not goal_handle.accepted:
-            self.get_logger().error('Navigation goal rejected')
-            self._nav_goal_handle = None
-            return
-
-        self.get_logger().info('Navigation goal accepted')
-        self._nav_goal_handle = goal_handle
-        self._get_nav_result_future = goal_handle.get_result_async()
-        self._get_nav_result_future.add_done_callback(self.nav_result_callback)
 
     def _follow_goal_response_cb(self, future):
         goal_handle = future.result()
@@ -731,86 +601,25 @@ class BarnOneShot(Node):
             result_msg = future.result()
             status = result_msg.status
             print(f"status is {status}")
-    #         if status == 4:  # SUCCESS
-    #             self._trial_result = "SUCCESS"
-    #             self.current_state = SequenceState.COMPLETED
-    #         elif status == 5:  # ABORTED
-    #             self._trial_result = "NAV_ABORTED_CONTROLLER_FAIL"
-    #             self.current_state = SequenceState.FAILED
-    #         elif status == 6:  # CANCELED
-    #             self._trial_result = "CANCELLED"
-    #             self.current_state = SequenceState.FAILED
-    #         else:
-    #             self._trial_result = f"UNKNOWN_STATUS_{status}"
-    #             self.current_state = SequenceState.FAILED
+            if status == 4:  # SUCCESS
+                self._trial_result = "SUCCESS"
+                self.current_state = SequenceState.COMPLETED
+            elif status == 5:  # ABORTED
+                self._trial_result = "NAV_ABORTED_CONTROLLER_FAIL"
+                self.current_state = SequenceState.FAILED
+            elif status == 6:  # CANCELED
+                self._trial_result = "CANCELLED"
+                self.current_state = SequenceState.FAILED
+            else:
+                self._trial_result = f"UNKNOWN_STATUS_{status}"
+                self.current_state = SequenceState.FAILED
         except Exception as e:
             print(f"expect block {e}")
-    #         self.get_logger().error(f'FollowPath result error: {e}')
-    #         self._trial_result = "ERROR"
-    #         self.current_state = SequenceState.FAILED
-    #     finally:
-    #         self._nav_sent = False
-    def nav_result_callback(self, future):
-        """Callback for navigation result"""
-        self.get_logger().info("nav_result_callback called!")
-
-        try:
-            if future.cancelled():
-                self.get_logger().warn("Navigation goal was cancelled before completion")
-                self._trial_result = "CANCELLED"
-                # self.current_state = SequenceState.RESTART
-                self._nav_sent = False
-                return
-
-            if not future.done():
-                self.get_logger().warn("Navigation result future is not done yet")
-                return
-
-            result_msg = future.result()
-            if result_msg is None:
-                self.get_logger().error("Navigation result returned None")
-                self._trial_result = "ERROR"
-                # self.current_state = SequenceState.RESTART
-                self._nav_sent = False
-                return
-
-            status = result_msg.status
-            result = result_msg.result
-
-            self.get_logger().info(f"Nav status: {status}")
-            if status == 4:  # SUCCESS
-                self.get_logger().info(f'Navigation success: {result}')
-                self._trial_result = "SUCCESS"
-
-            elif status == 5:  # ABORTED
-                self.get_logger().error(
-                    'Navigation aborted: likely planning or controller failure.'
-                )
-                if self.collision_detected:
-                    self._trial_result = "COLLISIONS"
-                    self.get_logger().error("Navigation aborted due to collision!")
-                else:
-                    self._trial_result = "NAV_ABORTED_PLANNING_FAIL"
-                    self.get_logger().error("Aborted without collision.")
-            elif status == 6:  # CANCELED
-                self.get_logger().warn("Navigation was cancelled for trial")
-                if self._trial_result != "TIMEOUT":
-                    self._trial_result = "FAILURE"
-            else:
-                self.get_logger().error(
-                    f'Navigation failed with unknown status: {status}.')
-                # self._trial_result = "NAV_UNKNOWN_FAILURE"
-
-            self.get_logger().info(f"trial_result : {self._trial_result}")
-            # self.current_state = SequenceState.COMPLETED
-            self._nav_sent = False
-
-        except Exception as e:
-            self.get_logger().error(f'Navigation result error: {e}')
+            self.get_logger().error(f'FollowPath result error: {e}')
             self._trial_result = "ERROR"
-            # self.current_state = SequenceState.FAILED
+            self.current_state = SequenceState.FAILED
+        finally:
             self._nav_sent = False
-
     def amcl_pose_callback(self, msg):
         """Monitor AMCL pose for stability"""
         self.amcl_pose_received = True
@@ -922,6 +731,27 @@ class BarnOneShot(Node):
                 writer.writerow(row)
         return
 
+    def progress_checker(self):
+
+        if not self.prev_distance_flag:
+            
+            initial_x = self.get_parameter('initial_x').value
+            initial_y = self.get_parameter('initial_y').value
+            goal_x = self.goal_x
+            goal_y = self.goal_y
+
+            self.get_logger().info(f"Initial pose: ({initial_x}, {initial_y})")
+            self.get_logger().info(f"Goal pose: ({goal_x}, {goal_y})")
+
+            self.prev_distance = math.sqrt((goal_x - initial_x)**2 + (goal_y - initial_y)**2)
+            self.get_logger().info(f"Calculated initial distance: {self.prev_distance}")
+            self.prev_distance_flag = True
+            self.last_progress_check_time = time.time()
+            self.progress_check_interval = 1.0
+            return
+           
+        self.distance_remaining = self.local_goal_tracker()
+
     def nav_feedback_callback(self, msg):
         """Checks if the robot is making progress towards the goal, terminates if not"""
         if not self.prev_distance_flag:
@@ -987,7 +817,7 @@ class BarnOneShot(Node):
 
         dx = self.current_map_x - self.current_lg_xy[0]
         dy = self.current_map_y - self.current_lg_xy[1]
-        distance_remaining = ((dx*dx) + (dy*dy)**.5)
+        distance_remaining = math.sqrt((dx*dx) + (dy*dy))
 
         if distance_remaining < 0.13:
             self.get_logger().info(f"Passed local goal {self.current_lg_counter}")
@@ -1509,40 +1339,6 @@ class BarnOneShot(Node):
         self.total_lg = len(path_msg.poses)
         return path_msg
 
-    def load_barn_path_og(self, world_num):
-        barn_path = np.load(os.path.expanduser(f'~/ros_ws/BARN_turtlebot/path_files/path_{world_num}.npy'))
-
-        path_msg = Path()
-        path_msg.header.frame_id = "map"
-        path_msg.header.stamp = self.get_clock().now().to_msg()
-
-        path_subset = barn_path[3:]
-        for i, element in enumerate(path_subset):
-            gazebo_x, gazebo_y = self.path_coord_to_gazebo_coord(element[0], element[1])
-
-            pose_stamped = PoseStamped()
-            pose_stamped.header.frame_id = "map"
-            pose_stamped.header.stamp = path_msg.header.stamp
-
-            pose_stamped.pose.position.x = float(gazebo_x)
-            pose_stamped.pose.position.y = float(gazebo_y)
-            pose_stamped.pose.position.z = 0.0
-
-            if i < len(path_subset) - 1:
-                next_element = path_subset[i + 1]
-                next_gazebo = self.path_coord_to_gazebo_coord(next_element[0], next_element[1])
-                qx, qy, qz, qw = self.calculate_orientation((gazebo_x, gazebo_y), next_gazebo)
-
-                pose_stamped.pose.orientation.x = qx
-                pose_stamped.pose.orientation.y = qy
-                pose_stamped.pose.orientation.z = qz
-                pose_stamped.pose.orientation.w = qw
-            else:
-                pose_stamped.pose.orientation.w = 1.0
-
-            path_msg.poses.append(pose_stamped)
-        self.current_lg_xy = (path_msg.poses[0].pose.position.x, path_msg.poses[0].pose.position.y)
-        return path_msg
 
     def calculate_orientation(self, current_point, next_point):
         dx = next_point[0] - current_point[0]

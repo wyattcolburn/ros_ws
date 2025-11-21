@@ -285,13 +285,14 @@ with open(out_csv, 'w', newline='') as f:
             f"{s['trial_time']:.6f}"
         ])
 
+    if total_successes != 0: 
     # Overall averages across successful trials
-    writer.writerow([
-        "average velocities", f"{total_successes}",
-        f"{(sum_cmd_v/total_successes):.6f}",
-        f"{(sum_cmd_w/total_successes):.6f}",
-        f"{(sum_odom_v/total_successes):.6f}",
-        f"{(sum_odom_w/total_successes):.6f}",
-        f"{(total_trial_time / total_successes)}"
-    ])
+        writer.writerow([
+            "average velocities", f"{total_successes}",
+            f"{(sum_cmd_v/total_successes):.6f}",
+            f"{(sum_cmd_w/total_successes):.6f}",
+            f"{(sum_odom_v/total_successes):.6f}",
+            f"{(sum_odom_w/total_successes):.6f}",
+            f"{(total_trial_time / total_successes)}"
+        ])
 print(f"Saved {out_csv}")
