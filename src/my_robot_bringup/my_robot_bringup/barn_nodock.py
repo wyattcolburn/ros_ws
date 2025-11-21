@@ -197,10 +197,12 @@ class BarnOneShot(Node):
         self.goal_y = 0
 
         self.follow_timeout_sec = 300
+        self.follow_goal_sent_attempts = 0
+        self.FOLLOW_GOAL_MAX_ATTEMPTS = 5
         self._nav_sent = None
         self._nav_start_time = None
         # timer for whole script, max time is 350 after odom starts 
-        self.trial_hard_timeout_sec = 350
+        self.TRIAL_TIMEOUT_AFTER_GOAL_POSE = 370 # after a goal has been given this hits, 
         self.watchdog_timer = self.create_timer(
     1.0, self.watchdog_cb, callback_group=self.callback_group
 )
@@ -637,18 +639,13 @@ class BarnOneShot(Node):
 
             self.get_logger().info(f'Sending FollowPath with {len(path_odom.poses)} poses in odom')
             self._follow_future = self.follow_client.send_goal_async(goal)
-            self._follow_future.add_done_callback(self._follow_goal_response_cb)
+            self._follow_future.add_done_callback(self._follow_goal_response_cb) # this will set if self._nav_sent is True or false
 
-            self._nav_sent = True
             return  # let callbacks/watchdog drive the rest
 
         # Already sent → just report elapsed
-        if self._nav_start_time is not None:
-            elapsed = time.time() - self._nav_start_time
-            self.get_logger().info(f"current trial time: {elapsed:.2f}s")
 
         # Optional: lightweight progress checks you already have
-        self.final_goal_tracker()
 
         if self.collision_detected:
             self._trial_result = "COLLISION"
@@ -718,11 +715,16 @@ class BarnOneShot(Node):
         if not goal_handle.accepted:
             self.get_logger().error('FollowPath goal rejected')
             self._nav_sent = False
+            self.follow_goal_sent_attempts +=1 
+            if self.follow_goal_sent_attempts > self.FOLLOW_GOAL_MAX_ATTEMPTS: 
+                self.get_logger().info(f'FOllowPath goal has been rejected more than allowed attempts, restarting {self.follow_goal_sent_attempts}')
+                self.current_state = SequenceState.FAILED
             return
         self.get_logger().info('FollowPath goal accepted')
         self._follow_result_future = goal_handle.get_result_async()
         self._follow_result_future.add_done_callback(self._follow_result_cb)
         self._nav_goal_handle = goal_handle
+        self._nav_sent = True
 
     def _follow_result_cb(self, future):
         try:
@@ -1045,6 +1047,7 @@ class BarnOneShot(Node):
             self.get_logger().warn(f'Could not transform odom to map: {str(e)}')
 
         # Accumulate achieved velocity stats regardless of transform success
+        self.final_goal_tracker()
         self._accumulate_from_odom(odom_msg)
 
     def watchdog_cb(self):
@@ -1057,7 +1060,7 @@ class BarnOneShot(Node):
         # Hard trial timeout (steady time, unaffected by sim clock)
         if self.clock_running and self.trial_start_time is not None:
             elapsed = (now - self.trial_start_time).nanoseconds / 1e9
-            if elapsed > self.trial_hard_timeout_sec:
+            if elapsed > self.TRIAL_TIMEOUT_AFTER_GOAL_POSE:
                 self.get_logger().error(f"Hard timeout ({elapsed:.1f}s) — cancelling nav & failing.")
                 if self._nav_goal_handle:
                     try:
