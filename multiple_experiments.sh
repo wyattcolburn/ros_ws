@@ -127,7 +127,7 @@ for mi in "${!MODEL_PATHS[@]}"; do
       sleep "$RESET_DELAY"
 
       # Launch and block until exit
-      ros2 launch my_robot_bringup dockless.launch.py \
+      ros2 launch my_robot_bringup dwa_baseline.launch.py \
         world:=world_${WORLD_NUM} map_file:=yaml_${WORLD_NUM}.yaml
 
       # Read last line from this model's CSV

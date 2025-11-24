@@ -703,7 +703,7 @@ class MapTraining(Node):
 
         self.lidar_header_flag = True
         # Files for training data to be stored
-        self.input_bag = "/home/mobrob/ros_ws/gauss_2_noisy/2025-08-21_19-38-54_gaus"
+        self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_14-46-15_gaus"
         self.yaml_reader()
         self.write_meta_data()
         self.frame_dkr = f"{self.input_bag}/input_data/"
@@ -1092,14 +1092,17 @@ class MapTraining(Node):
         if os.path.exists(lidar_file):
             os.remove(lidar_file)
             print("lidar file")
-        # path_x = [point[0] for point in seg.map_points]
-        # path_y = [point[1] for point in seg.map_points]
 
         frames_folder = f"{output_folder}/frames"
         os.makedirs(frames_folder, exist_ok=True)
 
         for i, map_point in enumerate(seg.map_points):
 
+            path_x = [point[0]
+                      for point in seg.map_points[max(i - 500, 0) : min(len(seg.map_points) - 1, i + 1000)]]
+
+            path_y = [point[1]
+                  for point in seg.map_points[max(i - 500, 0) : min(len(seg.map_points) - 1, i + 1000)]]
             self.current_odom = (map_point[0], map_point[1])
             seg.local_goal_manager_.current_odom = self.current_odom
             active_obstacles = seg.get_obstacles(i)
@@ -1111,7 +1114,6 @@ class MapTraining(Node):
                 counter += 1
                 self.current_odom_index += 1
                 continue
-            """
             plt.clf()  # clear previous plot
             ax = plt.gca()
             ax.set_aspect('equal')
@@ -1147,8 +1149,7 @@ class MapTraining(Node):
             plt.savefig(frame_path)
 
         plt.close()
-            """
-            self.current_odom_index += 1
+        self.current_odom_index += 1
         print("done with main loop")
 
     def create_segments(self, map_points):

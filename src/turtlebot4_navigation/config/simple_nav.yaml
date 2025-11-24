@@ -7,8 +7,6 @@ bt_navigator:
     odom_topic: odom
     bt_loop_duration: 10
     default_server_timeout: 20
-    default_nav_to_pose_bt_xml: /home/mobrob/ros_ws/bt/plannerless_follow_path.xml
-    default_nav_through_poses_bt_xml: /home/mobrob/ros_ws/bt/plannerless_follow_path.xml
     # default_nav_to_pose_bt_xml: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml"
     # default_nav_through_poses_bt_xml: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"
     # 'default_nav_through_poses_bt_xml' and 'default_nav_to_pose_bt_xml' are use defaults:
@@ -100,6 +98,7 @@ controller_server:
       xy_goal_tolerance: 0.10
       yaw_goal_tolerance: 1.0
     # DWB parameters
+      #
     FollowPath:
       plugin: "onnx_controller::ONNXController"
       model_path: "/home/mobrob/ros_ws/model_path/current.onnx"
@@ -122,7 +121,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 2.0
-        inflation_radius: 0.15
+        inflation_radius: 0.00
         enabled: True
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
@@ -186,7 +185,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 1.0
-        inflation_radius: 0.15
+        inflation_radius: 0.00
         enabled: True
       always_send_full_costmap: True
 

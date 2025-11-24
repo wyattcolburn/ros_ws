@@ -1,0 +1,13 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1763750918.295395493] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1763750918.296376824] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/nov_20/world69_1121_104838/world69_1121_104838_0.db3' for READ_WRITE.
+[INFO] [1763750918.300097721] [rosbag2_recorder]: Listening for topics...
+[INFO] [1763750918.300111881] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1763750918.300221151] [rosbag2_recorder]: Recording...
+[INFO] [1763750918.402415045] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1763750918.403049517] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1763750919.316963717] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1763750919.702558697] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1763750919.703884967] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1763750919.705122086] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1763750920.326333062] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1763750920.326367730] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...

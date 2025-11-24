@@ -38,7 +38,7 @@ ARGUMENTS = [
                           default_value=PathJoinSubstitution([
                               get_package_share_directory('turtlebot4_navigation'),
                               'config',
-                              'simple_nav.yaml'
+                              'dwa_baseline.yaml'
                               ]),
                           description='Nav2 parameters'),
     DeclareLaunchArgument('namespace', default_value='',

@@ -102,7 +102,7 @@ std::pair<float, float> modulation_onnx_lidar(float odom_x, float odom_y, float 
             Obstacle currentObs;
             currentObs.center_x = proj_x;
             currentObs.center_y = proj_y;
-            currentObs.radius = .05;
+            currentObs.radius = .1;
             if (circles_intersect(T_BOT, currentObs)) {
                 p_safety_counter++;
                 break;

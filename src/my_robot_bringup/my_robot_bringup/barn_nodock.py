@@ -147,8 +147,10 @@ class BarnOneShot(Node):
             Contacts, '/bumper_contact', self.bumper_callback,
             10)
 
-        self.feedback_sub = self.create_subscription(NavigateToPose_FeedbackMessage, '/navigate_to_pose/_action/feedback',
-                                                     self.nav_feedback_callback, 10)
+        # self.feedback_sub = self.create_subscription(NavigateToPose_FeedbackMessage, '/navigate_to_pose/_action/feedback',
+        #                                              self.nav_feedback_callback, 10)
+        # self.feedback_sub = self.create_subscription(NavigateToPose_FeedbackMessage, '/navigate_to_pose/_action/feedback',
+        #                                              self.nav_feedback_callback, 10)
 
 
         self.tf_buffer = Buffer(cache_time=Duration(seconds=60.0))
@@ -384,7 +386,7 @@ class BarnOneShot(Node):
         elif self.current_state == SequenceState.CREATE_PATH:
             
             ts = datetime.datetime.now().strftime("%m%d_%H%M%S")
-            outdir = os.path.expanduser(f"~/ros_ws/new_bt_mlp_asym/world{self.world_num}_{ts}")
+            outdir = os.path.expanduser(f"~/ros_ws/dwa_baseline/world{self.world_num}_{ts}")
             self.start_bag(outdir)
             self.get_logger().info("Starting bag")
 
@@ -563,12 +565,14 @@ class BarnOneShot(Node):
                 self._trial_result = "NO_PATH"
                 self.current_state = SequenceState.FAILED
                 return
-
+            now = self.get_clock().now().to_msg()
+            path_odom.header.stamp = now
+            for ps in path_odom.poses:
+                ps.header.stamp = now
             goal = FollowPath.Goal()
             goal.path = path_odom
             goal.controller_id = 'FollowPath'     # must match your YAML key
-            goal.goal_checker_id = ''             # default
-
+            goal.goal_checker_id = 'general_goal_checker'
             self.get_logger().info(f'Sending FollowPath with {len(path_odom.poses)} poses in odom')
             self._follow_future = self.follow_client.send_goal_async(goal)
             self._follow_future.add_done_callback(self._follow_goal_response_cb) # this will set if self._nav_sent is True or false
@@ -1087,6 +1091,52 @@ class BarnOneShot(Node):
             )
 
         return out
+    # def path_to_frame(self, path_msg: Path, target_frame: str = "odom",
+    #                   lookup_timeout_sec: float = 0.25) -> Path | None:
+    #     """
+    #     Transform a nav_msgs/Path into target_frame using the **latest available TF**.
+    #     (Ignores per-pose timestamps to avoid wall/sim-time mismatches.)
+    #     """
+    #     if not path_msg.poses:
+    #         return None
+    #
+    #     src_frame = (path_msg.header.frame_id or "map").lstrip("/")
+    #     out = Path()
+    #     out.header = path_msg.header
+    #     out.header.frame_id = target_frame
+    #
+    #     # latest TF (Time()=0) so we don't depend on pose/header stamps
+    #     latest = Time()
+    #
+    #     try:
+    #         tf_latest = self.tf_buffer.lookup_transform(
+    #             target_frame, src_frame, latest, timeout=Duration(seconds=lookup_timeout_sec)
+    #         )
+    #     except (LookupException, ConnectivityException, ExtrapolationException) as e:
+    #         self.get_logger().error(f"[path_to_frame/latest] TF {src_frame}->{target_frame} unavailable: {e}")
+    #         return None
+    #
+    #     n_ok = n_skip = 0
+    #     for ps in path_msg.poses:
+    #         try:
+    #             # ps is PoseStamped → use the *stamped* helper
+    #             ps_tf: PoseStamped = do_transform_pose_stamped(ps, tf_latest)
+    #             ps_tf.header.frame_id = target_frame
+    #             out.poses.append(ps_tf)
+    #             n_ok += 1
+    #         except Exception as e:
+    #             self.get_logger().warn(f"[path_to_frame/latest] skipping pose: {e}")
+    #             n_skip += 1
+    #
+    #     if not out.poses:
+    #         self.get_logger().error("[path_to_frame/latest] all poses skipped; no output path.")
+    #         return None
+    #
+    #     self.get_logger().info(
+    #         f"[path_to_frame/latest] transformed poses: {n_ok} ok, {n_skip} skipped "
+    #         f"(src='{src_frame}' -> '{target_frame}', latest TF)"
+    #     )
+    #     return out
     def path_to_frame(self, path_msg: Path, target_frame: str = "odom",
                       lookup_timeout_sec: float = 0.25) -> Path | None:
         """
@@ -1097,9 +1147,10 @@ class BarnOneShot(Node):
             return None
 
         src_frame = (path_msg.header.frame_id or "map").lstrip("/")
+        
         out = Path()
-        out.header = path_msg.header
-        out.header.frame_id = target_frame
+        out.header.stamp = path_msg.header.stamp
+        out.header.frame_id = target_frame  # now only affects 'out', not 'path_msg'
 
         # latest TF (Time()=0) so we don't depend on pose/header stamps
         latest = Time()
@@ -1115,7 +1166,6 @@ class BarnOneShot(Node):
         n_ok = n_skip = 0
         for ps in path_msg.poses:
             try:
-                # ps is PoseStamped → use the *stamped* helper
                 ps_tf: PoseStamped = do_transform_pose_stamped(ps, tf_latest)
                 ps_tf.header.frame_id = target_frame
                 out.poses.append(ps_tf)
@@ -1133,7 +1183,6 @@ class BarnOneShot(Node):
             f"(src='{src_frame}' -> '{target_frame}', latest TF)"
         )
         return out
-
 
 
     def load_barn_path_adaptive(self, world_num, base_step=0.20, min_step=0.10, max_step=0.25, smooth_window=5):
@@ -1337,6 +1386,8 @@ class BarnOneShot(Node):
             )
 
         self.total_lg = len(path_msg.poses)
+        self.goal_x = path_msg.poses[-1].pose.position.x
+        self.goal_y = path_msg.poses[-1].pose.position.y
         return path_msg
 
 
@@ -1348,39 +1399,6 @@ class BarnOneShot(Node):
         qw = math.cos(yaw / 2.0)
         return (0.0, 0.0, qz, qw)
 
-    def restart_trial(self):
-        if self._restart_in_progress:
-            return
-        self._restart_in_progress = True
-
-        self.get_logger().info("Clearing costmaps...")
-        try:
-            subprocess.run([
-                'ros2', 'service', 'call',
-                '/global_costmap/clear_entirely_global_costmap',
-                'std_srvs/srv/Empty', '{}'
-            ], timeout=5)
-
-            subprocess.run([
-                'ros2', 'service', 'call',
-                '/local_costmap/clear_entirely_local_costmap',
-                'std_srvs/srv/Empty', '{}'
-            ], timeout=5)
-
-        except Exception as e:
-            self.get_logger().error(f"Error clearing costmaps: {e}")
-
-        self.get_logger().info("Resetting Gazebo world...")
-        try:
-            subprocess.run([
-                'ign', 'service', '-s', f'/world/world_50/reset',
-                '--reqtype', 'ignition.msgs.WorldControl',
-                '--reptype', 'ignition.msgs.Boolean',
-                '--timeout', '3000',
-                '--req', 'reset_all: true'
-            ])
-        except Exception as e:
-            self.get_logger().error(f"Error resetting sim: {e}")
 
 
     def _bag_cmd(self, outdir: str) -> list[str]:
