@@ -1,0 +1,16 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1763954001.452019182] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1763954001.452753427] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/dwa_baseline/world0_1123_191321/world0_1123_191321_0.db3' for READ_WRITE.
+[INFO] [1763954001.453152773] [rosbag2_recorder]: Listening for topics...
+[INFO] [1763954001.453163364] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1763954001.453215983] [rosbag2_recorder]: Recording...
+[INFO] [1763954001.556890267] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1763954001.558052516] [rosbag2_recorder]: Subscribed to topic '/odom'
+[WARN] [1763954001.558272161] [ROSBAG2_TRANSPORT]: Some, but not all, publishers on topic "/tf" are offering RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL. Falling back to RMW_QOS_POLICY_DURABILITY_VOLATILE as it will connect to all publishers. Previously-published latched messages will not be retrieved.
+[INFO] [1763954001.559018931] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1763954001.559524787] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1763954002.477800761] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1763954002.479058436] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1763954002.480718088] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1763954002.480763747] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+terminate called after throwing an instance of 'rosbag2_storage_plugins::SqliteException'
+  what():  Error when processing SQL statement. SQLite error (13): database or disk is full

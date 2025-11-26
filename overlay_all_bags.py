@@ -51,7 +51,7 @@ for directory in result_list:
     obstacle_type = model.split('_')[1]
     obstacle_type = "CNN"
     model_type = "MLP"
-    obstacle_title = "DWA"
+    obstacle_title = "DWA FollowPath"
     # if obstacle_type == "ASYM":
     #     obstacle_title = "Asymmetric Obstacle Placement"
     # else: 
@@ -62,7 +62,7 @@ for directory in result_list:
         "--bags", f"{world_path}/*", 
         "--odom", "/odom",
         "--plan", "/plan_barn",
-        "--out", f"{bags_dkr}/world_{world_num}_{obstacle_title}_overlay_old_path.png",
+        "--out", f"{bags_dkr}/world_{world_num}_{obstacle_title}.png",
         # "--title", f"All Odometry Overlays of World {world_num} for {model_type} with {obstacle_title}",
         "--title", f"All Odometry Overlays of World {world_num} for {obstacle_title}",
         "--map",  f"yaml_{world_num}.yaml"

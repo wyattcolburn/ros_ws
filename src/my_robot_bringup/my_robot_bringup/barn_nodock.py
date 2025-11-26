@@ -386,7 +386,7 @@ class BarnOneShot(Node):
         elif self.current_state == SequenceState.CREATE_PATH:
             
             ts = datetime.datetime.now().strftime("%m%d_%H%M%S")
-            outdir = os.path.expanduser(f"~/ros_ws/dwa_baseline/world{self.world_num}_{ts}")
+            outdir = os.path.expanduser(f"~/ros_ws/dwa_baseline_2/world{self.world_num}_{ts}")
             self.start_bag(outdir)
             self.get_logger().info("Starting bag")
 
@@ -416,7 +416,6 @@ class BarnOneShot(Node):
                 self.record_results()  # end_trial_timer is called inside
                 self.stop_bag() 
                 self.terminate()
-                self.current_state = SequenceState.RESTART
 
 
         elif self.current_state == SequenceState.FAILED:
@@ -426,9 +425,6 @@ class BarnOneShot(Node):
                 self.record_results()  # end_trial_timer is called inside
                 self.stop_bag() 
                 self.terminate()
-                self.current_state = SequenceState.RESTART
-        elif self.current_state == SequenceState.RESTART:
-            self.restart_trial()
 
     def handle_undocking(self):
         """Handle undocking phase - only sends command once"""
@@ -591,6 +587,7 @@ class BarnOneShot(Node):
             self._nav_sent = False
             self.follow_goal_sent_attempts +=1 
             if self.follow_goal_sent_attempts > self.FOLLOW_GOAL_MAX_ATTEMPTS: 
+                self._trial_result = "AMCL TIMEOUT - MAX RETRIES EXCEEDED"
                 self.get_logger().info(f'FOllowPath goal has been rejected more than allowed attempts, restarting {self.follow_goal_sent_attempts}')
                 self.current_state = SequenceState.FAILED
             return
@@ -599,12 +596,14 @@ class BarnOneShot(Node):
         self._follow_result_future.add_done_callback(self._follow_result_cb)
         self._nav_goal_handle = goal_handle
         self._nav_sent = True
-
     def _follow_result_cb(self, future):
         try:
             result_msg = future.result()
             status = result_msg.status
             print(f"status is {status}")
+            if self._trial_result is not None:
+                self.get_logger().info(f"Keeping existing: {self._trial_result}")
+                return
             if status == 4:  # SUCCESS
                 self._trial_result = "SUCCESS"
                 self.current_state = SequenceState.COMPLETED
@@ -612,7 +611,7 @@ class BarnOneShot(Node):
                 self._trial_result = "NAV_ABORTED_CONTROLLER_FAIL"
                 self.current_state = SequenceState.FAILED
             elif status == 6:  # CANCELED
-                self._trial_result = "CANCELLED"
+                self._trial_result = "NAV_ABORTED_CONTROLLER_FAIL"
                 self.current_state = SequenceState.FAILED
             else:
                 self._trial_result = f"UNKNOWN_STATUS_{status}"
@@ -775,7 +774,6 @@ class BarnOneShot(Node):
             return
 
         self.distance_remaining = self.local_goal_tracker()
-        self.final_goal_tracker()
         current_time = time.time()
 
         if current_time - self.last_progress_check_time >= self.progress_check_interval:
@@ -844,45 +842,47 @@ class BarnOneShot(Node):
         final_distance = math.hypot(dx, dy)
         print(f"Final Goal Tracker dist : {final_distance}")
         if final_distance < self.goal_tolerance_xy:
-            self._trial_result = "SUCCESS"
-            self.current_state = SequenceState.COMPLETED
-
+            if self._trial_result is None:
+                self._trial_result = "SUCCESS"
+                self.current_state = SequenceState.COMPLETED
+        return final_distance
     def odom_callback(self, odom_msg: Odometry):
         if self.current_state != SequenceState.NAVIGATING:
             return
+        
+        # Transform to map frame
+        tf_success = False
         try:
             v = (odom_msg.twist.twist.linear.x ** 2 + odom_msg.twist.twist.linear.y ** 2) ** 0.5
-            moving = v > 0.02  # tune threshold
+            moving = v > 0.02
             self.last_odom_steady = self.steady_clock.now()
+            
             if moving and not self.clock_running:
                 self.clock_running = True
                 self.trial_start_time = self.steady_clock.now()
-                self._start_trial_metrics()  # start velocity accumulators
+                self._start_trial_metrics()
                 self.get_logger().info("TIMER HAS BEGUN")
-                self.get_logger().info("TIMER HAS BEGUN")
-                self.get_logger().info("TIMER HAS BEGUN")
-                self.get_logger().info("TIMER HAS BEGUN")
-                self.get_logger().info("TIMER HAS BEGUN")
-                self.get_logger().info("TIMER HAS BEGUN")
-                self.get_logger().info("TIMER HAS BEGUN")
-                self.get_logger().info("TIMER HAS BEGUN")
-            # Pose transform to map
+            
+            # Try to get current position in map
             pose_stamped = PoseStamped()
             pose_stamped.header = odom_msg.header
             pose_stamped.pose = odom_msg.pose.pose
             map_pose = self.tf_buffer.transform(pose_stamped, 'map')
-
+            
             self.current_map_x = map_pose.pose.position.x
             self.current_map_y = map_pose.pose.position.y
-            if self.trial_start_time is not None:
-                self.get_logger().info(f'Map position: x={self.current_map_x:.2f}, y={self.current_map_y:.2f} current trial time : {self.steady_clock.now() - self.trial_start_time}')
-
+            tf_success = True
+            
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             self.get_logger().warn(f'Could not transform odom to map: {str(e)}')
-
-        # Accumulate achieved velocity stats regardless of transform success
-        self.final_goal_tracker()
-        self.local_goal_tracker()
+            # Don't update position - skip tracking this cycle
+        
+        # Only track goals if we have valid position
+        if tf_success:
+            self.final_goal_tracker()
+            self.local_goal_tracker()
+        
+        # Always accumulate velocity (doesn't need map frame)
         self._accumulate_from_odom(odom_msg)
 
     def watchdog_cb(self):
@@ -897,11 +897,6 @@ class BarnOneShot(Node):
             elapsed = (now - self.trial_start_time).nanoseconds / 1e9
             if elapsed > self.TRIAL_TIMEOUT_AFTER_GOAL_POSE:
                 self.get_logger().error(f"Hard timeout ({elapsed:.1f}s) — cancelling nav & failing.")
-                if self._nav_goal_handle:
-                    try:
-                        self._nav_goal_handle.cancel_goal_async()
-                    except Exception:
-                        pass
                 self._trial_result = "TIMEOUT"
                 self.current_state = SequenceState.FAILED
                 return
@@ -911,12 +906,7 @@ class BarnOneShot(Node):
             since_odom = (now - self.last_odom_steady).nanoseconds / 1e9
             if since_odom > self.no_odom_timeout_sec:
                 self.get_logger().error(f"No /odom for {since_odom:.2f}s — assuming system stalled.")
-                if self._nav_goal_handle:
-                    try:
-                        self._nav_goal_handle.cancel_goal_async()
-                    except Exception:
-                        pass
-                self._trial_result = "NO_ODOM"
+                self._trial_result = "ODOM_TIMEOUT"
                 self.current_state = SequenceState.FAILED
     def end_trial_timer(self):
         # Safe no-op if never started

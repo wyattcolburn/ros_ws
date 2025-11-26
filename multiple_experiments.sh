@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eE -o pipefail   # no -u
+set -eE -o pipefail   # no -uAMCL
 source ~/.bashrc
 source /opt/ros/humble/setup.bash
 source "$HOME/ros_ws/install/setup.bash" || true

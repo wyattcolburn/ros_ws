@@ -6,7 +6,7 @@ CSV_FILES:
 # - nov_21_mlp_asym/baseline.csv
 # - nov_20_cnn_sym/baseline.csv
 # - nov_20_cnn_asym/baseline.csv
-  - dwa_basline_11_23/baseline.csv
+  - dwa_baseline_11_25/baseline.csv
 MODEL_PATHS: 
 
 # - created_models/gauss_2_200_sym     # or an absolute dir path

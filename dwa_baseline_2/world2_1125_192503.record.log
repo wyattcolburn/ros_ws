@@ -1,0 +1,20 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1764127503.945816438] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1764127503.946612893] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/dwa_baseline_2/world2_1125_192503/world2_1125_192503_0.db3' for READ_WRITE.
+[INFO] [1764127503.947586612] [rosbag2_recorder]: Listening for topics...
+[INFO] [1764127503.947707747] [rosbag2_recorder]: Recording...
+[INFO] [1764127503.948461619] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1764127504.050713789] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1764127504.052387443] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1764127504.053504427] [rosbag2_recorder]: Subscribed to topic '/tf'
+[WARN] [1764127504.960615044] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1764127504.967682846] [rosbag2_recorder]: A new publisher for subscribed topic /tf was found offering RMW_QOS_POLICY_DURABILITY_VOLATILE, but rosbag2 already subscribed requesting RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL. Messages from this new publisher will not be recorded.
+[INFO] [1764127504.968663488] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1764127504.969393926] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1764127504.970347385] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1764127504.971029311] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1764127504.971041280] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[WARN] [1764127505.940394931] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[WARN] [1764127505.942600689] [rosbag2_recorder]: New publisher discovered on topic '/tf', offering incompatible QoS. No messages will be sent to it. Last incompatible policy: DURABILITY_QOS_POLICY
+[INFO] [1764127552.824469699] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1764127552.825076752] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1764127552.825106686] [rosbag2_recorder]: Recording stopped

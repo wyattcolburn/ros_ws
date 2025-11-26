@@ -11,3 +11,6 @@ stdin is not a terminal device. Keyboard handling disabled.[INFO] [1763948866.34
 [INFO] [1763948866.454720238] [rosbag2_recorder]: Subscribed to topic '/tf_static'
 [INFO] [1763948867.374171473] [rosbag2_recorder]: Subscribed to topic '/odom'
 [INFO] [1763948867.374202781] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[INFO] [1763948911.211911875] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1763948911.212509538] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1763948911.212547341] [rosbag2_recorder]: Recording stopped

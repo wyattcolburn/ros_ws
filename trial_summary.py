@@ -114,6 +114,39 @@ def save_plot(fig, name):
     fig.savefig(outpath, dpi=300, bbox_inches='tight')
     print(f"Saved {outpath}")
 
+def ranking_maps():
+
+    import numpy as np
+    import os
+    import random 
+    # Where your norm_metrics_i.npy files are
+    metrics_dir = '/home/mobrob/ros_ws/BARN_turtlebot/norm_metrics_files'
+
+    scores = []
+    for i in range(300):
+        path = os.path.join(metrics_dir, f'norm_metrics_{i}.npy')
+        metrics = np.load(path)
+
+        # Example: weighted difficulty score
+        # More negative = easier, more positive = harder
+        score = (
+            -metrics[0]  # distance to closest obstacle (lower = harder)
+            -metrics[1]  # avg visibility (lower = harder)
+            +metrics[2]  # dispersion (higher = harder)
+            +metrics[3]  # char dimension (higher = harder)
+            +metrics[4]  # tortuosity (higher = harder)
+        )
+        scores.append((i, score))
+
+    # Sort by score
+    scores.sort(key=lambda x: x[1])
+
+    # Get 3 easiest, 3 medium, 3 hardest
+
+    easy_bin = scores[0:99]
+    medium_bin = scores[100:199]
+    hard_bin = scores[200:299]
+    return scores
 # ---- Aggregate ----
 worlds = sorted(summary.keys(), key=world_key)
 
@@ -130,9 +163,25 @@ for w in worlds:
     max_frac.append(max(fracs) if fracs else 0.0)
 
 # --- Fixed buckets you chose (make sure these strings match your CSV) ---
-easy   = {'world 12','world 36','world 75'}
-medium = {'world 125','world 203','world 210'}
-hard   = {'world 69','world 187','world 266'}
+scores = None
+easy = [] 
+medium = [] 
+hard = []
+# for large results
+if len(worlds) > 9: 
+    scores= ranking_maps()
+    for i in range(0,100):
+        easy.append(f'world {scores[i]}')
+    for i in range(100,200):
+        medium.append(f'world {scores[i]}')
+    for i in range(200,300):
+        hard.append(f'world {scores[i]}')
+    
+
+else:
+    easy   = {'world 12','world 36','world 75'}
+    medium = {'world 125','world 203','world 210'}
+    hard   = {'world 69','world 187','world 266'}
 
 bucket_rank = {**{w:0 for w in easy}, **{w:1 for w in medium}, **{w:2 for w in hard}}
 
@@ -157,9 +206,12 @@ elif "cnn_sym" in input_dir:
     title_end = "CNN Trained on Symmetric Obstacles"
 else:
     title_end = "CNN Trained on Asymmetric Obstacles"
-title_end = "MLP Trained on Asymmetric Obstacles"
+title_end = "DWA"
 print(f"title end is {title_end}")
-labels = [world_id(w) for w in worlds]
+if len(worlds) > 9:
+    labels = [world_id(w) for w in worlds]
+else: 
+    labels = [world_id(w) for w in worlds]
 def _reord(a): return [a[i] for i in order_idx]
 worlds    = _reord(worlds)
 worlds = [world_id(w) for w in worlds]
@@ -167,13 +219,16 @@ successes = _reord(successes)
 failures  = _reord(failures)
 avg_frac  = _reord(avg_frac)
 max_frac  = _reord(max_frac)
+
+
 # ---- 1) Successes per world ----
 fig, ax = plt.subplots(figsize=(10, 6))
 ax.bar(worlds, successes, color='C0')
 ax.set_title(f'Successful Trials per World for {title_end}')
 ax.set_xlabel('Worlds (easy → hard)')
-ax.set_ylim(0, 10)                 # top at 10
-ax.set_yticks(range(0, 11, 1))     # 0,1,...,10
+ax.set_xticklabels([])  # Remove x-axis labels
+ax.set_ylim(0, 5)                 # top at 10
+ax.set_yticks(range(0, 5, 1))     # 0,1,...,10
 nice_grid(ax, y_major=1)           # optional: subtle grid every 1
 ax.set_ylabel('# Successes')
 plt.setp(ax.get_xticklabels(), rotation=45, ha='right')

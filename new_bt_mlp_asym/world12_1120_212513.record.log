@@ -12,3 +12,5 @@ stdin is not a terminal device. Keyboard handling disabled.[INFO] [1763702713.70
 [INFO] [1763702713.817186267] [rosbag2_recorder]: Subscribed to topic '/tf'
 [INFO] [1763702714.739422651] [rosbag2_recorder]: Subscribed to topic '/tf_static'
 [INFO] [1763702714.739455194] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+terminate called after throwing an instance of 'rosbag2_storage_plugins::SqliteException'
+  what():  Error when processing SQL statement. SQLite error (13): database or disk is full
