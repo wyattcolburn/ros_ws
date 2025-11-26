@@ -320,7 +320,7 @@ WORLD_NUMS:
 - 297
 - 298
 - 299
-NUM_TRIALS: 3
+NUM_TRIALS: 2
 RESET_DELAY: 5
 BAG_DKR: gauss_2_noisy
 TRAINING_DKR: ros_bag/gauss_2_sym_noise
