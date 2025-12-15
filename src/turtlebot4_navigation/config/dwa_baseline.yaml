@@ -83,8 +83,8 @@ controller_server:
 
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.10
-      movement_time_allowance: 10.0
+      required_movement_radius: 0.08
+      movement_time_allowance: 15.0
 
     general_goal_checker:
       stateful: True
@@ -115,8 +115,8 @@ controller_server:
       decel_lim_y: 0.0
       decel_lim_theta: -3.2
 
-      vx_samples: 20
-      vtheta_samples: 20
+      vx_samples: 25
+      vtheta_samples: 30
       sim_time: 2.5
       linear_granularity: 0.05
       angular_granularity: 0.025
@@ -131,11 +131,11 @@ controller_server:
 
       critics: ["Oscillation", "BaseObstacle", "PathDist", "GoalDist", "PathAlign", "GoalAlign", "RotateToGoal"]
       BaseObstacle.scale: 0.02
-      PathAlign.scale: 32.0
+      PathAlign.scale: 24.0
       PathAlign.forward_point_distance: 0.1
       GoalAlign.scale: 24.0
       GoalAlign.forward_point_distance: 0.1
-      PathDist.scale: 32.0
+      PathDist.scale: 24.0
       GoalDist.scale: 24.0
       RotateToGoal.scale: 32.0
       RotateToGoal.slowing_factor: 5.0

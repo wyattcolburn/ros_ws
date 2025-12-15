@@ -1,0 +1,19 @@
+stdin is not a terminal device. Keyboard handling disabled.[37;1m2025-11-29 18:26:49.746 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7487: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2025-11-29 18:26:49.746 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7489: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[INFO] [1764469609.758616747] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1764469609.759948594] [rosbag2_storage]: Opened database '/home/mobrob/ros_ws/dwa_baseline_2/world218_1129_182649/world218_1129_182649_0.db3' for READ_WRITE.
+[INFO] [1764469609.760649887] [rosbag2_recorder]: Listening for topics...
+[INFO] [1764469609.760662436] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1764469609.760805483] [rosbag2_recorder]: Recording...
+[INFO] [1764469609.866890532] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1764469609.868584359] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1764469609.870604531] [rosbag2_recorder]: Subscribed to topic '/scan'
+[WARN] [1764469609.871213035] [ROSBAG2_TRANSPORT]: Some, but not all, publishers on topic "/tf" are offering RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL. Falling back to RMW_QOS_POLICY_DURABILITY_VOLATILE as it will connect to all publishers. Previously-published latched messages will not be retrieved.
+[INFO] [1764469609.873086028] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1764469609.874552711] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1764469610.800208510] [rosbag2_recorder]: Subscribed to topic '/plan_barn'
+[INFO] [1764469610.801490901] [rosbag2_recorder]: Subscribed to topic '/plan_barn_odom'
+[INFO] [1764469610.801511869] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[INFO] [1764469670.637704110] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1764469670.638336421] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1764469670.638393264] [rosbag2_recorder]: Recording stopped

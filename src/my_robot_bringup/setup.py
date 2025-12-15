@@ -10,7 +10,7 @@ setup(
         # Install launch files
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/turtlebot4_ignition.launch.py', 'launch/ros_ign_bridge.launch.py', 'launch/turtlebot4_nodes.launch.py', 'launch/turtlebot4_spawn.launch.py', 'launch/training.launch.py', 'launch/undock.launch.py', 'launch/testing.launch.py', 'launch/simple_bringup.launch.py', 'launch/exp_validation.launch.py', 'launch/one_shot_launch.launch.py', 'launch/barn_test.launch.py', 'launch/dockless.launch.py', 'launch/dwa_baseline.launch.py']),
+        ('share/' + package_name + '/launch', ['launch/turtlebot4_ignition.launch.py', 'launch/ros_ign_bridge.launch.py', 'launch/turtlebot4_nodes.launch.py', 'launch/turtlebot4_spawn.launch.py', 'launch/training.launch.py', 'launch/undock.launch.py', 'launch/testing.launch.py', 'launch/simple_bringup.launch.py', 'launch/exp_validation.launch.py', 'launch/one_shot_launch.launch.py', 'launch/barn_test.launch.py', 'launch/dockless.launch.py', 'launch/dockless_old.launch.py', 'launch/dwa_baseline.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -31,6 +31,7 @@ setup(
             'one_shot= my_robot_bringup.one_shot_trial:main',
             'barn_one_shot = my_robot_bringup.barn_one_shot:main',
             'barn_nodock= my_robot_bringup.barn_nodock:main',
+            'barn_nodock_old= my_robot_bringup.barn_nodock_old:main',
             'gaussian= my_robot_bringup.gaussian_random_walk:main',
             'new_gaussian= my_robot_bringup.new_gaussian_random_walk:main',
             'agro_gaus= my_robot_bringup.agro_gaussian:main',
