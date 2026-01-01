@@ -1,11 +1,27 @@
-# LFH Thesis
-Replacing DWA local controller with a neural network trained on hallucinated lidar
+# LFH Thesis: Neural Network Navigation Controller
 
+> Replacing DWA local controller with a neural network trained on hallucinated LiDAR data for autonomous robot navigation
 
+## 🛠️ Tech Stack
 
-## How It's Made:
+- **ROS 2 Humble** - Robot Operating System
+- **C++** - Controller implementation
+- **Python** - Data processing and training
+- **Keras/TensorFlow** - Neural network training
+- **ONNX** - Model deployment
+- **Gazebo Ignition** - Simulation environment
 
-**Tech used:** ROS2, C++, Python, Keras, ONNX,
+---
+
+## 📋 Table of Contents
+
+- [Setup Modifications](#setup-modifications)
+- [Creating Maps](#creating-maps)
+- [Generating Training Data](#generating-training-data)
+- [Converting ROS Bags](#converting-ros-bags-to-training-data)
+- [Dataset Information](#dataset-information)
+
+---
 
 
 ## Important Commands:
