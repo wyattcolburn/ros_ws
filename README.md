@@ -64,7 +64,7 @@ ros2 launch my_robot_bringup training.launch.py
 period=15.0,  # 15 second delay before spawning random walk
 actions=[Node(
     package='my_robot_bringup',
-    executable='gaussian_random_walk',
+    executable='gaussian',
     output='screen')]
 ```
 
@@ -114,6 +114,11 @@ ros2 launch turtlebot4_navigation nav2.launch.py use_sim_time:=true
 # Terminal 4: Run processing script
 ros2 run my_robot_bringup multiple
 ```
+---
+
+## Experimental Trials
+
+
 ## Important Commands:
 
 **Creating a map:** 
@@ -195,7 +200,27 @@ See diff against original:
 ```bash
 diff src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py \
      /opt/ros/humble/share/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py
-``
+
+
+```
+
+---
+
+## Example
+
+1) We will determine which random walk policy well will use on line 63 of training.launch.py (reference Random Walk Policy)
+2) In config.yaml, we will define RANDOM_WALK_BAG_DKR: as readme_example (this is where all the bags from the random walk policy will exist)
+3) We will build the package and execute ros2 launch my_robot_bringup training.launch.py
+4) You can use the python program: odom_counter.py to count the odometry count of your ros bags
+
+     ```
+   python3 odom_counter.py ros_bag/readme_example ``
+     ```
+5) We know want to create the dataset.
+   a) We first will edit the config.yaml. Make sure TRAINING_DKR matches you where you stored all your random walk bags (should have been defined as RANDOM_WALK_BAG_DKR in config.yaml)
+   b) If you want asymmetric obstacle placement, have the ASYM_FLAG be 1 in config.yaml
+
+
 
 
 
