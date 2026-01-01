@@ -46,6 +46,74 @@ diff src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py \
 
 </details>
 
+---
+
+## 🎲 Generating Training Data
+
+### Random Walk Expert Policy
+
+Random walks provide the expert behavior that the learning policy will imitate.
+```bash
+ros2 launch my_robot_bringup training.launch.py
+```
+
+### Configuration
+
+**Robot spawn timing:**
+```python
+period=15.0,  # 15 second delay before spawning random walk
+actions=[Node(
+    package='my_robot_bringup',
+    executable='gaussian_random_walk',
+    output='screen')]
+```
+
+**Bag storage location:**  
+Defined in `config.yaml` under `RANDOM_WALK_BAG_DKR`
+
+**Recorded topics:**
+```python
+bag_record = ExecuteProcess(
+    cmd=[
+        'ros2', 'bag', 'record',
+        '/scan',        # LiDAR data
+        '/tf',          # Transform tree
+        '/tf_static',   # Static transforms
+        '/odom',        # Odometry
+        '/cmd_vel',     # Velocity commands
+        '/clock',       # Simulation time
+        '-o', bag_output
+    ],
+    output='screen'
+)
+```
+
+---
+
+## 📊 Converting ROS Bags to Training Data
+
+### Processing Script
+
+Location: `~/ros_ws/src/my_robot_bringup/my_robot_bringup/multiple_seg.py`
+
+### Prerequisites
+
+Start the following nodes in separate terminals:
+```bash
+# Terminal 1: Start simulator
+ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py
+
+# Terminal 2: Start localization
+ros2 launch turtlebot4_navigation localization.launch.py \
+    map:=big_map_april_4.yaml \
+    use_sim_time:=true
+
+# Terminal 3: Start Nav2 (must use DWA, not custom controller)
+ros2 launch turtlebot4_navigation nav2.launch.py use_sim_time:=true
+
+# Terminal 4: Run processing script
+ros2 run my_robot_bringup multiple
+```
 ## Important Commands:
 
 **Creating a map:** 
@@ -63,38 +131,7 @@ ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "name:
 
 ```
 
-**Random walks:**
 
-A random walk is the expert behavior the learning policy will learn. 
-```
-ros2 launch my_robot_bringup training.launch.py
-```
-This launch file will spawn the robot in a sandbox (launch parameter) and execute the node (which defines the random walk policy) as defined here:
-
-```
-        period=15.0,
-        actions=[Node(
-            package='my_robot_bringup',
-            executable='gaussian_random_walk',  # You need to create this
-            output='screen')]
-
-    )
-```
-
-The random walk bags will be stored as defined in config.yaml by the "RANDOM_WALK_BAG_DKR." The topics which will be defined can be modified here:
-```
-    bag_record = ExecuteProcess(
-        cmd=[
-            'ros2', 'bag', 'record',
-            '/scan', '/tf', '/tf_static',
-            '/odom', '/cmd_vel', '/clock',
-            '-o', bag_output
-        ],
-        output='screen'
-    )
-
-
-```
 
 **Converting a rosbag to training data**
 
