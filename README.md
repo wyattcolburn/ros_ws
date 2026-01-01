@@ -26,12 +26,37 @@ ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "name:
 ```
 
 **Random walks:**
+
+A random walk is the expert behavior the learning policy will learn. 
 ```
 ros2 launch my_robot_bringup training.launch.py
 ```
-This launch file starts the simulator but also calls the file undock_node: ~/ros_ws/src/my_robot_bringup/my_robot_bringup/undock_node.py
+This launch file will spawn the robot in a sandbox (launch parameter) and execute the node (which defines the random walk policy) as defined here:
 
-This starts a rosbag and does random walk
+```
+        period=15.0,
+        actions=[Node(
+            package='my_robot_bringup',
+            executable='gaussian_random_walk',  # You need to create this
+            output='screen')]
+
+    )
+```
+
+The random walk bags will be stored as defined in config.yaml by the "RANDOM_WALK_BAG_DKR." The topics which will be defined can be modified here:
+```
+    bag_record = ExecuteProcess(
+        cmd=[
+            'ros2', 'bag', 'record',
+            '/scan', '/tf', '/tf_static',
+            '/odom', '/cmd_vel', '/clock',
+            '-o', bag_output
+        ],
+        output='screen'
+    )
+
+
+```
 
 **Converting a rosbag to training data**
 
@@ -95,9 +120,8 @@ See diff against original:
 ```bash
 diff src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py \
      /opt/ros/humble/share/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py
-```
+``
 
 
-Removing all instances of dock (description, spawn, directory) always the robot to spawn with no dock. This elimates the need to undock before conduction random walks or experiments
 
 
