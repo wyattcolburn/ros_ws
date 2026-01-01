@@ -86,6 +86,18 @@ gauss_2_combined_raw: is currently trained with asymetric policy on the combinat
 
 gauss_2_combined_asy: Not sure what this is, I figure it is a the part1 and part2 combined trained in the same way that gauss_2_combined_raw is??
 
+## TurtleBot4 Setup Modifications
 
+### No Dock Spawning
+Modified `turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py` to remove charging dock spawn (not needed for navigation testing).
+
+See diff against original:
+```bash
+diff src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py \
+     /opt/ros/humble/share/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py
+```
+
+
+Removing all instances of dock (description, spawn, directory) always the robot to spawn with no dock. This elimates the need to undock before conduction random walks or experiments
 
 
