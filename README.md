@@ -23,6 +23,28 @@
 
 ---
 
+## 🔧 Setup Modifications
+
+### Removed Dock Spawning
+
+The default TurtleBot4 simulation spawns with a charging dock. This has been removed as it's unnecessary for navigation experiments.
+
+**Modified file:** `turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py`
+
+<details>
+<summary>View changes</summary>
+```bash
+diff src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py \
+     /opt/ros/humble/share/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py
+```
+
+**Changes:**
+- Removed dock description import and launch inclusion
+- Removed dock spawn node
+- Removed dock positioning calculations
+- Removed `dock_name` parameters from ROS-Ignition bridge
+
+</details>
 
 ## Important Commands:
 
