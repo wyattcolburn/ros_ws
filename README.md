@@ -216,9 +216,12 @@ diff src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py \
      ```
    python3 odom_counter.py ros_bag/readme_example ``
      ```
-5) We know want to create the dataset.
+5) We now want to create the dataset.
+
    a) We first will edit the config.yaml. Make sure TRAINING_DKR matches you where you stored all your random walk bags (should have been defined as RANDOM_WALK_BAG_DKR in config.yaml)
    b) If you want asymmetric obstacle placement, have the ASYM_FLAG be 1 in config.yaml
+   c) ros2 launch my_robot_bringup simple_bringup.launch.py && rviz2
+   d) set an initial position and then the script will create the dataset
 
 
 
