@@ -224,7 +224,11 @@ diff src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py \
    d) set an initial position and then the script will create the dataset
 
 
+6) Use model repo:
+python3 neural_net.py ~/ros_ws/ros_bag/readme_example --single --large_dkr
 
+7) Move model into ~/ros_ws/created_models/readme_example_model
+8) Make appropiate edits to config.yaml
 
 
 
