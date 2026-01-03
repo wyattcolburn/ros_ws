@@ -818,3 +818,163 @@ python3 training_path_overlay.py ros_bag/readme_example --downsample 10
 - **Cross (×):** End position of each path
 - **Legend:** Bag file timestamps (if not too many)
 
+## Automated Testing Script (`multiple_scripts.sh`)
+
+**Location:** `~/ros_ws/multiple_scripts.sh`
+
+### Purpose
+
+Automated batch testing framework that evaluates trained models across multiple BARN worlds and trials. This script orchestrates the complete testing pipeline: model deployment, world loading, trial execution, and result collection.
+
+### What It Does
+
+**High-level workflow:**
+1. Reads configuration from `config.yaml` (models, worlds, trial counts)
+2. For each model:
+   - Deploys ONNX model and scaler files to runtime directory
+   - Determines architecture (MLP vs CNN) based on file presence
+   - Rebuilds controller with correct variant
+3. For each world:
+   - Copies world `.sdf` file and map files to appropriate locations
+   - Runs N trials (configured via `NUM_TRIALS`)
+   - Records results to model-specific CSV file
+4. Handles failures gracefully:
+   - Retries trials on AMCL timeouts
+   - Skips counting failed navigation server starts
+   - Cleans up Gazebo processes between trials
+
+### Usage
+
+**Basic execution:**
+```bash
+./multiple_scripts.sh
+```
+
+**Prerequisites:**
+- Models in `~/ros_ws/created_models/`
+- BARN world files in `~/ros_ws/BARN_turtlebot/world_files/`
+- BARN map files in `~/ros_ws/BARN_turtlebot/map_files/`
+- `config.yaml` properly configured
+
+### Configuration (via `config.yaml`)
+
+The script reads these parameters:
+```yaml
+MODEL_PATHS:              # List of models to test
+  - created_models/gauss_2_asym_combo
+  - created_models/cnn_sym
+
+CSV_FILES:                # Output CSV per model (auto-generated if omitted)
+  - results/model1/baseline.csv
+  - results/model2/baseline.csv
+
+WORLD_NUMS:               # BARN worlds to test
+  [12, 36, 75, 125, 203, 210, 69, 187, 266]
+
+NUM_TRIALS: 5             # Trials per world
+RESET_DELAY: 3            # Cooldown between trials (seconds)
+```
+
+### Model Detection Logic
+
+**Automatic architecture detection:**
+- If scaler files (`*_scaler_mins.txt`, `*_scaler_maxs.txt`) exist → **MLP mode**
+- If scaler files missing → **CNN mode**
+- Rebuilds ONNX controller package with correct `CONTROLLER_VARIANT` flag
+
+### Output
+
+**Console output:**
+```
+=== MODEL[0]: created_models/gauss_2_asym_combo -> CSV: results/model1/baseline.csv ===
+Staged model: gauss_2_asym_combo_mlp_model.onnx
+  scaler_mins.txt
+  scaler_maxs.txt
+
+=== Starting experiments for world 12 (model idx 0) ===
+___ Starting Trial 1 for world 12 ___
+  ✓ Trial 1 completed with result: SUCCESS
+
+___ Starting Trial 2 for world 12 ___
+  ✗ Trial 2 completed with result: COLLISION
+...
+```
+
+**CSV output** (one per model):
+```csv
+world_num,trial_num,trial_result,local_goal_reached,num_lg,TRIAL_TIME,CMD_AVG_LIN,CMD_AVG_ANG,ODOM_AVG_LIN,ODOM_AVG_ANG
+12,1,SUCCESS,45,45,34.2,0.18,0.12,0.17,0.11
+12,2,COLLISION,23,45,18.5,0.21,0.15,0.20,0.14
+...
+```
+
+### Key Features
+
+**Robustness:**
+- ✅ Automatic Gazebo cleanup between trials
+- ✅ Retry logic for AMCL/navigation failures
+- ✅ Per-model CSV isolation (prevents data mixing)
+- ✅ Graceful handling of missing scaler files
+
+**Flexibility:**
+- ✅ Test multiple models sequentially
+- ✅ Mix MLP and CNN architectures
+- ✅ Customize trial counts and delays
+- ✅ Resume from failures (CSV appends results)
+
+**Deployment:**
+- ✅ Versioned model staging (preserves history)
+- ✅ Symlink-based "current model" switching
+- ✅ Automatic controller recompilation per architecture
+
+### Trial Result Handling
+
+The script monitors each trial's outcome and takes appropriate action:
+
+| Result | Action |
+|--------|--------|
+| `SUCCESS` | Count trial, continue |
+| `COLLISION` | Count trial, continue |
+| `TIMEOUT` | Count trial, continue |
+| `AMCL TIMEOUT - MAX RETRIES EXCEEDED` | Retry (don't count) |
+| `NAV_SERVER_UNAVAILABLE` | Retry (don't count) |
+
+### Runtime Estimation
+```
+Total time ≈ NUM_MODELS × NUM_WORLDS × NUM_TRIALS × (AVG_TRIAL + RESET_DELAY)
+
+Example:
+  2 models × 9 worlds × 5 trials × (60s + 3s) = 5,670s ≈ 1.6 hours
+```
+
+### Troubleshooting
+
+**Script exits immediately:**
+- Check model paths in `config.yaml` are correct
+- Verify `.onnx` files exist in model directories
+
+**Gazebo not cleaning up:**
+- Increase `RESET_DELAY` to 5+ seconds
+- Manually kill: `pkill -9 -f "ign gazebo"`
+
+**Wrong controller variant:**
+- Verify scaler files are named: `*_scaler_mins.txt` and `*_scaler_maxs.txt`
+- Check console output for "MLP" or "CNN" mode confirmation
+
+**CSV not created:**
+- Ensure output directory exists: `mkdir -p ~/ros_ws/results/model_name`
+- Check file permissions in `~/ros_ws/`
+
+### Integration with Analysis
+
+After completion, analyze results with:
+```bash
+python3 trial_summary.py results/model1
+python3 trial_summary.py results/model2
+```
+
+This generates comparison plots and statistics for each tested model.
+
+---
+
+**Note:** This script is designed for hands-off overnight testing. It can run for hours/days depending on configuration. Monitor initial trials to ensure proper setup before leaving unattended.
