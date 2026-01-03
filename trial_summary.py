@@ -226,7 +226,7 @@ fig, ax = plt.subplots(figsize=(10, 6))
 ax.bar(worlds, successes, color='C0')
 ax.set_title(f'Successful Trials per World for {title_end}')
 ax.set_xlabel('Worlds (easy → hard)')
-ax.set_xticklabels([])  # Remove x-axis labels
+# ax.set_xticklabels([])  # Remove x-axis labels
 ax.set_ylim(0, 5)                 # top at 10
 ax.set_yticks(range(0, 5, 1))     # 0,1,...,10
 nice_grid(ax, y_major=1)           # optional: subtle grid every 1

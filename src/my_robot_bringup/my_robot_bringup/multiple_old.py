@@ -67,7 +67,7 @@ def euler_from_quaternion(x, y, z, w):
 
 class Segment():
 
-    def __init__(self, map_points, node, RADIUS, OFFSET, start_index=None, end_index=None, seg_seed =42):
+    def __init__(self, map_points, node, RADIUS, OFFSET, asym_flag, start_index=None, end_index=None, seg_seed =42):
 
         self.map_points = map_points
         self.node = node
@@ -76,6 +76,7 @@ class Segment():
         self.start_index = start_index
         self.end_index = end_index
         self.seg_seed = seg_seed
+        self.asym_flag = asym_flag 
 
     def init(self):
         print("ininting") 
@@ -192,7 +193,7 @@ class Segment():
             f"created the local_goals : {len(self.local_goal_manager_.data)}")
 
     def create_obstacles(self):
-        self.obstacle_manager_.create_all_obstacle()
+        self.obstacle_manager_.create_all_obstacle(self.asym_flag)
         print(
             f"created the obstacles {len(self.obstacle_manager_.obstacle_array)}")
 
@@ -407,11 +408,13 @@ class Obstacle_Manager():
         # Return distance to closest point
         return math.sqrt((px - closest_x)**2 + (py - closest_y)**2)
 
-    def create_all_obstacle(self):
+    def create_all_obstacle(self, asym_flag):
         data = self.local_goal_manager_.data
         for i in range(len(data)-1):
-            self.obstacle_creation(data[i], data[i+1], i=i)
-            # self.obstacle_creation_sym(data[i], data[i+1])
+            if asym_flag: 
+                self.obstacle_creation(data[i], data[i+1], i=i)
+            else: 
+                self.obstacle_creation_sym(data[i], data[i+1])
         print("All obstacles created")
     # def create_all_obstacle(self):
     #
@@ -977,8 +980,8 @@ class Local_Goal_Manager():
             lg_yaw_upsampled.append(yaw)
             lg_upsampled.append(currentLocalGoal)
             odomCounter += 1
-            print("len of lg_upsampled", len(lg_upsampled),
-                  len(map_points), lgCounter, len(self.data))
+            # print("len of lg_upsampled", len(lg_upsampled),
+            #       len(map_points), lgCounter, len(self.data))
         print(len(lg_upsampled) == len(map_points))
 
         with open(output_csv, 'w', newline='') as csvfile:
@@ -1034,7 +1037,7 @@ def odom_to_map(node, odom_x, odom_y, odom_frame='odom', map_frame='map'):
 
 
 class MapTraining(Node):
-    def __init__(self, input_bag_path=None):
+    def __init__(self, input_bag_path=None, asym_flag=None):
         super().__init__('map_training_node')
 
         # TF setup
@@ -1069,6 +1072,7 @@ class MapTraining(Node):
         self.distances = [0] * self.NUM_LIDAR
 
         self.lidar_header_flag = True
+        self.asym_flag = asym_flag
         # Files for training data to be stored
 
         if input_bag_path:
@@ -1076,6 +1080,8 @@ class MapTraining(Node):
         else:
             # Keep your default for backward compatibility
             self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_14-46-15_gaus/"
+        
+        
         # self.input_bag = "/home/mobrob/ros_ws/ros_bag/gauss_2/2025-08-30_15-40-10_gaus"
 
         self.adaptive_flag = True
@@ -1252,7 +1258,6 @@ class MapTraining(Node):
                          '/cmd_vel')  # turned bag into csv
         self.oversample_cmdVel3(
             self.odom_csv_file, self.cmd_csv, self.cmd_output_csv)
-
         df = pd.read_csv(self.odom_csv_file)
         self.odom_x = df['odom_x'].tolist()
         self.odom_y = df['odom_y'].tolist()
@@ -1455,15 +1460,15 @@ class MapTraining(Node):
             # NEW: adaptive goals for this segment
 
             
-            adapt = getattr(seg.local_goal_manager_, "adaptive_local_goals", [])
-            # 1) sparse list (few dozen rows typically)
-            seg.local_goal_manager_.save_goals_csv(
-                adapt, f"{output_folder}/adaptive_local_goals_sparse.csv"
-            )
-            # 2) upsampled to odom rows (same length as odom_curr)
-            seg.local_goal_manager_.upsample_goals_to_path(
-                adapt, seg.map_points, f"{output_folder}/adaptive_local_goals.csv"
-            )
+            # adapt = getattr(seg.local_goal_manager_, "adaptive_local_goals", [])
+            # # 1) sparse list (few dozen rows typically)
+            # seg.local_goal_manager_.save_goals_csv(
+            #     adapt, f"{output_folder}/adaptive_local_goals_sparse.csv"
+            # )
+            # # 2) upsampled to odom rows (same length as odom_curr)
+            # seg.local_goal_manager_.upsample_goals_to_path(
+            #     adapt, seg.map_points, f"{output_folder}/adaptive_local_goals.csv"
+            # )
             print(
                 f"Segment: start_index={seg.start_index}, end_index={seg.end_index}")
 
@@ -1514,7 +1519,6 @@ class MapTraining(Node):
                      linestyle='-', markersize=3, color='blue', label="odometry path")
 
 
-            print("local goal count")
             for obstacle in active_obstacles:
                 circle = patches.Circle(
                 (obstacle.center_x, obstacle.center_y),
@@ -1568,7 +1572,7 @@ class MapTraining(Node):
                     start_index = int(row[1])
                     end_index = int(row[2])
                     curr_seg = Segment(
-                        self.map_points[start_index:end_index+1], self, self.RADIUS, self.OFFSET, start_index, end_index)
+                        self.map_points[start_index:end_index+1], self, self.RADIUS, self.OFFSET, asym_flag = self.asym_flag, start_index = start_index, end_index = end_index)
                     curr_seg.init()
                     segments.append(curr_seg)
 
@@ -1583,7 +1587,7 @@ class MapTraining(Node):
                         end_index = i
                         seg_seed = end_index + BASE_SEED
                         curr_seg_ = Segment(
-                            current_segment, self, self.RADIUS, self.OFFSET, start_index, end_index, seg_seed)
+                            current_segment, self, self.RADIUS, self.OFFSET, self.asym_flag, start_index, end_index, seg_seed)
                         curr_seg_.init()
                         start_index = i
                         segments.append(curr_seg_)
@@ -1598,7 +1602,7 @@ class MapTraining(Node):
                 end_index = len(map_points) - 1
                 seg_seed = BASE_SEED + end_index
                 curr_seg_ = Segment(
-                    current_segment, self, self.RADIUS, self.OFFSET,
+                    current_segment, self, self.RADIUS, self.OFFSET, self.asym_flag,
                     start_index, end_index, seg_seed
                 )
                 curr_seg_.init()
@@ -2018,7 +2022,7 @@ class MapTraining(Node):
             distances[i] = r
 
         self.distances = distances
-        self.get_logger().info("Calculated distances (front-cap)")
+        # self.get_logger().info("Calculated distances (front-cap)")
         return distances
     def ray_tracing(self, pose, segment, active_obstacles):
         """
@@ -2080,7 +2084,7 @@ class MapTraining(Node):
             # Clamp to sensor limits
         # store + return
         self.distances = distances
-        self.get_logger().info("Calculated distances")
+        # self.get_logger().info("Calculated distances")
         return distances
     def ray_data_append(self, filename=None):
 
@@ -2175,12 +2179,13 @@ def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_bag', type=str, 
                        help='Path to input bag directory')
-    
+    parser.add_argument('--asym', action='store_true', 
+                       help='Use asymmetric obstacle placement (default: symmetric)')   
     # Parse known args to allow ROS2 args to pass through
     parsed_args, unknown = parser.parse_known_args()
     
     rclpy.init(args=unknown)  # Pass remaining args to ROS2
-    test_node = MapTraining(input_bag_path=parsed_args.input_bag)
+    test_node = MapTraining(input_bag_path=parsed_args.input_bag, asym_flag=parsed_args.asym)
     
     try:
         # Keep spinning until shutdown is requested

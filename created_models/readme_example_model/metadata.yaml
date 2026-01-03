@@ -1,0 +1,112 @@
+run:
+  timestamp: '2026_01_01_18_44'
+  output_dir: data_set/2026_01_01_18_44
+datasets:
+- name: 2026-01-01_13-06-59_gaus
+  path: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-06-59_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-06-59_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-06-59_gaus/combined_labels.csv
+  features_shape:
+    rows: 7023
+    cols: 1085
+  labels_shape:
+    rows: 7023
+    cols: 2
+  seg_directories_processed: 4
+- name: 2026-01-01_12-44-55_gaus
+  path: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_12-44-55_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_12-44-55_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_12-44-55_gaus/combined_labels.csv
+  features_shape:
+    rows: 23502
+    cols: 1085
+  labels_shape:
+    rows: 23502
+    cols: 2
+  seg_directories_processed: 4
+- name: 2026-01-01_13-29-01_gaus
+  path: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-29-01_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-29-01_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-29-01_gaus/combined_labels.csv
+  features_shape:
+    rows: 8822
+    cols: 1085
+  labels_shape:
+    rows: 8822
+    cols: 2
+  seg_directories_processed: 4
+- name: 2026-01-01_13-09-29_gaus
+  path: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-09-29_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-09-29_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-09-29_gaus/combined_labels.csv
+  features_shape:
+    rows: 8152
+    cols: 1085
+  labels_shape:
+    rows: 8152
+    cols: 2
+  seg_directories_processed: 4
+- name: 2026-01-01_13-12-22_gaus
+  path: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-12-22_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-12-22_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-12-22_gaus/combined_labels.csv
+  features_shape:
+    rows: 8854
+    cols: 1085
+  labels_shape:
+    rows: 8854
+    cols: 2
+  seg_directories_processed: 4
+- name: 2026-01-01_13-23-13_gaus
+  path: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-23-13_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-23-13_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-23-13_gaus/combined_labels.csv
+  features_shape:
+    rows: 18795
+    cols: 1085
+  labels_shape:
+    rows: 18795
+    cols: 2
+  seg_directories_processed: 1
+- name: 2026-01-01_13-18-21_gaus
+  path: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-18-21_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-18-21_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-18-21_gaus/combined_labels.csv
+  features_shape:
+    rows: 7916
+    cols: 1085
+  labels_shape:
+    rows: 7916
+    cols: 2
+  seg_directories_processed: 4
+- name: 2026-01-01_13-20-54_gaus
+  path: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-20-54_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-20-54_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_13-20-54_gaus/combined_labels.csv
+  features_shape:
+    rows: 6805
+    cols: 1085
+  labels_shape:
+    rows: 6805
+    cols: 2
+  seg_directories_processed: 4
+- name: 2026-01-01_12-40-05_gaus
+  path: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_12-40-05_gaus
+  features_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_12-40-05_gaus/combined_features.csv
+  labels_csv: /home/mobrob/ros_ws/ros_bag/readme_example/2026-01-01_12-40-05_gaus/combined_labels.csv
+  features_shape:
+    rows: 6517
+    cols: 1085
+  labels_shape:
+    rows: 6517
+    cols: 2
+  seg_directories_processed: 4
+combined:
+  features_shape:
+    rows: 96386
+    cols: 1085
+  labels_shape:
+    rows: 96386
+    cols: 2
+  num_datasets: 9
+  total_rows: 96386

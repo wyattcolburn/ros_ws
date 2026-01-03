@@ -1,8 +1,7 @@
-
 #!/bin/bash
-
 # Read the directory path from YAML
 INPUT_BAG_DKR=$(yq '.TRAINING_DKR' config.yaml)
+ASYM_FLAG=$(yq '.ASYM_FLAG' config.yaml)
 
 # Create array of all subdirectories
 BAG_PATHS=()
@@ -15,17 +14,22 @@ echo "Found ${#BAG_PATHS[@]} directories in $INPUT_BAG_DKR:"
 for i in "${!BAG_PATHS[@]}"; do
     echo "  [$((i+1))] ${BAG_PATHS[$i]}"
 done
+
 for bag_path in "${BAG_PATHS[@]}"; do
     echo "Processing: $(basename "$bag_path")"
     
-    # Pass the bag path to your Python script
-    ros2 run my_robot_bringup sym_noise --input_bag "$bag_path"
+    # Build the command based on ASYM_FLAG
+    if [ "$ASYM_FLAG" -eq 1 ]; then
+        echo "Using asymmetric obstacle placement"
+        ros2 run my_robot_bringup old_multiple --input_bag "$bag_path" --asym
+    else
+        echo "Using symmetric obstacle placement"
+        ros2 run my_robot_bringup old_multiple --input_bag "$bag_path"
+    fi
     
     if [ $? -eq 0 ]; then
         echo "Successfully processed: $(basename "$bag_path")"
     else
         echo "Error processing: $(basename "$bag_path")"
     fi
-done
-# Now iterate through them
 done

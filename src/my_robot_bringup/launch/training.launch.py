@@ -60,7 +60,7 @@ def generate_launch_description():
         period=15.0,
         actions=[Node(
             package='my_robot_bringup',
-            executable='agro_gaus',  # You need to create this
+            executable='gaussian',  # You need to create this
             output='screen')]
 
     )
@@ -70,7 +70,7 @@ def generate_launch_description():
     with open(filepath, "r") as file:
         config = yaml.safe_load(file)
 
-        bag_dkr = config["BAG_DKR"]  # Example access
+        bag_dkr = config["RANDOM_WALK_BAG_DKR"]  # Example access
 
     base_dir = os.path.join(os.path.expanduser(
         '~'), 'ros_ws', 'ros_bag', bag_dkr)
@@ -81,7 +81,7 @@ def generate_launch_description():
     bag_record = ExecuteProcess(
         cmd=[
             'ros2', 'bag', 'record',
-            '/scan', '/scan_spoofed', '/tf', '/tf_static',
+            '/scan', '/tf', '/tf_static',
             '/odom', '/cmd_vel', '/clock',
             '-o', bag_output
         ],

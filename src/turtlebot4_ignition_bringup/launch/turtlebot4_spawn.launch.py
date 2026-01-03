@@ -58,6 +58,7 @@ for pose_element in ['x', 'y', 'z', 'yaw']:
 
 def generate_launch_description():
 
+    print("Turtlebot4 ignition bringup from ~/ros_ws/src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.py")
     # Directories
     pkg_turtlebot4_ignition_bringup = get_package_share_directory(
         'turtlebot4_ignition_bringup')
