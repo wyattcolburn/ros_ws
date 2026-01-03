@@ -41,96 +41,6 @@ diff src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py \
 
 ---
 
-## 🎲 Generating Training Data
-
-### Random Walk Expert Policy
-
-Random walks provide the expert behavior that the learning policy will imitate.
-```bash
-ros2 launch my_robot_bringup training.launch.py
-```
-
-### Configuration
-
-**Robot spawn timing:**
-```python
-period=15.0,  # 15 second delay before spawning random walk
-actions=[Node(
-    package='my_robot_bringup',
-    executable='gaussian',
-    output='screen')]
-```
-
-**Bag storage location:**  
-Defined in `config.yaml` under `RANDOM_WALK_BAG_DKR`
-
-**Recorded topics:**
-```python
-bag_record = ExecuteProcess(
-    cmd=[
-        'ros2', 'bag', 'record',
-        '/scan',        # LiDAR data
-        '/tf',          # Transform tree
-        '/tf_static',   # Static transforms
-        '/odom',        # Odometry
-        '/cmd_vel',     # Velocity commands
-        '/clock',       # Simulation time
-        '-o', bag_output
-    ],
-    output='screen'
-)
-```
-
----
-
-## 📊 Converting ROS Bags to Training Data
-
-### Processing Script
-
-Location: `~/ros_ws/src/my_robot_bringup/my_robot_bringup/multiple_seg.py`
-
-### Prerequisites
-
-Start the following nodes in separate terminals:
-```bash
-# Terminal 1: Start simulator
-ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py
-
-# Terminal 2: Start localization
-ros2 launch turtlebot4_navigation localization.launch.py \
-    map:=big_map_april_4.yaml \
-    use_sim_time:=true
-
-# Terminal 3: Start Nav2 (must use DWA, not custom controller)
-ros2 launch turtlebot4_navigation nav2.launch.py use_sim_time:=true
-
-# Terminal 4: Run processing script
-ros2 run my_robot_bringup multiple
-```
----
-
-
-**Worlds for TurleBot:** All worlds need exist within turtlebot4_ignition_bringup/worlds directory. There is a weird bug where only the present names
-work for live topics
-
-Metric values
-The metrics_files folder contains the 5 difficulty metrics calculated on the path in this order: distance to closest obstacle, average visibility, dispersion, characteristic dimension, and tortuosity
-
-## TurtleBot4 Setup Modifications
-
-### No Dock Spawning
-Modified `turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py` to remove charging dock spawn (not needed for navigation testing).
-
-See diff against original:
-```
-diff src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py \
-     /opt/ros/humble/share/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py
-
-
-```
-
----
-
 # Dataset Generation and Model Training Pipeline
 
 This guide walks through generating training data from random walks, training a neural network controller, and evaluating its performance.
@@ -913,21 +823,21 @@ world_num,trial_num,trial_result,local_goal_reached,num_lg,TRIAL_TIME,CMD_AVG_LI
 ### Key Features
 
 **Robustness:**
-- ✅ Automatic Gazebo cleanup between trials
-- ✅ Retry logic for AMCL/navigation failures
-- ✅ Per-model CSV isolation (prevents data mixing)
-- ✅ Graceful handling of missing scaler files
+-  Automatic Gazebo cleanup between trials
+-  Retry logic for AMCL/navigation failures
+-  Per-model CSV isolation (prevents data mixing)
+-  Graceful handling of missing scaler files
 
 **Flexibility:**
-- ✅ Test multiple models sequentially
-- ✅ Mix MLP and CNN architectures
-- ✅ Customize trial counts and delays
-- ✅ Resume from failures (CSV appends results)
+-  Test multiple models sequentially
+-  Mix MLP and CNN architectures
+-  Customize trial counts and delays
+-  Resume from failures (CSV appends results)
 
 **Deployment:**
-- ✅ Versioned model staging (preserves history)
-- ✅ Symlink-based "current model" switching
-- ✅ Automatic controller recompilation per architecture
+-  Versioned model staging (preserves history)
+-  Symlink-based "current model" switching
+-  Automatic controller recompilation per architecture
 
 ### Trial Result Handling
 
