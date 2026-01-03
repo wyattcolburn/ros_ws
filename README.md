@@ -10,6 +10,8 @@
 - **Keras/TensorFlow** - Neural network training
 - **ONNX** - Model deployment
 - **Gazebo Ignition** - Simulation environment
+- 
+Check out the [model repository](https://github.com/wyattcolburn/model) for more details on how to train the models
 
 Good luck. A lot of the work has been done already, just look for it. Contact me @wyattdcolburn@gmail.com for any assistance
 ---
