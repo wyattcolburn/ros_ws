@@ -736,19 +736,3 @@ CSV_FILES:
 ```bash
    python3 trial_summary.py results/my_experiment_results
 ```
-
----
-
-### Important Notes
-
-⚠️ **After editing `config.yaml`:**
-- No rebuild required (read at runtime)
-- Changes take effect immediately on next launch
-
-⚠️ **Path conventions:**
-- All relative paths resolve from `~/ros_ws/`
-- Use forward slashes `/` even on Windows (if applicable)
-
-⚠️ **Comments in YAML:**
-- Use `#` to disable entries
-- Keep commented entries as examples for future use
