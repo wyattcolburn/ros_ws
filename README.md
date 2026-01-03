@@ -736,3 +736,94 @@ CSV_FILES:
 ```bash
    python3 trial_summary.py results/my_experiment_results
 ```
+
+## Created Models Directory
+
+This directory contains all trained neural network controllers evaluated in this thesis. Each model represents a different training configuration, architecture, or dataset variation tested during development.
+
+**Location:** `~/ros_ws/created_models/`
+
+### Model Inventory
+```
+created_models/
+├── gauss_2_200_sym/         # MLP trained on 200k symmetric obstacle dataset
+├── gauss_2_asym_combo/      # MLP trained on combined asymmetric dataset
+├── cnn/                     # CNN trained on asymmetric obstacles
+├── cnn_sym/                 # CNN trained on symmetric obstacles
+├── readme_example_large/    # Large-scale MLP model (demonstration dataset)
+└── readme_example_model/    # Small MLP model (tutorial/quickstart)
+```
+
+### Model Naming Convention
+
+Models follow the pattern: `{architecture}_{dataset}_{obstacle_type}`
+
+- **Architecture:** `mlp` (Multi-Layer Perceptron) or `cnn` (Convolutional Neural Network)
+- **Dataset:** `gauss_2_200` (200k samples), `readme_example` (demo data)
+- **Obstacle Type:** `sym` (symmetric), `asym` (asymmetric/curvature-aware)
+
+## Odometry Path Visualization Tool
+
+A utility script for visualizing and comparing robot trajectories from multiple ROS2 bag files. Useful for verifying random walk quality, analyzing navigation patterns, and debugging data collection issues.
+
+**Location:** `~/ros_ws/odom_overlay.py`
+
+### Purpose
+
+Overlays `/odom` XY paths from one or more rosbag2 directories onto a single plot, allowing visual comparison of:
+- Random walk exploration coverage
+- Path diversity across multiple runs
+- Data collection quality (smooth vs. erratic movements)
+- Dataset characteristics before training
+
+### Usage
+```bash
+python3 odom_overlay.py  [options]
+```
+
+### Basic Examples
+
+**Single bag:**
+```bash
+python3 odom_overlay.py ros_bag/readme_example/2026-01-01_12-40-05_gaus
+```
+
+**Multiple bags (entire directory):**
+```bash
+python3 odom_overlay.py ros_bag/readme_example
+```
+
+**Normalized origins (all paths start at 0,0):**
+```bash
+python3 odom_overlay.py ros_bag/readme_example --normalize
+```
+
+**Save to file instead of displaying:**
+```bash
+python3 odom_overlay.py ros_bag/readme_example --out path_overlay.png
+```
+
+**Downsample for large bags (faster, less memory):**
+```bash
+python3 odom_overlay.py ros_bag/readme_example --downsample 10
+# Keeps 1 of every 10 odometry messages
+```
+
+### Command-Line Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `<root>` | *required* | Path to a single bag or directory containing multiple bags |
+| `--odom` | `/odom` | Topic name to read odometry from |
+| `--downsample N` | `1` | Sample rate reduction (1 = all points, 10 = every 10th point) |
+| `--normalize` | `False` | Shift all paths so they start at origin (0,0) |
+| `--out <file>` | *(show plot)* | Save to image file instead of displaying interactively |
+
+### Output Interpretation
+
+**Plot elements:**
+- **Colored lines:** Individual robot paths (one color per bag file)
+- **Circle (○):** Start position of each path
+- **Cross (×):** End position of each path
+- **Legend:** Bag file timestamps (if not too many)
+
