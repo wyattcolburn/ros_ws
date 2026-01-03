@@ -1,11 +1,122 @@
-# LFH Thesis
-Replacing DWA local controller with a neural network trained on hallucinated lidar
+# LFH Thesis: Neural Network Navigation Controller
 
+> Replacing DWA local controller with a neural network trained on hallucinated LiDAR data for autonomous robot navigation
 
+## 🛠️ Tech Stack
 
-## How It's Made:
+- **ROS 2 Humble** - Robot Operating System
+- **C++** - Controller implementation
+- **Python** - Data processing and training
+- **Keras/TensorFlow** - Neural network training
+- **ONNX** - Model deployment
+- **Gazebo Ignition** - Simulation environment
 
-**Tech used:** ROS2, C++, Python, Keras, ONNX,
+---
+
+## 📋 Table of Contents
+
+- [Setup Modifications](#setup-modifications)
+- [Creating Maps](#creating-maps)
+- [Generating Training Data](#generating-training-data)
+- [Converting ROS Bags](#converting-ros-bags-to-training-data)
+- [Dataset Information](#dataset-information)
+
+---
+
+## 🔧 Setup Modifications
+
+### Removed Dock Spawning
+
+The default TurtleBot4 simulation spawns with a charging dock. This has been removed as it's unnecessary for navigation experiments.
+
+**Modified file:** `turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py`
+
+<details>
+<summary>View changes</summary>
+```bash
+diff src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py \
+     /opt/ros/humble/share/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py
+```
+
+**Changes:**
+- Removed dock description import and launch inclusion
+- Removed dock spawn node
+- Removed dock positioning calculations
+- Removed `dock_name` parameters from ROS-Ignition bridge
+
+</details>
+
+---
+
+## 🎲 Generating Training Data
+
+### Random Walk Expert Policy
+
+Random walks provide the expert behavior that the learning policy will imitate.
+```bash
+ros2 launch my_robot_bringup training.launch.py
+```
+
+### Configuration
+
+**Robot spawn timing:**
+```python
+period=15.0,  # 15 second delay before spawning random walk
+actions=[Node(
+    package='my_robot_bringup',
+    executable='gaussian',
+    output='screen')]
+```
+
+**Bag storage location:**  
+Defined in `config.yaml` under `RANDOM_WALK_BAG_DKR`
+
+**Recorded topics:**
+```python
+bag_record = ExecuteProcess(
+    cmd=[
+        'ros2', 'bag', 'record',
+        '/scan',        # LiDAR data
+        '/tf',          # Transform tree
+        '/tf_static',   # Static transforms
+        '/odom',        # Odometry
+        '/cmd_vel',     # Velocity commands
+        '/clock',       # Simulation time
+        '-o', bag_output
+    ],
+    output='screen'
+)
+```
+
+---
+
+## 📊 Converting ROS Bags to Training Data
+
+### Processing Script
+
+Location: `~/ros_ws/src/my_robot_bringup/my_robot_bringup/multiple_seg.py`
+
+### Prerequisites
+
+Start the following nodes in separate terminals:
+```bash
+# Terminal 1: Start simulator
+ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py
+
+# Terminal 2: Start localization
+ros2 launch turtlebot4_navigation localization.launch.py \
+    map:=big_map_april_4.yaml \
+    use_sim_time:=true
+
+# Terminal 3: Start Nav2 (must use DWA, not custom controller)
+ros2 launch turtlebot4_navigation nav2.launch.py use_sim_time:=true
+
+# Terminal 4: Run processing script
+ros2 run my_robot_bringup multiple
+```
+---
+
+## Experimental Trials
 
 
 ## Important Commands:
@@ -25,13 +136,7 @@ ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "name:
 
 ```
 
-**Random walks:**
-```
-ros2 launch my_robot_bringup training.launch.py
-```
-This launch file starts the simulator but also calls the file undock_node: ~/ros_ws/src/my_robot_bringup/my_robot_bringup/undock_node.py
 
-This starts a rosbag and does random walk
 
 **Converting a rosbag to training data**
 
@@ -86,6 +191,44 @@ gauss_2_combined_raw: is currently trained with asymetric policy on the combinat
 
 gauss_2_combined_asy: Not sure what this is, I figure it is a the part1 and part2 combined trained in the same way that gauss_2_combined_raw is??
 
+## TurtleBot4 Setup Modifications
+
+### No Dock Spawning
+Modified `turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py` to remove charging dock spawn (not needed for navigation testing).
+
+See diff against original:
+```bash
+diff src/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py \
+     /opt/ros/humble/share/turtlebot4_ignition_bringup/launch/turtlebot4_spawn.launch.py
+
+
+```
+
+---
+
+## Example
+
+1) We will determine which random walk policy well will use on line 63 of training.launch.py (reference Random Walk Policy)
+2) In config.yaml, we will define RANDOM_WALK_BAG_DKR: as readme_example (this is where all the bags from the random walk policy will exist)
+3) We will build the package and execute ros2 launch my_robot_bringup training.launch.py
+4) You can use the python program: odom_counter.py to count the odometry count of your ros bags
+
+     ```
+   python3 odom_counter.py ros_bag/readme_example ``
+     ```
+5) We now want to create the dataset.
+
+   a) We first will edit the config.yaml. Make sure TRAINING_DKR matches you where you stored all your random walk bags (should have been defined as RANDOM_WALK_BAG_DKR in config.yaml)
+   b) If you want asymmetric obstacle placement, have the ASYM_FLAG be 1 in config.yaml
+   c) ros2 launch my_robot_bringup simple_bringup.launch.py && rviz2
+   d) set an initial position and then the script will create the dataset
+
+
+6) Use model repo:
+python3 neural_net.py ~/ros_ws/ros_bag/readme_example --single --large_dkr
+
+7) Move model into ~/ros_ws/created_models/readme_example_model
+8) Make appropiate edits to config.yaml
 
 
 
