@@ -762,11 +762,11 @@ Models follow the pattern: `{architecture}_{dataset}_{obstacle_type}`
 - **Dataset:** `gauss_2_200` (200k samples), `readme_example` (demo data)
 - **Obstacle Type:** `sym` (symmetric), `asym` (asymmetric/curvature-aware)
 
-## Odometry Path Visualization Tool
+## Training Data Overlay
 
 A utility script for visualizing and comparing robot trajectories from multiple ROS2 bag files. Useful for verifying random walk quality, analyzing navigation patterns, and debugging data collection issues.
 
-**Location:** `~/ros_ws/odom_overlay.py`
+**Location:** `~/ros_ws/training_paths_overlay.py`
 
 ### Purpose
 
@@ -778,34 +778,34 @@ Overlays `/odom` XY paths from one or more rosbag2 directories onto a single plo
 
 ### Usage
 ```bash
-python3 odom_overlay.py  [options]
+python3 training_path_overlay.py
 ```
 
 ### Basic Examples
 
 **Single bag:**
 ```bash
-python3 odom_overlay.py ros_bag/readme_example/2026-01-01_12-40-05_gaus
+python3 training_path_overlay.py ros_bag/readme_example/2026-01-01_12-40-05_gaus
 ```
 
 **Multiple bags (entire directory):**
 ```bash
-python3 odom_overlay.py ros_bag/readme_example
+python3 training_path_overlay.py ros_bag/readme_example
 ```
 
 **Normalized origins (all paths start at 0,0):**
 ```bash
-python3 odom_overlay.py ros_bag/readme_example --normalize
+python3 training_path_overlay.py ros_bag/readme_example --normalize
 ```
 
 **Save to file instead of displaying:**
 ```bash
-python3 odom_overlay.py ros_bag/readme_example --out path_overlay.png
+python3 training_path_overlay.py ros_bag/readme_example --out path_overlay.png
 ```
 
 **Downsample for large bags (faster, less memory):**
 ```bash
-python3 odom_overlay.py ros_bag/readme_example --downsample 10
+python3 training_path_overlay.py ros_bag/readme_example --downsample 10
 # Keeps 1 of every 10 odometry messages
 ```
 
