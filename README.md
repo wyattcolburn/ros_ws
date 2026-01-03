@@ -11,16 +11,7 @@
 - **ONNX** - Model deployment
 - **Gazebo Ignition** - Simulation environment
 
----
-
-## 📋 Table of Contents
-
-- [Setup Modifications](#setup-modifications)
-- [Creating Maps](#creating-maps)
-- [Generating Training Data](#generating-training-data)
-- [Converting ROS Bags](#converting-ros-bags-to-training-data)
-- [Dataset Information](#dataset-information)
-
+Good luck. A lot of the work has been done already, just look for it. Contact me @wyattdcolburn@gmail.com for any assistance
 ---
 
 ## 🔧 Setup Modifications
