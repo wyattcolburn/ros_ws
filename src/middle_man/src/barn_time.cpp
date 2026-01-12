@@ -8,7 +8,9 @@
 #endif
 #include "raytracing.hpp"
 #include "rclcpp/rclcpp.hpp"
-
+#include <chrono>
+#include <ctime>
+#include <iostream>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -114,94 +116,234 @@ class obsValid : public rclcpp::Node {
     // going to hold all the local goals in map, so that we can apply amcl transform before
     // passing local goal to network that has been affected by drfit
     std::vector<geometry_msgs::msg::PoseStamped> map_poses_;
-
     void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
+        // Use high_resolution_clock for accurate sub-millisecond timing
+        auto t_start = std::chrono::high_resolution_clock::now();
 
-        if (path_flag == false) {
-            // std::cout << "Have yet to receive a path yet" << std::endl;
+        if (!path_flag)
             return;
-        }
-        processOdomLidar(packetin);
-        // std::cout << "**************** yaw value : " << yaw << std::endl;
 
+        // === Time each section ===
+        auto t0 = std::chrono::high_resolution_clock::now();
+        processOdomLidar(packetin);
+        auto t1 = std::chrono::high_resolution_clock::now();
+
+        // TF transform setup
         geometry_msgs::msg::PoseStamped odom_pose;
         odom_pose.header.frame_id = "odom";
-        odom_pose.header.stamp = rclcpp::Time(0); // latest available transform
+        odom_pose.header.stamp = rclcpp::Time(0);
         odom_pose.pose.position.x = odom_x;
         odom_pose.pose.position.y = odom_y;
         odom_pose.pose.position.z = 0.0;
 
-        // If you have yaw:
         tf2::Quaternion q;
-        q.setRPY(0, 0, yaw); // only yaw
+        q.setRPY(0, 0, yaw);
         odom_pose.pose.orientation = tf2::toMsg(q);
 
         geometry_msgs::msg::PoseStamped map_pose;
         try {
             map_pose = tf_buffer_->transform(odom_pose, "map");
-
-            // Transformed output
             map_x = map_pose.pose.position.x;
             map_y = map_pose.pose.position.y;
 
-            // Extract yaw if needed
             tf2::Quaternion q_map;
             tf2::fromMsg(map_pose.pose.orientation, q_map);
-            double roll, pitch, yaw;
-            tf2::Matrix3x3(q_map).getRPY(roll, pitch, yaw);
-            map_yaw = yaw;
-
+            double roll, pitch, yaw_tmp;
+            tf2::Matrix3x3(q_map).getRPY(roll, pitch, yaw_tmp);
+            map_yaw = yaw_tmp;
         } catch (const tf2::TransformException &ex) {
-            RCLCPP_ERROR(rclcpp::get_logger("raytracing"), "Failed to transform odom pose: %s", ex.what());
+            RCLCPP_ERROR(this->get_logger(), "TF failed: %s", ex.what());
             return;
         }
+        auto t2 = std::chrono::high_resolution_clock::now();
 
-        // RCLCPP_INFO(this->get_logger(), "odom (%.2f, %.2f) -> map (%.2f, %.2f) yaw %.2f), map_yaw %.2f", odom_x,
-        // odom_y,
-        //             map_x, map_y, yaw, map_yaw);
+        // Local goal rebuild (occasional)
         if (rebuild_local_goal_counter >= rebuild_local_goal_limit) {
-
             rebuild_local_goals();
             rebuild_local_goal_counter = 0;
-        } else
+        } else {
             rebuild_local_goal_counter++;
+        }
+        auto t3 = std::chrono::high_resolution_clock::now();
 
-        local_goal_manager_.updateLocalGoal(odom_x, odom_y); // local goals have already been converted to odom
+        // Update goals and obstacles
+        local_goal_manager_.updateLocalGoal(odom_x, odom_y);
         obstacle_manager_.update_obstacles_sliding(local_goal_manager_);
+        auto t4 = std::chrono::high_resolution_clock::now();
 
-        auto local_goal_markers = make_local_goal_markers();
-        local_goal_marker_pub_->publish(local_goal_markers);
+        // Get obstacles for raytracing
         int num_obs;
         auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
-        auto marker_array = make_markers(obs_list, static_cast<size_t>(num_obs));
-        marker_pub_->publish(marker_array);
 
+        // RAYTRACING - Expected bottleneck
         map_compute_lidar_distances(map_x, map_y, map_yaw, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges,
                                     *tf_buffer_);
-        processPacketOut();
+        auto t5 = std::chrono::high_resolution_clock::now();
 
+        // Process output packet
+        processPacketOut();
+        auto t6 = std::chrono::high_resolution_clock::now();
+
+        // Message allocation and copy
         int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
         std_msgs::msg::Float64MultiArray msg;
         msg.data.resize(packetOut_size);
-        // RCLCPP_INFO(this->get_logger(), "SIZE OF packetOUt %d", packetOut_size);
 
-        // RCLCPP_INFO(this->get_logger(), "Size of neural net output %zu", msg.data.size());
-        // Test with a simpler message
-        if (!packetOut_publisher_) {
-            RCLCPP_ERROR(this->get_logger(), "Publisher is null!");
-        }
-        //
         for (size_t i = 0; i < packetOut_size; ++i) {
             msg.data[i] = static_cast<double>(packetOut[i]);
         }
-        // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
-        // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL VEC SIZE, and current position %zu, %d",
-        // local_goal_manager_.data_vector.size(), local_goal_manager_.current_local_goal_counter);
-        // RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
+        auto t7 = std::chrono::high_resolution_clock::now();
+
+        // Publish
         packetOut_publisher_->publish(msg);
-        // reached_goal(odom_x, odom_y);
-        return;
+        auto t8 = std::chrono::high_resolution_clock::now();
+
+        // === Calculate durations in milliseconds ===
+        auto total_duration = std::chrono::duration<double, std::milli>(t8 - t_start).count();
+        auto odom_time = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        auto tf_time = std::chrono::duration<double, std::milli>(t2 - t1).count();
+        auto rebuild_time = std::chrono::duration<double, std::milli>(t3 - t2).count();
+        auto goals_time = std::chrono::duration<double, std::milli>(t4 - t3).count();
+        auto raytrace_time = std::chrono::duration<double, std::milli>(t5 - t4).count();
+        auto process_time = std::chrono::duration<double, std::milli>(t6 - t5).count();
+        auto copy_time = std::chrono::duration<double, std::milli>(t7 - t6).count();
+        auto publish_time = std::chrono::duration<double, std::milli>(t8 - t7).count();
+
+        // Keep running statistics
+        static double max_total = 0.0;
+        static double max_raytrace = 0.0;
+        static int callback_count = 0;
+        static double sum_total = 0.0;
+        static double sum_raytrace = 0.0;
+
+        callback_count++;
+        sum_total += total_duration;
+        sum_raytrace += raytrace_time;
+        max_total = std::max(max_total, total_duration);
+        max_raytrace = std::max(max_raytrace, raytrace_time);
+
+        // Log every 2 seconds (throttled)
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                             "\n=== Callback Timing (ms) ===\n"
+                             "  Odom parse:   %6.2f\n"
+                             "  TF transform: %6.2f\n"
+                             "  Goal rebuild: %6.2f\n"
+                             "  Goals update: %6.2f\n"
+                             "  RAYTRACING:   %6.2f  ← BOTTLENECK?\n"
+                             "  Process out:  %6.2f\n"
+                             "  Msg copy:     %6.2f\n"
+                             "  Publish:      %6.2f\n"
+                             "  ─────────────────────\n"
+                             "  TOTAL:        %6.2f / 50.0ms budget (20Hz)\n"
+                             "  TOTAL:        %6.2f / 20.0ms budget (50Hz)\n"
+                             "\n"
+                             "Stats (n=%d):\n"
+                             "  Avg total:    %6.2f ms\n"
+                             "  Max total:    %6.2f ms\n"
+                             "  Avg raytrace: %6.2f ms\n"
+                             "  Max raytrace: %6.2f ms\n"
+                             "%s",
+                             odom_time, tf_time, rebuild_time, goals_time, raytrace_time, process_time, copy_time,
+                             publish_time, total_duration, total_duration, callback_count, sum_total / callback_count,
+                             max_total, sum_raytrace / callback_count, max_raytrace,
+                             (total_duration > 50.0) ? "⚠️  OVERRUN for 20Hz!" : "✓ OK for 20Hz");
     }
+    // void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
+    //     auto start = std::chrono::system_clock::now();
+    //     if (path_flag == false) {
+    //         // std::cout << "Have yet to receive a path yet" << std::endl;
+    //         return;
+    //     }
+    //     processOdomLidar(packetin);
+    //     // std::cout << "**************** yaw value : " << yaw << std::endl;
+    //
+    //     geometry_msgs::msg::PoseStamped odom_pose;
+    //     odom_pose.header.frame_id = "odom";
+    //     odom_pose.header.stamp = rclcpp::Time(0); // latest available transform
+    //     odom_pose.pose.position.x = odom_x;
+    //     odom_pose.pose.position.y = odom_y;
+    //     odom_pose.pose.position.z = 0.0;
+    //
+    //     // If you have yaw:
+    //     tf2::Quaternion q;
+    //     q.setRPY(0, 0, yaw); // only yaw
+    //     odom_pose.pose.orientation = tf2::toMsg(q);
+    //
+    //     geometry_msgs::msg::PoseStamped map_pose;
+    //     try {
+    //         map_pose = tf_buffer_->transform(odom_pose, "map");
+    //
+    //         // Transformed output
+    //         map_x = map_pose.pose.position.x;
+    //         map_y = map_pose.pose.position.y;
+    //
+    //         // Extract yaw if needed
+    //         tf2::Quaternion q_map;
+    //         tf2::fromMsg(map_pose.pose.orientation, q_map);
+    //         double roll, pitch, yaw;
+    //         tf2::Matrix3x3(q_map).getRPY(roll, pitch, yaw);
+    //         map_yaw = yaw;
+    //
+    //     } catch (const tf2::TransformException &ex) {
+    //         RCLCPP_ERROR(rclcpp::get_logger("raytracing"), "Failed to transform odom pose: %s", ex.what());
+    //         return;
+    //     }
+    //
+    //     // RCLCPP_INFO(this->get_logger(), "odom (%.2f, %.2f) -> map (%.2f, %.2f) yaw %.2f), map_yaw %.2f", odom_x,
+    //     // odom_y,
+    //     //             map_x, map_y, yaw, map_yaw);
+    //     if (rebuild_local_goal_counter >= rebuild_local_goal_limit) {
+    //
+    //         rebuild_local_goals();
+    //         rebuild_local_goal_counter = 0;
+    //     } else
+    //         rebuild_local_goal_counter++;
+    //
+    //     local_goal_manager_.updateLocalGoal(odom_x, odom_y); // local goals have already been converted to odom
+    //     obstacle_manager_.update_obstacles_sliding(local_goal_manager_);
+    //
+    //     // auto local_goal_markers = make_local_goal_markers();
+    //     // local_goal_marker_pub_->publish(local_goal_markers);
+    //     int num_obs;
+    //     auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
+    //     // auto marker_array = make_markers(obs_list, static_cast<size_t>(num_obs));
+    //     // marker_pub_->publish(marker_array);
+    //
+    //     map_compute_lidar_distances(map_x, map_y, map_yaw, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges,
+    //                                 *tf_buffer_);
+    //     processPacketOut();
+    //
+    //     int packetOut_size = sizeof(packetOut) / sizeof(packetOut[0]);
+    //     std_msgs::msg::Float64MultiArray msg;
+    //     msg.data.resize(packetOut_size);
+    //     // RCLCPP_INFO(this->get_logger(), "SIZE OF packetOUt %d", packetOut_size);
+    //
+    //     // RCLCPP_INFO(this->get_logger(), "Size of neural net output %zu", msg.data.size());
+    //     // Test with a simpler message
+    //     if (!packetOut_publisher_) {
+    //         RCLCPP_ERROR(this->get_logger(), "Publisher is null!");
+    //     }
+    //     //
+    //     for (size_t i = 0; i < packetOut_size; ++i) {
+    //         msg.data[i] = static_cast<double>(packetOut[i]);
+    //     }
+    //     // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL DATA TO NN %.3f %.3f", msg.data[2], msg.data[3]);
+    //     // RCLCPP_INFO(this->get_logger(), "LOCAL GOAL VEC SIZE, and current position %zu, %d",
+    //     // local_goal_manager_.data_vector.size(), local_goal_manager_.current_local_goal_counter);
+    //     // RCLCPP_INFO(this->get_logger(), "HAVE SUCCESSFULLY COPIED THE MESSAGE");
+    //     packetOut_publisher_->publish(msg);
+    //
+    //     auto end = std::chrono::system_clock::now();
+    //
+    //     std::chrono::duration<double> elapsed_seconds = end - start;
+    //     std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+    //
+    //     std::cout << "finished computation at " << std::ctime(&end_time) << "elapsed time: " <<
+    //     elapsed_seconds.count()
+    //               << "s" << std::endl;
+    //     // reached_goal(odom_x, odom_y);
+    //     return;
+    // }
 
     void processPacketOut() {
         packetOut[0] = current_cmd_v;
