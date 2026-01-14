@@ -46,13 +46,13 @@ class obsValid : public rclcpp::Node {
             throw;
         }
         data_subscriber_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
-            "/packetOut", 10, std::bind(&obsValid::data_callback, this, std::placeholders::_1));
+            "/packetOut", 2, std::bind(&obsValid::data_callback, this, std::placeholders::_1));
 
         path_sub_ = this->create_subscription<nav_msgs::msg::Path>(
             "/plan_barn", 10, std::bind(&obsValid::path_callback_map, this, std::placeholders::_1));
 
         scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-            "/scan", 10, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
+            "/scan", 2, std::bind(&obsValid::scan_callback, this, std::placeholders::_1));
 
         marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array", 10);
         // Add this to your constructor
@@ -229,13 +229,12 @@ class obsValid : public rclcpp::Node {
                              "  TF transform: %6.2f\n"
                              "  Goal rebuild: %6.2f\n"
                              "  Goals update: %6.2f\n"
-                             "  RAYTRACING:   %6.2f  ← BOTTLENECK?\n"
+                             "  RAYTRACING:   %6.2f \n"
                              "  Process out:  %6.2f\n"
                              "  Msg copy:     %6.2f\n"
                              "  Publish:      %6.2f\n"
                              "  ─────────────────────\n"
                              "  TOTAL:        %6.2f / 50.0ms budget (20Hz)\n"
-                             "  TOTAL:        %6.2f / 20.0ms budget (50Hz)\n"
                              "\n"
                              "Stats (n=%d):\n"
                              "  Avg total:    %6.2f ms\n"
@@ -244,9 +243,9 @@ class obsValid : public rclcpp::Node {
                              "  Max raytrace: %6.2f ms\n"
                              "%s",
                              odom_time, tf_time, rebuild_time, goals_time, raytrace_time, process_time, copy_time,
-                             publish_time, total_duration, total_duration, callback_count, sum_total / callback_count,
-                             max_total, sum_raytrace / callback_count, max_raytrace,
-                             (total_duration > 50.0) ? "⚠️  OVERRUN for 20Hz!" : "✓ OK for 20Hz");
+                             publish_time, total_duration, callback_count, sum_total / callback_count, max_total,
+                             sum_raytrace / callback_count, max_raytrace,
+                             (total_duration > 100.0) ? "OVERRUN for 10Hz!" : "OK for 10Hz");
     }
     // void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
     //     auto start = std::chrono::system_clock::now();

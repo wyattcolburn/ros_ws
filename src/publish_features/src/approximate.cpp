@@ -46,7 +46,7 @@ class dataNode : public rclcpp::Node {
         // Create a publisher that publishes std_msgs::msg::String messages.
         publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("packetOut", qos);
 
-        uint32_t queue_size = 10;
+        uint32_t queue_size = 2;
 
         typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::LaserScan, nav_msgs::msg::Odometry>
             MySyncPolicy;
@@ -146,7 +146,6 @@ class dataNode : public rclcpp::Node {
 
     message_filters::Subscriber<sensor_msgs::msg::LaserScan> LaserScan_sub;
 };
-
 int main(int argc, char *argv[]) {
     // Initialize the ROS 2 system.
     rclcpp::init(argc, argv);

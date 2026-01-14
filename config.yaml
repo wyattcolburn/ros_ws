@@ -4,7 +4,7 @@ RADIUS: 0.4
 CSV_FILES:
 # - readme_example/baseline.csv
 # - poc_readme/baseline.csv
-- best_model_2026_validation/baseline.csv
+- jan_13/baseline.csv
 MODEL_PATHS: 
 
 # - created_models/gauss_2_200_sym     # or an absolute dir path
