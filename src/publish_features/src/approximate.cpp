@@ -39,7 +39,7 @@ class dataNode : public rclcpp::Node {
     dataNode() : Node("data_node") {
         // Create a subscriber to the /odom topic.
         // The message type is nav_msgs::msg::Odometry.
-        rclcpp::QoS qos = rclcpp::QoS(10);
+        rclcpp::QoS qos = rclcpp::QoS(1);
         Odom_sub.subscribe(this, "/odom", qos.get_rmw_qos_profile());
         LaserScan_sub.subscribe(this, "/scan", qos.get_rmw_qos_profile());
 
@@ -81,7 +81,6 @@ class dataNode : public rclcpp::Node {
             msg.data[i] = packetOut[i];
         }
         // RCLCPP_INFO(this->get_logger(), "Publishing synced data");
-        std::cout << "packet Out index 4    : " << msg.data[4] << std::endl;
 
         publisher_->publish(msg);
     }
