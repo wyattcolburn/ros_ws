@@ -164,6 +164,15 @@ class obsValid : public rclcpp::Node {
         } else {
             rebuild_local_goal_counter++;
         }
+
+        auto visual_counter_start = std::chrono::high_resolution_clock::now();
+        auto local_goal_markers = make_local_goal_markers();
+        local_goal_marker_pub_->publish(local_goal_markers);
+        int num_obs;
+        auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
+        auto marker_array = make_markers(obs_list, static_cast<size_t>(num_obs));
+        marker_pub_->publish(marker_array);
+        auto visual_counter_end = std::chrono::high_resolution_clock::now();
         auto t3 = std::chrono::high_resolution_clock::now();
 
         // Update goals and obstacles
@@ -172,8 +181,8 @@ class obsValid : public rclcpp::Node {
         auto t4 = std::chrono::high_resolution_clock::now();
 
         // Get obstacles for raytracing
-        int num_obs;
-        auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
+        // int num_obs;
+        // auto obs_list = obstacle_manager_.get_active_obstacles(num_obs);
 
         // RAYTRACING - Expected bottleneck
         map_compute_lidar_distances(map_x, map_y, map_yaw, LIDAR_COUNT, obstacle_manager_, hall_lidar_ranges,
@@ -208,7 +217,7 @@ class obsValid : public rclcpp::Node {
         auto process_time = std::chrono::duration<double, std::milli>(t6 - t5).count();
         auto copy_time = std::chrono::duration<double, std::milli>(t7 - t6).count();
         auto publish_time = std::chrono::duration<double, std::milli>(t8 - t7).count();
-
+        auto visual_time = std::chrono::duration<double, std::milli>(visual_counter_end - visual_counter_start).count();
         // Keep running statistics
         static double max_total = 0.0;
         static double max_raytrace = 0.0;
@@ -230,6 +239,7 @@ class obsValid : public rclcpp::Node {
                              "  Goal rebuild: %6.2f\n"
                              "  Goals update: %6.2f\n"
                              "  RAYTRACING:   %6.2f \n"
+                             "  VISUALIZATION:   %6.2f \n"
                              "  Process out:  %6.2f\n"
                              "  Msg copy:     %6.2f\n"
                              "  Publish:      %6.2f\n"
@@ -242,9 +252,9 @@ class obsValid : public rclcpp::Node {
                              "  Avg raytrace: %6.2f ms\n"
                              "  Max raytrace: %6.2f ms\n"
                              "%s",
-                             odom_time, tf_time, rebuild_time, goals_time, raytrace_time, process_time, copy_time,
-                             publish_time, total_duration, callback_count, sum_total / callback_count, max_total,
-                             sum_raytrace / callback_count, max_raytrace,
+                             odom_time, tf_time, rebuild_time, goals_time, raytrace_time, visual_time, process_time,
+                             copy_time, publish_time, total_duration, callback_count, sum_total / callback_count,
+                             max_total, sum_raytrace / callback_count, max_raytrace,
                              (total_duration > 100.0) ? "OVERRUN for 10Hz!" : "OK for 10Hz");
     }
     // void data_callback(const std_msgs::msg::Float64MultiArray &packetin) {
