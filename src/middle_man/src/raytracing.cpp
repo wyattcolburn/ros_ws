@@ -30,7 +30,7 @@ void map_compute_lidar_distances(double map_origin_x, double map_origin_y, doubl
 
     int num_obstacles;
     const Obstacle *active_obstacles = local_manager_.get_active_obstacles(num_obstacles);
-
+    std::cout << "num of obstacles : " << num_obstacles << std::endl;
     Obstacle map_obs_array[num_obstacles];
     for (int obs_counter = 0; obs_counter < num_obstacles; obs_counter++) {
         // Create the point to transform

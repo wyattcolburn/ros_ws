@@ -234,7 +234,7 @@ class obsValid : public rclcpp::Node {
                              "  Msg copy:     %6.2f\n"
                              "  Publish:      %6.2f\n"
                              "  ─────────────────────\n"
-                             "  TOTAL:        %6.2f / 50.0ms budget (20Hz)\n"
+                             "  TOTAL:        %6.2f / 100.0ms budget (20Hz)\n"
                              "\n"
                              "Stats (n=%d):\n"
                              "  Avg total:    %6.2f ms\n"
